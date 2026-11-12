@@ -26,7 +26,7 @@ export default function Flyer() {
         <Text style={styles.desc}>
           {event.answers?.vibe} vibe, hosted with Muse. {event.settings?.reasons?.guestCount}
         </Text>
-        <Pressable style={styles.manage} onPress={() => router.push(`/(tabs)/events/${eventId}/manage`)}>
+        <Pressable style={styles.manage} onPress={() => router.push(`/events/${eventId}/manage`)}>
           <Text style={styles.manageText}>Manage</Text>
         </Pressable>
       </View>

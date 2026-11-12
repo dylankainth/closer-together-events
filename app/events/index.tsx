@@ -1,6 +1,7 @@
 import React from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
@@ -36,6 +37,9 @@ export default function EventsHome() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 120 }}>
       <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        </Pressable>
         <Text style={styles.greeting}>Hi {me?.name.split(" ")[0] ?? "there"}</Text>
         <MuseBadge live={false} />
         <ViewerSwitcher />

@@ -18,7 +18,7 @@ export interface EventCardData {
 
 export function EventCard({ event }: { event: EventCardData }) {
   return (
-    <Pressable style={styles.card} onPress={() => router.push(`/(tabs)/events/${event.eventId}/flyer`)}>
+    <Pressable style={styles.card} onPress={() => router.push(`/events/${event.eventId}/flyer`)}>
       {event.poster?.url ? (
         <Image source={{ uri: event.poster.url }} style={styles.poster} resizeMode="cover" />
       ) : (

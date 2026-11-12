@@ -39,7 +39,7 @@ export default function ExternalRsvp() {
         <View style={styles.afterCard}>
           <Text style={styles.afterTitle}>Get your own Muse</Text>
           <Text style={styles.afterBody}>Muse finds events worth going to, with a reason.</Text>
-          <Pressable style={styles.cta} onPress={() => router.push("/(tabs)/setup")}>
+          <Pressable style={styles.cta} onPress={() => router.push("/setup")}>
             <Text style={styles.ctaText}>Continue with Facebook</Text>
           </Pressable>
         </View>

@@ -18,7 +18,7 @@ export default function Setup() {
         <Text style={styles.item}>• Tells you why an event is worth it, honestly</Text>
         <Text style={styles.item}>• Never shares your private details without checking</Text>
       </View>
-      <Pressable style={styles.cta} onPress={() => router.push("/(tabs)/events")}>
+      <Pressable style={styles.cta} onPress={() => router.push("/events")}>
         <Text style={styles.ctaText}>Continue with Facebook (demo)</Text>
       </Pressable>
     </View>

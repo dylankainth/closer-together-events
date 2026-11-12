@@ -36,7 +36,7 @@ export default function Planning() {
 
   const onApprove = async () => {
     await approve({ eventId });
-    router.replace({ pathname: `/(tabs)/events/${eventId}/flyer` });
+    router.replace(`/events/${eventId}/flyer`);
   };
 
   const send = () => {

@@ -45,7 +45,7 @@ export default function Manage() {
     try {
       const candidateIds = (event.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
       await sendEvent({ eventId, candidateIds });
-      router.push(`/(tabs)/events/${eventId}/transcript`);
+      router.push(`/events/${eventId}/transcript`);
     } finally {
       setSending(false);
     }
@@ -95,7 +95,7 @@ export default function Manage() {
           <Text style={styles.sendBtnText}>{sending ? "Sending…" : "Send"}</Text>
         </Pressable>
       ) : (
-        <Pressable style={styles.sendBtn} onPress={() => router.push(`/(tabs)/events/${eventId}/transcript`)}>
+        <Pressable style={styles.sendBtn} onPress={() => router.push(`/events/${eventId}/transcript`)}>
           <Text style={styles.sendBtnText}>View live transcript</Text>
         </Pressable>
       )}
