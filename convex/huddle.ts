@@ -33,7 +33,7 @@ export function decideOffline(candidate: Persona, slotId: string, topics: string
   return { verdict, reasons: top, text };
 }
 
-async function makeReply(peer: Persona, eventTitle: string, slotId: string, topics: string[], budget: CallBudget) {
+async function makeReply(peer: Persona, eventId: string, eventTitle: string, slotId: string, topics: string[], budget: CallBudget) {
   const available = peer.availability.includes(slotId);
   const shared = peer.interests.filter((i) => topics.includes(i));
   const offline = () => {
@@ -60,7 +60,7 @@ async function makeReply(peer: Persona, eventTitle: string, slotId: string, topi
     fallback: offline,
   });
   // `available` is code-verified, never taken from the model.
-  return { raw: { ...r.data, available, event_id: "", from_muse: `muse_${peer.id}`, approved_fields_only: true }, source: r.source };
+  return { raw: { ...r.data, available, event_id: eventId, from_muse: `muse_${peer.id}`, approved_fields_only: true }, source: r.source };
 }
 
 async function decide(candidate: Persona, slotId: string, topics: string[], replies: { p: Persona; r: MuseReply }[], budget: CallBudget): Promise<Nudge> {
@@ -114,7 +114,7 @@ export const runHuddle = internalAction({
     const replyFor = (p: Persona) => {
       if (!cache.has(p.id)) {
         cache.set(p.id, (async () => {
-          const { raw, source } = await makeReply(p, event.title, event.slotId, topics, budget);
+          const { raw, source } = await makeReply(p, event.eventId, event.title, event.slotId, topics, budget);
           const guard = await guardOutgoing(raw, p, args.codeCheck, budget);
           return { guard, source };
         })());

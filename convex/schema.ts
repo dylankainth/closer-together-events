@@ -153,6 +153,9 @@ export default defineSchema({
       v.literal("cant"),
     ),
     nudge: v.optional(nudge),
+    // Q1 (ballot, agreed 2026-11-12): one-tap post-event "how was it?" — the signal that tells
+    // Muse who/what to suggest next time (events.listDiscoverable reads this).
+    feedback: v.optional(v.union(v.literal("fun"), v.literal("meh"), v.literal("skip"))),
   })
     .index("by_eventId", ["eventId"])
     .index("by_event_persona", ["eventId", "personaId"]),
