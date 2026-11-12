@@ -42,7 +42,7 @@ export default function Settings() {
 
       <Card>
         <Text style={styles.sectionTitle}>Never share</Text>
-        {data.neverShare.map((t) => <Text key={t} style={styles.topic}>• {t}</Text>)}
+        {data.neverShare.map((t: string) => <Text key={t} style={styles.topic}>• {t}</Text>)}
         <View style={styles.addRow}>
           <TextInput style={styles.input} placeholder="add topic" value={newTopic} onChangeText={setNewTopic} onSubmitEditing={addTopic} />
           <Pressable onPress={addTopic}><Text style={{ color: colors.museAccent, fontWeight: "700" }}>Add</Text></Pressable>
