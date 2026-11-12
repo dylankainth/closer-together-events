@@ -1,20 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, put, useViewer, StateResp } from "@/lib/client";
+import { Skeleton, Switch, useToast } from "@/components/ui";
 
 export default function Settings() {
   const { as, ready } = useViewer();
   const [st, setSt] = useState<StateResp | null>(null);
+  const toast = useToast();
   const [topic, setTopic] = useState("");
   const load = () => api<StateResp>(`/api/state?as=${as}`).then(setSt);
   useEffect(() => { if (ready) load(); }, [ready, as]); // eslint-disable-line react-hooks/exhaustive-deps
   const v = st?.viewer;
   if (as === "anon") return <div className="p-4 text-sm text-fb-sub">No Muse yet. <a className="text-fb-blue" href="/setup">Set one up</a>.</div>;
-  if (!v) return <div className="p-6 text-center text-sm text-fb-sub">Loading…</div>;
-  const set = async (k: string, val: boolean) => { await put("/api/settings", { as, settings: { [k]: val } }); load(); };
-  const save = async (neverShare: string[]) => { await put("/api/settings", { as, neverShare }); load(); };
+  if (!v) return <div className="space-y-3 p-4" role="status"><Skeleton className="h-40" /><Skeleton className="h-32" /></div>;
+  const set = async (k: string, val: boolean) => { await put("/api/settings", { as, settings: { [k]: val } }); toast("Saved"); load(); };
+  const save = async (neverShare: string[]) => { await put("/api/settings", { as, neverShare }); toast("Never-share list updated"); load(); };
   const Row = ({ k, label, locked }: { k: string; label: string; locked?: boolean }) => (
-    <label className="flex items-center justify-between py-2 text-sm"><span>{label}{locked && <span className="ml-1 text-xs text-fb-sub">(always on)</span>}</span><input type="checkbox" className="h-5 w-5" checked={!!v.settings[k]} disabled={locked} onChange={(e) => set(k, e.target.checked)} /></label>
+    <div className="flex items-center justify-between gap-3 py-2.5 text-sm"><span>{label}{locked && <span className="ml-1 text-xs text-fb-sub">(always asks)</span>}</span><Switch label={label} checked={!!v.settings[k]} disabled={locked} onChange={(x) => set(k, x)} /></div>
   );
   return (
     <div className="space-y-3 p-4">

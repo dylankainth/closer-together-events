@@ -126,7 +126,7 @@ export async function rerank(
   return ordered.slice(0, CONFIG.poolSize).map((e, idx) => {
     const i = byId.get(e.id)!;
     return {
-      personaId: i.x.p.id, name: i.x.p.name, score: +i.x.score.toFixed(3), tie: +i.x.tie.toFixed(2), topic: +i.x.topic.toFixed(2),
+      personaId: i.x.p.id, name: i.x.p.name, initials: i.x.p.initials, color: i.x.p.color, score: +i.x.score.toFixed(3), tie: +i.x.tie.toFixed(2), topic: +i.x.topic.toFixed(2),
       reason: e.reason, available: i.available, hop: i.x.p.hop, via: i.x.p.via,
       selected: settings.mode === "auto_invite" ? idx < settings.maxAutoInvites : idx < Math.min(cap, settings.quota || cap),
     };

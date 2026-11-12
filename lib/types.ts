@@ -42,6 +42,8 @@ export interface AudienceQuery { tie: Tie; topics: string[]; raw: string }
 export interface ShortlistItem {
   personaId: string;
   name: string;
+  initials: string;
+  color: string;
   score: number;
   tie: number;
   topic: number;

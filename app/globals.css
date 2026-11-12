@@ -9,3 +9,12 @@ body { background: #e4e6eb; color: #1c1e21; font-family: -apple-system, BlinkMac
 .card { @apply rounded-xl bg-white shadow-sm border border-fb-line; }
 .chip { @apply rounded-full border border-fb-line bg-white px-3.5 py-1.5 text-sm; }
 .chip-on { @apply border-muse-500 bg-muse-100 text-muse-600 font-semibold; }
+
+:focus-visible { outline: 2px solid #7C3AED; outline-offset: 2px; border-radius: 8px; }
+.btn { min-height: 44px; }
+.skeleton { @apply animate-pulse rounded-lg bg-fb-line/70; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .28s ease-out both; }
+@keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+.sheet { animation: sheet .22s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .rise, .sheet { animation: none; } }
