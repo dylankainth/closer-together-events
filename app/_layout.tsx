@@ -37,7 +37,6 @@ export default function RootLayout() {
       <Stack screenOptions={{ contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="events" options={{ headerShown: false }} />
-        <Stack.Screen name="settings/index" options={{ title: "Settings", headerTintColor: colors.text }} />
         <Stack.Screen name="setup/index" options={{ title: "Set up Muse", headerTintColor: colors.text }} />
         <Stack.Screen name="new-event" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="rsvp/[eventId]/external" options={{ title: "RSVP" }} />

@@ -496,3 +496,22 @@ Likely Q&A: why Muse is essential, how wrong plans and leaks are prevented, how 
 - The idea sketch (Excalidraw, freehand), read from a rendered image. Some handwriting may be misread.
 - The Closer Together hackathon game plan (attachment), including the team direction, the brief, the research check and the Marketplace incident write-up.
 - Your decisions in this conversation, tagged **[Decided]**.
+
+## 16. Backlog: deferred UI (2026-11-12)
+
+Pulled out of the live app so we can wire the Menu profile row to real login/logout + the demo-
+persona switcher instead. Not deleted — the Convex functions (`convex/settings.ts`:
+`getUserSettings`, `updateUserSettings`, `updateNeverShare`, `approveProfile`) still exist and
+work; only the screen (`app/settings/index.tsx`, removed) was in the way.
+
+**What it covered, to rebuild later, properly integrated with the account sheet rather than as a
+separate screen:**
+- `talkToMuses` / `nudgesOn` toggles (per-persona Muse permissions).
+- Read-only "always ask before" rows (RSVP, location) — these are forced `true` server-side per
+  claude.md §5.3, never actually editable.
+- "Never share" topic list with an add-a-topic input (feeds `lib/privacy.ts`'s `codeCheck`).
+- The event-safe profile summary (interests, social style) + a one-time "approve this summary"
+  action (`profileApproved`), per claude.md §5.3's event-safe-profile privacy layer.
+
+Where this should resurface: likely inside `components/AccountSheet.tsx`, below the login/logout
+section, scoped to whichever persona is actually signed in — not a standalone tab/route.

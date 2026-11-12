@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
+import { AccountSheet } from "@/components/AccountSheet";
 import { colors, radius, spacing } from "@/theme/tokens";
 
 // Clone of the real Facebook app's Menu screen (reference: d73aec4f-34d7-459d-8e39-e3478dc7e06c.jpg).
@@ -16,6 +17,7 @@ export default function Menu() {
   const personas = useQuery(api.personas.listAll, {});
   const me = personas?.find((p) => p.id === viewerId);
   const [upgradesOpen, setUpgradesOpen] = useState(true);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
@@ -28,7 +30,7 @@ export default function Menu() {
       </View>
 
       <View style={styles.profileCard}>
-        <Pressable style={styles.profileRow} onPress={() => router.push("/settings")}>
+        <Pressable style={styles.profileRow} onPress={() => setAccountOpen(true)}>
           {me ? (
             <Avatar initials={me.initials} color={me.color} size={56} />
           ) : (
@@ -82,6 +84,7 @@ export default function Menu() {
           </View>
         </View>
       )}
+      <AccountSheet visible={accountOpen} onClose={() => setAccountOpen(false)} />
     </ScrollView>
   );
 }

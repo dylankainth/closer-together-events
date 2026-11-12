@@ -11,7 +11,7 @@ import { colors, radius, spacing } from "@/theme/tokens";
 // Real Login with Facebook in a development build (name and photo only). In Expo Go, on web, or
 // before the Facebook app id is configured, it falls back to the demo button.
 export default function Setup() {
-  const { setViewerId } = useViewer();
+  const { onFacebookLogin } = useViewer();
   const login = useAction(api.fbAuth.loginWithFacebook);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function Setup() {
         t.kind === "limited"
           ? await login({ idToken: t.idToken, nonce: t.nonce })
           : await login({ accessToken: t.accessToken });
-      setViewerId(res.personaId);
+      onFacebookLogin(res.personaId);
       router.push("/events");
     } catch (e: unknown) {
       if (!(e instanceof LoginCancelled)) {
