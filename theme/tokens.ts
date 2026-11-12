@@ -15,6 +15,9 @@ export const muse = {
 
 export const colors = {
   background: fb.bg,
+  // Warm off-white used by the host-wizard screens (new-event/*), matching their own reference
+  // design rather than the cool-gray Facebook chrome used elsewhere.
+  cream: "#F6F3EE",
   card: "#FFFFFF",
   text: fb.ink,
   textMuted: fb.sub,
