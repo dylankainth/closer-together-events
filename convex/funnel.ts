@@ -25,7 +25,7 @@ export async function parseAudience(raw: string, budget: CallBudget): Promise<{ 
     effort: "low",
     budget,
     system:
-      "Convert a host's free-text description of who an event is for into a tie-strength requirement plus topical tags.",
+      'Convert a host\'s free-text description of who an event is for into a tie-strength requirement plus topical tags. Return {"tie": "close" or "any", "topics": string[] (up to 6 short topic words)}.',
     user: { text: raw },
     schema: z.object({ tie: z.enum(["close", "any"]), topics: z.array(z.string().max(30)).max(6) }),
     fallback: () => {
@@ -133,14 +133,18 @@ export async function rerank(
     topic,
     p,
   }));
+  // Only the top slice (by pre-score) goes to the LLM: a reasoning model over all ~50 candidates
+  // at once risks the call's own timeout, which silently falls back offline. The rest keep their
+  // code-computed `base` reason via the "missing ids appended" merge below.
+  const toRank = [...items].sort((a, b) => b.score - a.score).slice(0, Math.min(items.length, 20));
   const r = await museJSON({
     model: "spark",
     effort: "low",
     budget,
     system:
-      "Rank these candidates for the event by relevance and write a one-line reason each (max 12 words). Never invent facts not given to you.",
-    user: { items: items.map(({ id, available, base }) => ({ id, available, base })) },
-    schema: z.object({ ranking: z.array(z.object({ id: z.string(), reason: z.string().max(120) })).max(CONFIG.poolSize) }),
+      'Rank these candidates for the event by relevance and write a one-line reason each (max 12 words). Never invent facts not given to you. Return {"ranking": [{"id": string, "reason": string}, ...]} covering every given id, best first.',
+    user: { items: toRank.map(({ id, available, base }) => ({ id, available, base })) },
+    schema: z.object({ ranking: z.array(z.object({ id: z.string(), reason: z.string().max(120) })).max(toRank.length) }),
     fallback: () => ({
       ranking: [...items]
         .sort((a, b) => b.score + (b.available ? 0.08 : 0) - (a.score + (a.available ? 0.08 : 0)))

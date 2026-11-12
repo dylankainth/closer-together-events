@@ -31,8 +31,10 @@ export async function pickDate(slots: Slot[], guests: Persona[], budget: CallBud
       effort: "low",
       budget,
       system:
-        "Pick the best date slot for this event. You may call a simulated tool `check_availability` (evidence provided below if present) to verify a slot before answering.",
-      user: withEvidence ? { slots: slots.map((s) => s.label), check_availability: evidence() } : { slots: slots.map((s) => s.label) },
+        'Pick the best date slot for this event from the given list. You may call a simulated tool `check_availability` (evidence provided below if present) to verify a slot before answering. Return {"slot_id": string}, using exactly one of the given ids (not the label).',
+      user: withEvidence
+        ? { slots: slots.map((s) => ({ id: s.id, label: s.label })), check_availability: evidence() }
+        : { slots: slots.map((s) => ({ id: s.id, label: s.label })) },
       schema: z.object({ slot_id: z.string() }),
       fallback: () => ({ slot_id: best.id }),
     });
