@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { background: #e4e6eb; color: #1c1e21; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+.btn { @apply rounded-lg px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-40; }
+.btn-primary { @apply bg-fb-blue text-white; }
+.btn-muse { @apply bg-muse-500 text-white; }
+.btn-ghost { @apply bg-fb-bg text-fb-ink; }
+.card { @apply rounded-xl bg-white shadow-sm border border-fb-line; }
+.chip { @apply rounded-full border border-fb-line bg-white px-3.5 py-1.5 text-sm; }
+.chip-on { @apply border-muse-500 bg-muse-100 text-muse-600 font-semibold; }
