@@ -178,6 +178,22 @@ export default defineSchema({
     .index("by_eventId_seq", ["eventId", "seq"])
     .index("by_event_forPersona", ["eventId", "forPersona"]),
 
+  // ---- real people who signed in with Facebook ----
+  // Login with Facebook gives an app-scoped id, name and photo only (Graph API can't read friends
+  // or events), so each user is linked to a persona that carries the seeded social graph.
+  users: defineTable({
+    fbId: v.string(), // app-scoped Facebook user id (ASID)
+    personaId: v.string(),
+    name: v.string(),
+    pictureUrl: v.optional(v.string()),
+    email: v.optional(v.string()),
+    tokenKind: v.union(v.literal("limited"), v.literal("classic")),
+    createdAt: v.number(),
+    lastLoginAt: v.number(),
+  })
+    .index("by_fbId", ["fbId"])
+    .index("by_personaId", ["personaId"]),
+
   // ---- app-level bookkeeping ----
   appMeta: defineTable({
     key: v.string(), // "seeded" -> true once seed.run has populated the database
