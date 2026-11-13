@@ -8,6 +8,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { agent } from "@/theme/swipeTheme";
+import { Mascot, type MascotHandle } from "@/components/Mascot";
 
 type Msg = { from: "me" | "agent"; text: string; note?: string };
 type Step = { key: string; label: string; detail: string; state: "done" | "active" | "todo" | "blocked" };
@@ -66,6 +67,9 @@ export default function Planning() {
   const [thinking, setThinking] = useState(false);
   // RN 0.88's ScrollView ref type doesn't fit the usual useRef<ScrollView> pattern; only scrollToEnd is called.
   const scroller = useRef<any>(null);
+  const mascot = useRef<MascotHandle>(null);
+  // The mascot's eyes follow wherever the screen is touched.
+  const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
 
   useEffect(() => {
     if (draft || onboardingComplete) return;
@@ -191,7 +195,12 @@ export default function Planning() {
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      onTouchStart={lookAtTouch}
+      onTouchMove={lookAtTouch}
+    >
       <View style={styles.topBar}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events"))} hitSlop={12} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={agent.text} />
@@ -201,6 +210,11 @@ export default function Planning() {
           <Animated.View style={[styles.dot, { opacity: page.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
         </View>
         <View style={styles.back} />
+      </View>
+
+      {/* The mascot sits above everything else, in its own fixed-height slot so nothing can overlap it. */}
+      <View style={styles.mascotWrap} pointerEvents="none">
+        <Mascot ref={mascot} size={120} thinking={thinking} />
       </View>
 
       <View
@@ -224,9 +238,8 @@ export default function Planning() {
           ) : (
             <ScrollView contentContainerStyle={styles.checkContent}>
               <View>
-                {checklist.summary ? <Text style={styles.kicker}>{checklist.summary}</Text> : null}
-                <Text style={styles.title}>Your agent is on it</Text>
-                <Text style={styles.sub}>{checklist.doneCount} of {checklist.total} done · you can close the app</Text>
+                <Text style={styles.eventName}>{checklist.title}</Text>
+                <Text style={styles.title}>I'm on it</Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
                   {checklist.items.map((s) => <StepRow key={s.key} s={s} />)}
                 </View>
@@ -363,15 +376,16 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   dots: { flexDirection: "row", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: agent.text },
-  pager: { flex: 1, overflow: "hidden" },
+  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start", zIndex: 0 },
+  pager: { flex: 1, overflow: "hidden", zIndex: 1 },
   status: { color: agent.muted, padding: 24 },
   waitingWrap: { flex: 1, justifyContent: "center", padding: 32, gap: 10 },
   waitingTitle: { color: agent.text, fontSize: 22, fontWeight: "800" },
   waitingBody: { color: agent.muted, fontSize: 15, lineHeight: 21 },
   checkContent: { flexGrow: 1, justifyContent: "space-between", padding: 24, paddingTop: 12, paddingBottom: 12 },
-  kicker: { color: agent.muted, fontSize: 14 },
-  title: { color: agent.text, fontSize: 38, lineHeight: 42, fontWeight: "800", letterSpacing: -0.5, marginTop: 6 },
-  sub: { color: agent.muted, fontSize: 15, marginTop: 8 },
+  // The event's name, centred and big; "I'm on it" sits under it.
+  eventName: { color: agent.text, fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -0.5, textAlign: "center" },
+  title: { color: agent.text, fontSize: 20, lineHeight: 26, fontWeight: "700", textAlign: "center", marginTop: 6 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   circle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 1 },
   circleDone: { backgroundColor: agent.blue },
