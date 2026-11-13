@@ -59,6 +59,11 @@ export default function Planning() {
   const [exampleIdx, setExampleIdx] = useState(0);
 
   const checklist = useQuery(api.checklist.forEvent, eventId ? { eventId } : "skip");
+  // Only queried for its shortlist — manage.tsx's onSend builds candidateIds the same way, from
+  // event.shortlist, so the "send" row here needs the event doc too (checklist.ts doesn't expose it).
+  const event = useQuery(api.events.getByEventId, eventId ? { eventId } : "skip");
+  const sendEvent = useMutation(api.events.sendEvent);
+  const [sendingInvites, setSendingInvites] = useState(false);
   const approve = useMutation(api.events.approve);
   const approveDraft = useMutation(api.events.approveDraft);
   const rejectDraft = useMutation(api.events.rejectDraft);
@@ -249,6 +254,28 @@ export default function Planning() {
     else router.replace(`/events/${eventId}/manage`);
   };
 
+  // Derived straight from the live checklist, not the typewriter playback above — "send" is the
+  // one step playback never auto-completes, so its real readiness has to come from the actual data.
+  const sendReady = !!checklist && checklist.items.every((i) => i.key === "send" || i.state === "done");
+  const alreadySent = checklist?.status === "sent";
+
+  const onSendInvites = async () => {
+    if (!eventId) return;
+    if (alreadySent) {
+      router.push(`/events/${eventId}/swarm`);
+      return;
+    }
+    if (sendingInvites) return; // guard against a double-tap; doSendInvites is idempotent server-side anyway
+    setSendingInvites(true);
+    try {
+      const candidateIds = (event?.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
+      await sendEvent({ eventId, candidateIds });
+      router.push(`/events/${eventId}/swarm`);
+    } finally {
+      setSendingInvites(false);
+    }
+  };
+
   const checklistX = page.interpolate({ inputRange: [0, 1], outputRange: [0, TOWARD * width] });
   const chatX = page.interpolate({ inputRange: [0, 1], outputRange: [-TOWARD * width, 0] });
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
@@ -334,8 +361,20 @@ export default function Planning() {
                 </Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
                   {playback
-                    ? playback.steps.map((row) => <StepRow key={row.step.key} row={row} onPress={() => setExplainStep(row.step)} />)
-                    : checklist.items.map((s) => <StepRow key={s.key} row={{ step: s, isDone: s.state === "done", isActive: false, isPending: s.state !== "done", waiting: false, lines: [] }} onPress={() => setExplainStep(s)} />)}
+                    ? playback.steps.map((row) =>
+                        row.step.key === "send" ? (
+                          <SendRow key="send" step={row.step} ready={sendReady} sent={alreadySent} pending={sendingInvites} onPress={onSendInvites} onExplain={() => setExplainStep(row.step)} />
+                        ) : (
+                          <StepRow key={row.step.key} row={row} onPress={() => setExplainStep(row.step)} />
+                        ),
+                      )
+                    : checklist.items.map((s) =>
+                        s.key === "send" ? (
+                          <SendRow key="send" step={s} ready={sendReady} sent={alreadySent} pending={sendingInvites} onPress={onSendInvites} onExplain={() => setExplainStep(s)} />
+                        ) : (
+                          <StepRow key={s.key} row={{ step: s, isDone: s.state === "done", isActive: false, isPending: s.state !== "done", waiting: false, lines: [] }} onPress={() => setExplainStep(s)} />
+                        ),
+                      )}
                 </View>
               </View>
 
@@ -560,6 +599,68 @@ function StepRow({ row, onPress }: { row: PlaybackRow; onPress: () => void }) {
   );
 }
 
+// The "send" checklist row, split out from StepRow because its three states come from the live
+// checklist/event data, not the typewriter playback (which deliberately never auto-completes it —
+// see the engine effect above).
+function SendRow({
+  step,
+  ready,
+  sent,
+  pending,
+  onPress,
+  onExplain,
+}: {
+  step: Step;
+  ready: boolean;
+  sent: boolean;
+  pending: boolean;
+  onPress: () => void;
+  onExplain: () => void;
+}) {
+  // Other steps aren't done yet — nothing to send, so this stays an inert plain row, same as any todo step.
+  if (!ready && !sent) {
+    return (
+      <View style={[styles.step, { opacity: 0.45 }]}>
+        <Pressable style={styles.stepPress} onPress={onExplain} hitSlop={6}>
+          <View style={styles.circleSlot}>
+            <View style={[styles.circle, styles.circleTodo]} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.stepLabel, { color: agent.dim }]}>{step.label}</Text>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // Already sent — this is a "view it" shortcut back into the swarm, never a resend.
+  if (sent) {
+    return (
+      <Pressable style={styles.step} onPress={onPress} hitSlop={6}>
+        <View style={styles.stepPress}>
+          <View style={styles.circleSlot}>
+            <View style={[styles.circle, styles.circleDone]}>
+              <Ionicons name="checkmark" size={14} color="#fff" />
+            </View>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.stepLabel}>{step.label}</Text>
+            <Text style={styles.stepDetail}>└ {step.detail} · tap to view</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  // Everything else is done and nothing has gone out: this tap IS the host's approval, so it gets
+  // the same call-to-action treatment as the draft-approve buttons above, not another circle+label.
+  return (
+    <Pressable style={[styles.sendStepBtn, pending && { opacity: 0.6 }]} onPress={onPress} disabled={pending}>
+      <Text style={styles.sendStepBtnText}>{pending ? "Sending…" : "Send invites"}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: agent.bg },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 52, paddingHorizontal: 14, paddingBottom: 6 },
@@ -609,6 +710,8 @@ const styles = StyleSheet.create({
   draftApproveText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   draftReject: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center", borderWidth: 1, borderColor: agent.line },
   draftRejectText: { color: agent.muted, fontWeight: "600", fontSize: 14 },
+  sendStepBtn: { backgroundColor: agent.blue, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  sendStepBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   link: { color: agent.link, fontSize: 16, fontWeight: "700" },
   chatContent: { flexGrow: 1, padding: 20, paddingTop: 12, gap: 14, justifyContent: "flex-end" },
   openingWrap: { flexGrow: 1, justifyContent: "center", gap: 10 },

@@ -60,6 +60,22 @@ export async function museJSON<T>(opts: MuseJsonOpts<T>): Promise<MuseResult<T>>
   return { data: await opts.fallback(), source: "offline" };
 }
 
+interface MuseTextOpts {
+  model: "spark" | "wonder" | "ember";
+  system: string;
+  user: unknown;
+  fallback: () => { text: string; done: boolean } | Promise<{ text: string; done: boolean }>;
+  effort?: "low" | "medium" | "high";
+  budget: CallBudget;
+}
+
+/** Free-conversation mode's per-turn call (convex/huddleChat.ts): every turn wants the same
+ * {text, done} shape, so bake that schema in here rather than repeat it at every call site.
+ * Thin wrapper only — inherits museJSON's never-throw/always-fall-back-offline contract as is. */
+export async function museText(opts: MuseTextOpts): Promise<MuseResult<{ text: string; done: boolean }>> {
+  return museJSON({ ...opts, schema: z.object({ text: z.string().max(240), done: z.boolean() }) });
+}
+
 export async function museImage(
   prompt: string,
   budget: CallBudget,

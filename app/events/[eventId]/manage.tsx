@@ -54,7 +54,7 @@ export default function Manage() {
     try {
       const candidateIds = (event.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
       await sendEvent({ eventId, candidateIds });
-      router.push(`/events/${eventId}/transcript`);
+      router.push(`/events/${eventId}/swarm`);
     } finally {
       setSending(false);
     }
@@ -89,7 +89,7 @@ export default function Manage() {
         </View>
 
         {tab === "overview" && (
-          <Overview event={event} guests={guests} slotLabel={slot?.label} venue={venue} going={going} sending={sending} onSend={onSend} onEdit={() => setTab("details")} onTranscript={() => router.push(`/events/${eventId}/transcript`)} />
+          <Overview event={event} guests={guests} slotLabel={slot?.label} venue={venue} going={going} sending={sending} onSend={onSend} onEdit={() => setTab("details")} onTranscript={() => router.push(`/events/${eventId}/swarm`)} />
         )}
         {tab === "guests" && (
           <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />

@@ -51,6 +51,9 @@ export const insertMessage = internalMutation({
     status: v.union(v.literal("sent"), v.literal("rewritten"), v.literal("blocked")),
     checks: v.array(v.string()),
     source: v.union(v.literal("muse"), v.literal("offline")),
+    // Free-conversation mode only (convex/huddleChat.ts); see schema.ts's huddleMessages comment.
+    edgeId: v.optional(v.string()),
+    turn: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
