@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { EventBanner } from "@/components/events/EventBanner";
 import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -222,11 +223,7 @@ function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
       <View style={styles.thumb}>
-        {ev.poster ? (
-          <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <Text style={styles.thumbText}>{ev.title.trim().slice(0, 1).toUpperCase()}</Text>
-        )}
+        <EventBanner eventId={ev.eventId} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.time} numberOfLines={1}>{ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed"}</Text>

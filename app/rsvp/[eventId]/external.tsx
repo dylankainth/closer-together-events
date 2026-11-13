@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { EventBanner } from "@/components/events/EventBanner";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
@@ -25,7 +26,7 @@ export default function ExternalRsvp() {
   return (
     <View style={styles.screen}>
       <Text style={styles.header}>{event.title.split("'s ")[0]} invited you</Text>
-      {event.poster?.url && <Image source={{ uri: event.poster.url }} style={styles.poster} resizeMode="cover" />}
+      <EventBanner eventId={event.eventId} posterUrl={event.poster?.url} style={styles.poster} />
       <Text style={styles.sub}>{event.slotId} · {event.venueId}</Text>
 
       {!submitted ? (
