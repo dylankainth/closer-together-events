@@ -91,13 +91,13 @@ export default function Manage() {
               <Ionicons name="arrow-up-outline" size={18} color={discover.text} style={{ transform: [{ rotate: "45deg" }] }} />
             </Pressable>
           </View>
-          <Pressable style={[styles.museBtn, status.ok && styles.museBtnOk]} onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)} accessibilityLabel="Open Muse checklist">
-            <View style={styles.museFace}><Mascot size={34} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.museBtnText, status.ok && { color: "#14532D" }]}>{status.title}</Text>
-              <Text style={[styles.museBtnSub, status.ok && { color: "#2F6B45" }]}>{status.sub}</Text>
+          {/* Muse says it: the mascot beside a speech bubble, like the recommended-events card. Tap to open the checklist. */}
+          <Pressable style={styles.sayRow} onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)} accessibilityLabel="Open Muse checklist">
+            <View style={{ width: 60, height: 66, justifyContent: "flex-end" }}><Mascot size={60} /></View>
+            <View style={[styles.bubble, status.ok && styles.bubbleOk]}>
+              <Text style={[styles.bubbleTitle, status.ok && { color: "#14532D" }]}>{status.title}</Text>
+              <Text style={[styles.bubbleSub, status.ok && { color: "#2F6B45" }]}>{status.sub}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={status.ok ? "#2F6B45" : "rgba(255,255,255,0.8)"} />
           </Pressable>
           <View style={styles.tabs}>
             {TABS.map((t) => (
@@ -391,11 +391,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
   title: { flex: 1, color: discover.text, fontSize: 28, lineHeight: 33, fontWeight: "800" },
   iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: discover.pill, alignItems: "center", justifyContent: "center" },
-  museBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: swipe.blue, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginTop: 14 },
-  museBtnOk: { backgroundColor: "#DCFCE7" },
-  museFace: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#14141C", alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  museBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  museBtnSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 1 },
+  sayRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 14 },
+  bubble: { flex: 1, backgroundColor: swipe.lavender, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 14 },
+  bubbleOk: { backgroundColor: "#DCFCE7" },
+  bubbleTitle: { color: swipe.ink, fontSize: 18, lineHeight: 24, fontWeight: "800" },
+  bubbleSub: { color: swipe.lavenderText, fontSize: 14, marginTop: 2 },
   tabs: { flexDirection: "row", gap: 6, marginTop: 14 },
   tab: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabOn: { borderBottomColor: discover.text },
