@@ -16,9 +16,10 @@ for (const mode of ["structured", "free"]) {
     assert.equal(result.report.leakingRows, 0);
     assert.ok(result.report.blocked > 0);
   });
-  test(`${mode}: sensitive details absent from never-share are filtered on every turn`, mode === "free"
-    ? { todo: "Known budget policy: semantic checks only run on closing free turns; intermediate leakage remains possible." }
-    : {}, async () => {
+  // Was todo while free mode only ran the Spark pass on an exchange's closing turn. Intermediate
+  // turns now run the same lexicon sparkCheck falls back to offline — free, so it holds on every
+  // turn without the per-turn model call the budget can't afford.
+  test(`${mode}: sensitive details absent from never-share are filtered on every turn`, async () => {
     const result = await runPrivacyFixture({ mode, scenario: "semantic" });
     assert.equal(result.report.leakingRows, 0, JSON.stringify(result.report.findings));
   });

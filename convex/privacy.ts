@@ -78,6 +78,13 @@ const SENSITIVE_LEXICON = [
   "diagnos", "medic", "breakup", "ex-", "avoiding", "interview", "fired", "layoff", "visa",
   "lawsuit", "pregnan", "hiding", "secret", "address", "phone", "lives at",
 ];
+
+/** Pure string match, no API call. This is what `sparkCheck` falls back to when Muse is
+ * unreachable, and what `guardText` runs on free-conversation turns that skip the Spark call. */
+export const hitsSensitiveLexicon = (text: string) => {
+  const t = text.toLowerCase();
+  return SENSITIVE_LEXICON.some((w) => t.includes(w));
+};
 export async function sparkCheck(
   why: string,
   owner: Persona,
@@ -92,7 +99,7 @@ export async function sparkCheck(
       'You are a privacy filter. Decide whether this short line reveals anything private about a person (finances, health, relationships, conflicts, job search, address, phone). Reply {"safe": boolean}.',
     user: { line: why, never_share: [...DEFAULT_NEVER_SHARE, ...owner.neverShare] },
     schema: z.object({ safe: z.boolean() }),
-    fallback: () => ({ safe: !SENSITIVE_LEXICON.some((w) => why.toLowerCase().includes(w)) }),
+    fallback: () => ({ safe: !hitsSensitiveLexicon(why) }),
   });
   return { ok: r.data.safe, source: r.source };
 }
@@ -152,7 +159,15 @@ export async function guardText(
   const { reasons, hard } = scanTopics(text, owner);
   if (hard) return { status: "blocked", text: "[message blocked before sending]", checks: reasons };
   if (reasons.length) return { status: "rewritten", text: NEUTRAL_WHY, checks: reasons };
-  if (!withSparkPass) return { status: "sent", text, checks: [] };
+  // Skipping the Spark CALL to stay inside the budget must not mean skipping semantic checking
+  // altogether. The lexicon is what sparkCheck itself falls back to offline — pure string
+  // matching, no API cost — and it catches the "money is tight"/"therapy"/"interviewing" class
+  // that the pattern and never-share scans above structurally cannot.
+  if (!withSparkPass) {
+    return hitsSensitiveLexicon(text)
+      ? { status: "rewritten", text: NEUTRAL_WHY, checks: ["sensitive topic"] }
+      : { status: "sent", text, checks: [] };
+  }
   const s = await sparkCheck(text, owner, budget);
   if (!s.ok) return { status: "rewritten", text: NEUTRAL_WHY, checks: ["spark pass: private detail"] };
   return { status: "sent", text, checks: [] };
