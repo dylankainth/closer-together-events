@@ -21,12 +21,14 @@ export const planEvent = action({
     hostId: v.string(),
     answers: v.object({ purpose: v.string(), vibe: v.string(), budget: v.union(v.literal(1), v.literal(2), v.literal(3)) }),
     audienceRaw: v.string(),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
   },
   handler: async (ctx, args): Promise<{ eventId: string }> => {
     await requireActor(ctx, args.hostId, "write", "planAction.planEvent");
     const personas: Persona[] = await ctx.runQuery(internal.personas.listAllInternal, {});
     const host = personas.find((p) => p.id === args.hostId) ?? personas.find((p) => p.id === HOST_ID)!;
-    const answers = args.answers as HostAnswers;
+    const visibility = args.visibility ?? "private";
+    const answers = { ...args.answers, visibility } as HostAnswers;
 
     const eventId = `evt_${Date.now().toString(36)}`;
     await ctx.runMutation(internal.events.create, {
@@ -37,6 +39,8 @@ export const planEvent = action({
         status: "draft",
         answers,
         audienceRaw: args.audienceRaw,
+        // Public events let guests bring a friend (convex/plusOnes.ts); private ones never do.
+        allowGuestInvites: visibility === "public",
         museCalls: 0,
         huddleSeq: 0,
         createdAt: Date.now(),

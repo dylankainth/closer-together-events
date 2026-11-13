@@ -55,6 +55,11 @@ function parseBudget(raw: unknown): 1 | 2 | 3 {
   return 2;
 }
 
+/** "Public (plus-ones welcome)" and loose variants -> public; anything else, including no answer, stays private. */
+function parseVisibility(raw: unknown): "public" | "private" {
+  return typeof raw === "string" && /public|open|plus-?ones? welcome|anyone/i.test(raw) && !/private/i.test(raw) ? "public" : "private";
+}
+
 export const finishQuestionSession = mutation({
   args: { sessionId: v.string() },
   handler: async (ctx, args) => {
@@ -69,6 +74,7 @@ export const finishQuestionSession = mutation({
       purpose: typeof answers.purpose === "string" ? answers.purpose : "Other",
       vibe: typeof answers.vibe === "string" ? answers.vibe : "Lively",
       budget: parseBudget(answers.budget),
+      visibility: parseVisibility(answers.visibility),
       // Fall back to the host's own opening description before the generic "my friends" — it's
       // a better guess if the round cap or an early "complete" skipped the audience question.
       audienceRaw: typeof answers.audience === "string" ? answers.audience : description || "my friends",

@@ -209,6 +209,7 @@ export default function Planning() {
       hostId: viewerId,
       answers: { purpose: mapped.purpose, vibe: mapped.vibe, budget: mapped.budget as 1 | 2 | 3 },
       audienceRaw: mapped.audienceRaw,
+      visibility: mapped.visibility,
     });
     setEventId(result.eventId);
     setOnboardingComplete(true);

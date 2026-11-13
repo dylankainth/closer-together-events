@@ -10,12 +10,15 @@ export type InviteGuest = {
 export type InviteEvent = {
   hostId: string; status: string; allowGuestInvites?: boolean; slotId?: string;
   settings?: { quota: number };
+  answers?: { visibility?: "public" | "private" };
 };
 
 export function invitationLimit(event: InviteEvent, capacity?: number): number {
   const quota = event.settings?.quota;
   if (!quota || !Number.isInteger(quota) || quota < 1) return 0;
-  return Math.min(quota, capacity ?? Infinity);
+  // A public event has room for plus-ones beyond the planned guests: up to as many again, within the venue's capacity.
+  const room = event.answers?.visibility === "public" ? quota * 2 : quota;
+  return Math.min(room, capacity ?? Infinity);
 }
 
 export function canOfferInvite(event: InviteEvent, guests: InviteGuest[], viewerId: string, capacity?: number): boolean {

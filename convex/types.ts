@@ -116,6 +116,7 @@ export interface HostAnswers {
   purpose: string;
   vibe: string;
   budget: 1 | 2 | 3;
+  visibility?: "public" | "private";
 }
 
 export type RsvpStatus = "invited" | "going" | "maybe" | "skip" | "cant";
