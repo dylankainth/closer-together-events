@@ -322,13 +322,7 @@ function Details({ event, slots, venues }: any) {
       <TextInput style={styles.field} value={form.title} onChangeText={(v) => set("title", v)} placeholder="Event title" placeholderTextColor={discover.muted} />
 
       <Text style={styles.fieldLabel}>Date</Text>
-      <View style={styles.wrap}>
-        {slots.map((s: any) => (
-          <Pressable key={s.slotId} onPress={() => set("slotId", s.slotId)} style={[styles.chip, form.slotId === s.slotId && styles.chipOn]}>
-            <Text style={[styles.chipText, form.slotId === s.slotId && { color: "#fff" }]}>{s.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Text style={styles.dateText}>{slots.find((x: any) => x.slotId === form.slotId)?.label ?? "Date to be confirmed"}</Text>
 
       <Text style={styles.fieldLabel}>Venue</Text>
       <View style={{ gap: 8 }}>
@@ -405,6 +399,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 12, color: discover.text, fontSize: 16 },
   chip: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   chipOn: { backgroundColor: discover.text, borderColor: discover.text },
+  dateText: { color: discover.text, fontWeight: "700", fontSize: 17 },
   chipText: { color: discover.text, fontWeight: "600", fontSize: 14 },
   listCard: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, overflow: "hidden" },
   guestRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
