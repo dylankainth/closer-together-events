@@ -1,10 +1,10 @@
 // Event discovery: fetch real nearby events from outside sources into the pool. Internal actions
 // only. Each source has its own timeout and never throws, so one failing source cannot stop the
 // others or the ranker (design: "never empty").
-import { internalAction } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { MENLO } from "./discoveryCore";
+import { MENLO, shouldRerankAfterFetch } from "./discoveryCore";
 import { mapHackRadar } from "./sources/hackradar";
 import { mapApifyFacebook } from "./sources/apifyFacebook";
 import type { DiscoveredInput } from "./discoveryCore";
@@ -26,6 +26,15 @@ async function getJson(url: string): Promise<unknown> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function upsertAll(ctx: ActionCtx, items: DiscoveredInput[]): Promise<number> {
+  let inserted = 0;
+  for (let i = 0; i < items.length; i += UPSERT_CHUNK) {
+    const r = await ctx.runMutation(internal.discoveryData.upsertMany, { items: items.slice(i, i + UPSERT_CHUNK) });
+    inserted += r.inserted;
+  }
+  return inserted;
 }
 
 export async function fetchHackRadarItems(): Promise<DiscoveredInput[]> {
@@ -55,6 +64,7 @@ export const fetchAll = internalAction({
   args: { personaId: v.optional(v.string()) },
   handler: async (ctx, { personaId }): Promise<{ fetched: Record<string, number> }> => {
     const fetched: Record<string, number> = {};
+    let inserted = 0;
     const sources = [
       ["hackradar", internal.discoverySources.fetchHackRadar, 15 * 60_000],
       ["apify-facebook", internal.discoverySources.fetchApifyFacebook, 60 * 60_000],
@@ -66,14 +76,23 @@ export const fetchAll = internalAction({
           fetched[name] = 0;
           continue;
         }
-        fetched[name] = (await ctx.runAction(fn, {})).fetched;
+        const r = await ctx.runAction(fn, {});
+        fetched[name] = r.fetched;
+        inserted += r.inserted;
       } catch (err) {
         console.warn(`[discovery] ${name} failed: ${err instanceof Error ? err.message : "unknown error"}`);
         fetched[name] = 0;
       }
     }
-    if (personaId) await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
-    else await ctx.runAction(internal.discoveryRank.rankAll, {});
+    if (shouldRerankAfterFetch(personaId, inserted)) {
+      try {
+        if (personaId) await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
+        else await ctx.runAction(internal.discoveryRank.rankAll, {});
+      } catch (err) {
+        console.warn(`[discovery] ranking failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      }
+    }
+    // Never empty: runs even if ranking failed.
     await ctx.runMutation(internal.discoveryData.loadSnapshot, {});
     return { fetched };
   },
@@ -81,18 +100,15 @@ export const fetchAll = internalAction({
 
 export const fetchHackRadar = internalAction({
   args: {},
-  handler: async (ctx): Promise<{ fetched: number }> => {
+  handler: async (ctx): Promise<{ fetched: number; inserted: number }> => {
     let items: DiscoveredInput[] = [];
     try {
       items = await fetchHackRadarItems();
     } catch (err) {
       console.warn(`[discovery] hackradar fetch failed: ${err instanceof Error ? err.message : "unknown error"}`);
-      return { fetched: 0 };
+      return { fetched: 0, inserted: 0 };
     }
-    for (let i = 0; i < items.length; i += UPSERT_CHUNK) {
-      await ctx.runMutation(internal.discoveryData.upsertMany, { items: items.slice(i, i + UPSERT_CHUNK) });
-    }
-    return { fetched: items.length };
+    return { fetched: items.length, inserted: await upsertAll(ctx, items) };
   },
 });
 
@@ -105,9 +121,9 @@ const APIFY_TIMEOUT_MS = 270_000;
 
 export const fetchApifyFacebook = internalAction({
   args: {},
-  handler: async (ctx): Promise<{ fetched: number }> => {
+  handler: async (ctx): Promise<{ fetched: number; inserted: number }> => {
     const token = process.env.APIFY_TOKEN;
-    if (!token) return { fetched: 0 };
+    if (!token) return { fetched: 0, inserted: 0 };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), APIFY_TIMEOUT_MS);
     let rows: unknown[] = [];
@@ -123,14 +139,11 @@ export const fetchApifyFacebook = internalAction({
       rows = Array.isArray(body) ? body : [];
     } catch (err) {
       console.warn(`[discovery] apify fetch failed: ${err instanceof Error ? err.message : "unknown error"}`);
-      return { fetched: 0 };
+      return { fetched: 0, inserted: 0 };
     } finally {
       clearTimeout(timer);
     }
     const items = rows.map(mapApifyFacebook).filter((e): e is DiscoveredInput => e !== null);
-    for (let i = 0; i < items.length; i += UPSERT_CHUNK) {
-      await ctx.runMutation(internal.discoveryData.upsertMany, { items: items.slice(i, i + UPSERT_CHUNK) });
-    }
-    return { fetched: items.length };
+    return { fetched: items.length, inserted: await upsertAll(ctx, items) };
   },
 });

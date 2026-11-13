@@ -23,9 +23,13 @@ export function mapHackRadar(item: unknown): DiscoveredInput | null {
   const r = item as Record<string, unknown>;
   const id = str(r.id);
   const title = str(r.title);
-  const startsAt = time(r.start_date);
+  // date_only rows carry a calendar date at 00:00Z; keep that day by storing 20:00 UTC (noon or 1pm
+  // in California, the same calendar day all year) and mark it all-day so no fake time is shown.
+  const allDay = r.date_only === true;
+  const dayMatch = allDay ? /^(\d{4})-(\d{2})-(\d{2})/.exec(str(r.start_date) ?? "") : null;
+  const startsAt = dayMatch ? Date.UTC(+dayMatch[1], +dayMatch[2] - 1, +dayMatch[3], 20) : time(r.start_date);
   if (!id || !title || startsAt === null) return null;
-  const endsAt = time(r.end_date);
+  const endsAt = allDay ? null : time(r.end_date);
   const geo = (r.geography && typeof r.geography === "object" ? r.geography : {}) as Record<string, unknown>;
   const city = str(r.city) ?? str(geo.name);
   const location = str(r.location);
@@ -48,5 +52,6 @@ export function mapHackRadar(item: unknown): DiscoveredInput | null {
     price: r.is_free === true ? "free" : str(r.price_info) ? "paid" : "unknown",
     isOnline: r.is_online === true,
     isCancelled: false,
+    ...(allDay ? { allDay: true } : {}),
   };
 }

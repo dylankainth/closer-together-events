@@ -3,7 +3,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
-import { canRefresh, mergeDuplicates, pastEventsFor, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
+import { findDuplicate, mergeDuplicates, pastEventsFor, qualifies, refreshDecision, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
 import { DEMO_SNAPSHOT } from "./demoSnapshot";
 
@@ -26,7 +26,14 @@ export const upsertMany = internalMutation({
     const batch = items.map((i) => ({ ...i, description: i.description.slice(0, MAX_DESCRIPTION) }));
     for (const item of mergeDuplicates(batch)) {
       const { key, ...fresh } = item;
-      const existing = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", key)).unique();
+      // Same event already stored, maybe worded differently by another source: compare against
+      // that local day's rows (plus or minus a day for time zones).
+      const sameDay = await ctx.db
+        .query("discoveredEvents")
+        .withIndex("by_startsAt", (q) => q.gte("startsAt", fresh.startsAt - DAY_MS).lte("startsAt", fresh.startsAt + DAY_MS))
+        .collect();
+      const match = findDuplicate(fresh, sameDay.map((r) => ({ ...toInput(r), key: r.key })));
+      const existing = match ? sameDay.find((r) => r.key === match.key) : undefined;
       if (!existing) {
         await ctx.db.insert("discoveredEvents", { ...fresh, key, fetchedAt: now });
         inserted += 1;
@@ -34,6 +41,7 @@ export const upsertMany = internalMutation({
       }
       const [merged] = mergeDuplicates([fresh, toInput(existing)]);
       const { key: _k, ...fields } = merged;
+      // Keep the stored key: people's picks point at it.
       await ctx.db.patch(existing._id, { ...fields, fetchedAt: now });
       updated += 1;
     }
@@ -198,15 +206,30 @@ export const loadSnapshot = internalMutation({
 /** Atomically claim this person's refresh slot (at most one per minute). */
 export const claimRefresh = internalMutation({
   args: { personaId: v.string() },
-  handler: async (ctx, { personaId }): Promise<boolean> => {
+  handler: async (ctx, { personaId }): Promise<"ok" | "too_soon" | "unknown"> => {
     const now = Date.now();
+    // Unknown ids are refused before anything is written, so made-up ids cannot pile up rows or cost.
+    const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
     const key = `refresh:${personaId}`;
-    const row = await ctx.db.query("appMeta").withIndex("by_key", (q) => q.eq("key", key)).unique();
+    const row = persona ? await ctx.db.query("appMeta").withIndex("by_key", (q) => q.eq("key", key)).unique() : null;
     const last = row && typeof row.value === "number" ? row.value : null;
-    if (!canRefresh(last, now)) return false;
+    const decision = refreshDecision({ exists: !!persona, lastAt: last, now });
+    if (decision !== "ok") return decision;
     if (row) await ctx.db.patch(row._id, { value: now });
     else await ctx.db.insert("appMeta", { key, value: now });
-    return true;
+    return "ok";
+  },
+});
+
+/** What this person already did with their picks: answered event keys, and who wrote the live ones. */
+export const pickState = internalQuery({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<{ answered: string[]; liveSources: string[] }> => {
+    const rows = await ctx.db.query("picks").withIndex("by_persona", (q) => q.eq("personaId", personaId)).collect();
+    return {
+      answered: rows.filter((r) => r.status !== "new").map((r) => r.eventKey),
+      liveSources: rows.filter((r) => r.status === "new").map((r) => r.reasonSource),
+    };
   },
 });
 

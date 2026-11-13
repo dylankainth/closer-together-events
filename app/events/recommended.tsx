@@ -112,7 +112,8 @@ export default function Recommended() {
     if (!current) return;
     // Muse picks of real nearby events live in their own table (convex/picks.ts).
     if (current.relation === "pick") {
-      respondToPick({ personaId: viewerId, key: current.eventId.slice(PICK_PREFIX.length), action });
+      // A re-rank can remove a pick between render and tap; that must not surface as an error.
+      respondToPick({ personaId: viewerId, key: current.eventId.slice(PICK_PREFIX.length), action }).catch(() => undefined);
       return;
     }
     respond({ eventId: current.eventId, personaId: viewerId, action });

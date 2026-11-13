@@ -229,7 +229,7 @@ function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.time} numberOfLines={1}>{ev.slotLabel ?? "Date to be confirmed"}</Text>
+        <Text style={styles.time} numberOfLines={1}>{ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed"}</Text>
         <Text style={styles.title} numberOfLines={2}>{ev.title}</Text>
         {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
         {ev.friendsGoing.length > 0 && (
