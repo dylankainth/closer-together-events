@@ -171,10 +171,10 @@ export default defineSchema({
     capacity: v.optional(v.number()),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
-    // How this event's huddle runs (claude.md §5.1). "structured" = the shipped design: one fixed
-    // ask, one schema'd reply per peer ("B on the surface, C underneath"). "free" = real
-    // multi-turn agent-to-agent conversation per edge (convex/huddleChat.ts). Absent means
-    // "structured", so every existing event keeps today's behavior with no migration.
+    // How this event's huddle runs (claude.md §5.1). "free" = real multi-turn agent-to-agent
+    // conversation per edge (convex/huddleChat.ts); "structured" = one fixed ask and one schema'd
+    // reply per peer ("B on the surface, C underneath"). Absent means "free", which is the
+    // default — set "structured" explicitly to opt an event out.
     conversationMode: v.optional(v.union(v.literal("structured"), v.literal("free"))),
     createdAt: v.number(),
   })

@@ -539,11 +539,17 @@ section, scoped to whichever persona is actually signed in, not a standalone tab
 Section 5.1 chose "B on the surface, C underneath". Design B itself now exists as a real,
 opt-in alternative, so the two can be compared instead of argued about.
 
-**Opt-in, per event.** `events.conversationMode` is `"structured" | "free"`, and it is
-**optional** — absent means `"structured"`, so every event that already exists keeps today's
-exact behaviour and no migration was needed. Structured mode's code path in `convex/huddle.ts`
-is unchanged, not refactored. Nothing runs free mode until an event explicitly asks for it,
-which for now means setting the field by hand on one seeded demo event.
+**The default, per event (changed 2026-11-13).** `events.conversationMode` is
+`"structured" | "free"` and is **optional** — absent now means **`"free"`**. A real exchange is
+the thing worth showing, and it is what gives the agent room something to render. Structured
+mode's code path in `convex/huddle.ts` is unchanged, not refactored, and an event opts back into
+it by setting `"structured"` explicitly. Nothing in the app writes this field; it is set on the
+event document directly.
+
+Flipping the default also meant raising `CONFIG.maxCallsPerEvent` from 160 to 240. A free huddle
+at `displaySize` 12 costs ~156 calls, which left so little slack that one retry would have pushed
+it over — and `museJSON` degrades to offline fallbacks rather than failing, so the back half of a
+huddle would have quietly stopped being real while still looking real.
 
 **What free mode does** (`convex/huddleChat.ts`, `runExchange()`): a genuine multi-turn exchange
 per candidate↔peer edge, capped at `CONFIG.maxTurns` (4) counted across both sides, and never
