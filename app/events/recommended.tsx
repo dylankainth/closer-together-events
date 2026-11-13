@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
-import { EventsNavBar } from "@/components/events/EventsNavBar";
 import { SwipeCard } from "@/components/events/SwipeCard";
 import { swipe } from "@/theme/swipeTheme";
 
@@ -22,6 +22,8 @@ const COMMIT = 90; // px a drag must travel before it counts as a swipe
  */
 export default function Recommended() {
   const { viewerId } = useViewer();
+  // Keep the buttons and the hint clear of the phone's own navigation buttons / gesture bar.
+  const insets = useSafeAreaInsets();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
   const respond = useMutation(api.feed.respond);
 
@@ -102,7 +104,7 @@ export default function Recommended() {
   const open = () => current && router.push(`/events/${current.eventId}`);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
       <Animated.View style={{ flex: 1, opacity: fade }}>
       <View style={styles.segments}>
         {Array.from({ length: Math.min(Math.max(n, 1), 8) }).map((_, i) => (
@@ -159,14 +161,12 @@ export default function Recommended() {
         <Text style={styles.hintText}>Swipe up for all events</Text>
       </Pressable>
       </Animated.View>
-
-      <EventsNavBar active="picks" picks={n} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52 },
+  screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52, paddingBottom: 18 },
   segments: { flexDirection: "row", gap: 6, paddingHorizontal: 20 },
   segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "#E4E4EA" },
   segmentOn: { backgroundColor: swipe.ink },
