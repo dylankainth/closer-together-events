@@ -139,8 +139,8 @@ function Overview({ event, guests, slotLabel, venue, going, sending, onSend, onE
           <Text style={styles.muted}>{status.body}</Text>
         </View>
       </View>
-      <Pressable style={styles.primary} onPress={sent ? onTranscript : onSend} disabled={sending}>
-        <Text style={styles.primaryText}>{sent ? "View live transcript" : sending ? "Sending…" : "Send invites"}</Text>
+      <Pressable style={[styles.primary, sent && styles.primaryLight]} onPress={sent ? onTranscript : onSend} disabled={sending}>
+        <Text style={[styles.primaryText, sent && styles.primaryLightText]}>{sent ? "View invites" : sending ? "Sending…" : "Send invites"}</Text>
       </Pressable>
 
       <View style={styles.card}>
@@ -406,6 +406,8 @@ const styles = StyleSheet.create({
   muted: { color: discover.muted, fontSize: 14, lineHeight: 19 },
   primary: { backgroundColor: discover.text, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
   primaryText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  primaryLight: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line },
+  primaryLightText: { color: discover.text, fontWeight: "600" },
   card: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, padding: 16 },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   cardLabel: { color: discover.muted, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
