@@ -8,7 +8,8 @@ import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { EventsNavBar } from "@/components/events/EventsNavBar";
 import type { EventView } from "@/components/events/SwipeCard";
-import { discover } from "@/theme/swipeTheme";
+import { Avatar } from "@/components/ui";
+import { discover, swipe } from "@/theme/swipeTheme";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -160,7 +161,7 @@ export default function Feed() {
                   <Text style={styles.h1}>Events I'm hosting</Text>
                 </View>
                 <View style={{ paddingHorizontal: 20 }}>
-                  {hosting.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                  {hosting.map((e, i) => <Row key={e.eventId} ev={e} last={i === hosting.length - 1} onPress={() => open(e)} />)}
                 </View>
               </View>
             )}
@@ -188,7 +189,7 @@ export default function Feed() {
                 <Text style={styles.empty}>Nothing here yet.</Text>
               ) : viewAll ? (
                 <View style={{ paddingHorizontal: 20 }}>
-                  {popular.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                  {popular.map((e, i) => <Row key={e.eventId} ev={e} last={i === popular.length - 1} onPress={() => open(e)} />)}
                 </View>
               ) : (
                 <FlatList
@@ -201,7 +202,7 @@ export default function Feed() {
                   contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
                   renderItem={({ item }) => (
                     <View style={{ width: pageW }}>
-                      {item.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                      {item.map((e, i) => <Row key={e.eventId} ev={e} last={i === item.length - 1} onPress={() => open(e)} />)}
                     </View>
                   )}
                 />
@@ -241,7 +242,7 @@ export default function Feed() {
               <View style={[styles.section, styles.divided]}>
                 <Text style={[styles.h2, { paddingHorizontal: 20 }]}>{week.title}</Text>
                 <View style={{ paddingHorizontal: 20 }}>
-                  {week.rows.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                  {week.rows.map((e, i) => <Row key={e.eventId} ev={e} last={i === week.rows.length - 1} onPress={() => open(e)} />)}
                 </View>
               </View>
             )}
@@ -260,22 +261,60 @@ function goToPicks() {
   router.navigate("/events/recommended");
 }
 
-function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
-  const sub = ev.venue?.name ?? (ev.host ? `Hosted by ${ev.host.name}` : "");
+const PILLS = {
+  going: { label: "Going", bg: "#DCFCE7", fg: "#1F7A3A" },
+  maybe: { label: "Maybe", bg: "#FEF3C7", fg: "#8A5A00" },
+  invited: { label: "Invited", bg: swipe.lavender, fg: swipe.lavenderText },
+} as const;
+
+/** Where the viewer stands with an event, shown as a small pill on its picture (nothing for events they haven't engaged with). */
+function pillFor(ev: EventView) {
+  if (ev.myStatus === "going") return PILLS.going;
+  if (ev.myStatus === "maybe") return PILLS.maybe;
+  if (ev.relation === "invited") return PILLS.invited;
+  return null;
+}
+
+/**
+ * One event in a list: the picture with a status pill on its edge, then who's running it, the title, and a
+ * line with when (clock) and where (pin) that wraps onto a second line when it's long.
+ */
+function Row({ ev, onPress, last = false }: { ev: EventView; onPress: () => void; last?: boolean }) {
+  const when = ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed";
+  const place = ev.placeLabel ?? ev.venue?.name ?? null;
+  const pill = pillFor(ev);
   return (
-    <Pressable style={styles.row} onPress={onPress}>
-      <View style={styles.thumb}>
-        <EventBanner eventId={ev.eventId} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
+    <Pressable style={[styles.row, !last && styles.rowDivider]} onPress={onPress}>
+      <View style={styles.thumbWrap}>
+        <View style={styles.thumb}>
+          <EventBanner eventId={ev.eventId} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
+        </View>
+        {pill && (
+          <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+            <Text style={[styles.pillText, { color: pill.fg }]}>{pill.label}</Text>
+          </View>
+        )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.time} numberOfLines={1}>{ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed"}</Text>
+        {ev.host ? (
+          <View style={styles.org}>
+            <Avatar initials={ev.host.initials} color={ev.host.color} size={18} />
+            <Text style={styles.orgText} numberOfLines={1}>{ev.host.name}</Text>
+          </View>
+        ) : null}
         <Text style={styles.title} numberOfLines={2}>{ev.title}</Text>
-        {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
-        {ev.friendsGoing.length > 0 && (
-          <Text style={styles.friends} numberOfLines={1}>
-            {ev.friendsGoing[0].name.split(" ")[0]}{ev.friendsGoing.length > 1 ? ` +${ev.friendsGoing.length - 1}` : ""} going
-          </Text>
-        )}
+        <View style={styles.meta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={16} color={discover.muted} />
+            <Text style={styles.metaText}>{when}</Text>
+          </View>
+          {place ? (
+            <View style={styles.metaItem}>
+              <Ionicons name="location-outline" size={16} color={discover.muted} />
+              <Text style={[styles.metaText, { flexShrink: 1 }]} numberOfLines={1}>{place}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -294,13 +333,19 @@ const styles = StyleSheet.create({
   viewAllText: { color: discover.text, fontWeight: "700", fontSize: 15 },
   empty: { color: discover.muted, paddingHorizontal: 20, fontSize: 15 },
   skeleton: { height: 96, borderRadius: 14, backgroundColor: discover.card },
-  row: { flexDirection: "row", gap: 16, alignItems: "flex-start", paddingVertical: 12 },
-  thumb: { width: 96, height: 96, borderRadius: 14, overflow: "hidden", backgroundColor: discover.card, alignItems: "center", justifyContent: "center" },
-  thumbText: { color: discover.muted, fontSize: 34, fontWeight: "800" },
-  time: { color: discover.muted, fontSize: 15, flexShrink: 1 },
-  title: { color: discover.text, fontSize: 18, fontWeight: "700", lineHeight: 23, marginTop: 4 },
-  sub: { color: discover.muted, fontSize: 15, marginTop: 4 },
-  friends: { color: discover.muted, fontSize: 13, marginTop: 3 },
+  row: { flexDirection: "row", gap: 14, alignItems: "flex-start", paddingTop: 14, paddingBottom: 18 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: discover.line },
+  thumbWrap: { width: 92 },
+  thumb: { width: 92, height: 92, borderRadius: 14, overflow: "hidden", backgroundColor: discover.card },
+  // sits on the picture's bottom edge, half over it, like the reference
+  pill: { position: "absolute", bottom: -9, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 3, borderRadius: 999, borderWidth: 2, borderColor: discover.bg },
+  pillText: { fontSize: 12, fontWeight: "800" },
+  org: { flexDirection: "row", alignItems: "center", gap: 7 },
+  orgText: { color: discover.muted, fontSize: 14, flexShrink: 1 },
+  title: { color: discover.text, fontSize: 19, fontWeight: "800", lineHeight: 24, marginTop: 4 },
+  meta: { flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 4, marginTop: 8 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 1 },
+  metaText: { color: discover.textDim, fontSize: 14 },
   chip: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: discover.card, borderRadius: 16, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 18, paddingVertical: 16 },
   chipName: { color: discover.text, fontSize: 18, fontWeight: "700" },
   chipCount: { color: discover.muted, fontSize: 15, marginTop: 2 },
