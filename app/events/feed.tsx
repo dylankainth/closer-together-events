@@ -52,8 +52,12 @@ export default function Feed() {
   const picks = data?.recommended.length ?? 0;
   const all = useMemo(() => [...(data?.recommended ?? []), ...(data?.feed ?? [])], [data]);
 
+  const hosting = useMemo(() => all.filter((e) => e.relation === "hosting"), [all]);
+
   const popular = useMemo(() => {
-    const pool = category ? all.filter((e) => categoriesOf(e).includes(category)) : all;
+    // Events you host have their own section above, so they don't repeat here.
+    const others = all.filter((e) => e.relation !== "hosting");
+    const pool = category ? others.filter((e) => categoriesOf(e).includes(category)) : others;
     return [...pool].sort((a, b) => b.goingCount + b.friendsGoing.length * 2 - (a.goingCount + a.friendsGoing.length * 2));
   }, [all, category]);
 
@@ -113,6 +117,17 @@ export default function Feed() {
           </View>
         ) : (
           <>
+            {hosting.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHead}>
+                  <Text style={styles.h1}>Events I'm hosting</Text>
+                </View>
+                <View style={{ paddingHorizontal: 20 }}>
+                  {hosting.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                </View>
+              </View>
+            )}
+
             <View style={styles.section}>
               <View style={styles.sectionHead}>
                 <View style={{ flex: 1 }}>
