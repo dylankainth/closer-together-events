@@ -108,7 +108,7 @@ export default function Feed() {
   const pageW = Math.min(width - 56, 460);
   const open = (ev: EventView) => {
     if (ev.relation === "pick") {
-      router.push(`/picks/${encodeURIComponent(ev.eventId.slice("pick:".length))}`);
+      router.push({ pathname: "/picks/[key]", params: { key: encodeURIComponent(ev.eventId.slice("pick:".length)) } });
       return;
     }
     router.push(`/events/${ev.eventId}`);
