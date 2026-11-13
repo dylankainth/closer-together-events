@@ -13,7 +13,7 @@ export const getByPersonaId = query({
   },
 });
 
-/** Approved musePersonas for a set of personaIds, keyed by personaId — huddle.ts overlays these
+/** Approved musePersonas for a set of personaIds, keyed by personaId: huddle.ts overlays these
  * onto the seeded Persona when present, matching the shareable-profile shape either way. */
 export const approvedForPersonas = internalQuery({
   args: { personaIds: v.array(v.string()) },
@@ -59,10 +59,12 @@ export const setApproved = mutation({
     if (!existing) throw new Error("Sync this persona's Muse context first.");
     await ctx.db.patch(existing._id, { profileApproved: args.approved });
     // Approving is the last step of Muse setup, so the persona now counts as a Muse guest in the
-    // funnel and huddle. Un-approving leaves hasMuse as it is.
-    if (args.approved) {
-      const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
-      if (persona && !persona.hasMuse) await ctx.db.patch(persona._id, { hasMuse: true });
+    // funnel and huddle. Un-approving takes a REAL user (fb_) back out, so the huddle never runs on
+    // their blank profile; seeded demo personas keep hasMuse so the demo funnel still has guests.
+    const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
+    if (persona) {
+      const hasMuse = args.approved ? true : args.personaId.startsWith("fb_") ? false : persona.hasMuse;
+      if (persona.hasMuse !== hasMuse) await ctx.db.patch(persona._id, { hasMuse });
     }
   },
 });
