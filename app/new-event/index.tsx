@@ -69,13 +69,6 @@ export default function WhatAreWeMakingHappen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.brand}>Muse Events</Text>
-        <View style={styles.poweredBy}>
-          <Text style={styles.poweredByText}>Powered by Muse</Text>
-        </View>
-      </View>
-
       <Text style={styles.prompt}>What are we making happen?</Text>
 
       <View style={styles.inputRow}>
@@ -100,12 +93,8 @@ export default function WhatAreWeMakingHappen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.cream, paddingHorizontal: spacing.lg, paddingTop: spacing.xxl },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  brand: { fontSize: 17, fontWeight: "700", color: colors.text },
-  poweredBy: { backgroundColor: colors.museTint, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
-  poweredByText: { color: colors.museAccentDark, fontSize: 13, fontWeight: "600" },
 
-  prompt: { fontSize: 32, fontWeight: "800", color: colors.text, lineHeight: 38, marginTop: spacing.xxl * 3 },
+  prompt: { fontSize: 42, fontWeight: "800", color: colors.text, lineHeight: 48, marginTop: spacing.xxl * 4 },
 
   inputRow: {
     flexDirection: "row", alignItems: "center", marginTop: spacing.lg, backgroundColor: "white",
