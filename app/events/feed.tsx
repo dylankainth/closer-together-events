@@ -95,7 +95,7 @@ export default function Feed() {
         <Pressable onPress={() => setTab("discover")} hitSlop={8} accessibilityLabel="Discover" style={styles.navIcon}>
           <Ionicons name={tab === "discover" ? "compass" : "compass-outline"} size={24} color={tab === "discover" ? discover.text : discover.muted} />
         </Pressable>
-        <Pressable style={styles.create} onPress={() => router.push("/new-event")}>
+        <Pressable style={styles.create} onPress={() => router.push("/new-event/planning")}>
           <Text style={styles.createText}>Create Event</Text>
         </Pressable>
         <ViewerSwitcher />

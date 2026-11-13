@@ -8,12 +8,15 @@ export const CONFIG = {
   get museKey() {
     return process.env.MUSE_API_KEY ?? "";
   },
-  models: { spark: "muse-spark-1.3", wonder: "muse-wonder-1.0", image: "muse-image-1.0" },
+  models: { spark: "muse-spark-1.3", wonder: "muse-wonder-1.0", ember: "muse-ember-1.0", image: "muse-image-1.0" },
   poolSize: 50,
   displaySize: 12,
   maxPeers: 3,
   maxCallsPerEvent: 160,
-  timeoutMs: 25000,
+  // Measured low-effort spark calls average ~8.5s, wonder ~4.2s; every museJSON call site uses
+  // "low" effort (no medium/high), so 10s gives headroom above the slowest normal case while
+  // still cutting a genuine hang far short of the old 25s dead-air wait.
+  timeoutMs: 10000,
 };
 
 export const museLive = () => Boolean(CONFIG.museKey);

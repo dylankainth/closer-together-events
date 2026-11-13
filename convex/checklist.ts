@@ -25,6 +25,7 @@ export const forEvent = query({
 
     const drafts: any[] = e.drafts ?? [];
     const blockedDraft = drafts.find((d) => BLOCKED.test(String(d.simulatedReply ?? "")));
+    const pendingDrafts = drafts.filter((d) => d.status === "pending");
     const picked: any[] = (e.shortlist ?? []).filter((s: any) => s.selected);
     const sent = e.status === "sent";
 
@@ -48,9 +49,13 @@ export const forEvent = query({
     add("invite", "Designed the invite", e.poster ? "Cover art and event page drafted" : "Making the poster", !!e.poster);
     add(
       "vendors",
-      blockedDraft ? `${blockedDraft.vendor} needs attention` : drafts.length ? `Drafted ${drafts.length} vendor order${drafts.length === 1 ? "" : "s"}` : "Drafting vendor orders",
+      blockedDraft
+        ? `${blockedDraft.vendor} needs attention`
+        : drafts.length
+          ? `Drafted ${drafts.length} vendor order${drafts.length === 1 ? "" : "s"}${pendingDrafts.length ? ` · ${pendingDrafts.length} awaiting your OK` : ""}`
+          : "Drafting vendor orders",
       blockedDraft ? String(blockedDraft.simulatedReply) : drafts.length ? `${drafts.map((d) => d.item).join(", ")} (simulated, nothing is paid)` : "Cake, candles and more",
-      drafts.length > 0 && !blockedDraft,
+      drafts.length > 0 && !blockedDraft && pendingDrafts.length === 0,
       !!blockedDraft,
     );
     add("guests", picked.length ? `Picked ${picked.length} guests` : "Picking guests", picked.length ? "Each gets a personal reason why" : "Matching your audience", picked.length > 0);
@@ -89,6 +94,7 @@ export const forEvent = query({
       total: items.length,
       items,
       needsYou,
+      pendingDrafts: pendingDrafts.map((d: any) => ({ id: d.id as string, vendor: d.vendor as string, item: d.item as string, draft: d.draft as string })),
     };
   },
 });
