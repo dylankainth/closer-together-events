@@ -268,6 +268,56 @@ function Tile({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ioni
   );
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const HOURS = [10, 12, 14, 16, 18, 19, 20, 21];
+const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "am" : "pm"}`;
+
+/** A small month calendar plus time chips. Plain React Native, so no native date-picker module is needed. */
+function DatePicker({ value, onChange }: { value: { year: number; month: number; day: number; hour: number } | null; onChange: (d: { year: number; month: number; day: number; hour: number }) => void }) {
+  const today = new Date();
+  const [view, setView] = useState({ year: value?.year ?? today.getFullYear(), month: value?.month ?? today.getMonth() + 1 });
+  const hour = value?.hour ?? 19;
+  const first = new Date(view.year, view.month - 1, 1).getDay();
+  const days = new Date(view.year, view.month, 0).getDate();
+  const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const shift = (n: number) => setView((v) => { const m = v.month - 1 + n; return { year: v.year + Math.floor(m / 12), month: ((m % 12) + 12) % 12 + 1 }; });
+  return (
+    <View style={styles.cal}>
+      <View style={styles.calHead}>
+        <Pressable onPress={() => shift(-1)} hitSlop={10}><Ionicons name="chevron-back" size={20} color={discover.text} /></Pressable>
+        <Text style={styles.calTitle}>{MONTHS[view.month - 1]} {view.year}</Text>
+        <Pressable onPress={() => shift(1)} hitSlop={10}><Ionicons name="chevron-forward" size={20} color={discover.text} /></Pressable>
+      </View>
+      <View style={styles.calRow}>
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <Text key={i} style={styles.calDow}>{d}</Text>)}
+      </View>
+      <View style={styles.calGrid}>
+        {cells.map((d, i) => {
+          const past = d !== null && new Date(view.year, view.month - 1, d).getTime() < startOfToday;
+          const on = d !== null && value?.year === view.year && value.month === view.month && value.day === d;
+          return (
+            <Pressable key={i} disabled={d === null || past} onPress={() => d !== null && onChange({ year: view.year, month: view.month, day: d, hour })} style={styles.calCell}>
+              {d !== null && (
+                <View style={[styles.calDay, on && styles.calDayOn]}>
+                  <Text style={[styles.calDayText, past && { color: discover.line }, on && { color: "#fff" }]}>{d}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={[styles.wrap, { marginTop: 10 }]}>
+        {HOURS.map((h) => (
+          <Pressable key={h} onPress={() => value && onChange({ ...value, hour: h })} disabled={!value} style={[styles.chip, value?.hour === h && styles.chipOn, !value && { opacity: 0.5 }]}>
+            <Text style={[styles.chipText, value?.hour === h && { color: "#fff" }]}>{hourLabel(h)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function Details({ event, slots, venues }: any) {
   const update = useMutation(api.manage.updateDetails);
   const initial = useMemo(
@@ -284,17 +334,20 @@ function Details({ event, slots, venues }: any) {
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [customDate, setCustomDate] = useState<{ year: number; month: number; day: number; hour: number } | null>(null);
 
   // Pick up changes made elsewhere (e.g. after a save) unless the host is mid-edit.
   useEffect(() => setForm(initial), [initial]);
 
-  const dirty = (Object.keys(initial) as (keyof typeof initial)[]).filter((k) => form[k] !== initial[k]);
+  const dirty = (Object.keys(initial) as (keyof typeof initial)[]).filter((k) => form[k] !== initial[k] && !(k === "slotId" && customDate));
+  if (customDate && !dirty.includes("slotId" as any)) dirty.push("slotId" as any);
   const set = (k: keyof typeof initial, v: string) => { setNote(null); setForm((f) => ({ ...f, [k]: v })); };
 
   const save = async () => {
     const patch: Record<string, unknown> = {};
     dirty.forEach((k) => {
       if (k === "capacity") patch.capacity = Number(form.capacity);
+      else if (k === "slotId" && customDate) patch.customDate = customDate;
       else patch[k] = form[k];
     });
     if ("capacity" in patch && (form.capacity.trim() === "" || Number.isNaN(patch.capacity))) {
@@ -304,6 +357,7 @@ function Details({ event, slots, venues }: any) {
     setSaving(true);
     try {
       await update({ eventId: event.eventId, patch: patch as any });
+      setCustomDate(null);
       setNote({ ok: true, text: "Saved." });
     } catch (e: any) {
       const msg = String(e?.message ?? "").split("\n")[0].replace(/^.*Uncaught Error:\s*/, "");
@@ -322,13 +376,10 @@ function Details({ event, slots, venues }: any) {
       <TextInput style={styles.field} value={form.title} onChangeText={(v) => set("title", v)} placeholder="Event title" placeholderTextColor={discover.muted} />
 
       <Text style={styles.fieldLabel}>Date</Text>
-      <View style={styles.wrap}>
-        {slots.map((s: any) => (
-          <Pressable key={s.slotId} onPress={() => set("slotId", s.slotId)} style={[styles.chip, form.slotId === s.slotId && styles.chipOn]}>
-            <Text style={[styles.chipText, form.slotId === s.slotId && { color: "#fff" }]}>{s.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Text style={[styles.muted, { marginBottom: 8 }]}>
+        {customDate ? `New date: ${customDate.day}/${customDate.month}/${customDate.year}, ${hourLabel(customDate.hour)}` : `Now: ${slots.find((x: any) => x.slotId === form.slotId)?.label ?? "not set"}`}
+      </Text>
+      <DatePicker value={customDate} onChange={(d) => { setNote(null); setCustomDate(d); }} />
 
       <Text style={styles.fieldLabel}>Venue</Text>
       <View style={{ gap: 8 }}>
@@ -405,6 +456,16 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 12, color: discover.text, fontSize: 16 },
   chip: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   chipOn: { backgroundColor: discover.text, borderColor: discover.text },
+  cal: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 16, padding: 12 },
+  calHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  calTitle: { fontWeight: "800", fontSize: 15, color: discover.text },
+  calRow: { flexDirection: "row" },
+  calDow: { width: "14.285%", textAlign: "center", color: discover.muted, fontSize: 12, fontWeight: "700", paddingBottom: 4 },
+  calGrid: { flexDirection: "row", flexWrap: "wrap" },
+  calCell: { width: "14.285%", aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+  calDay: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  calDayOn: { backgroundColor: discover.text },
+  calDayText: { color: discover.text, fontWeight: "600", fontSize: 14 },
   chipText: { color: discover.text, fontWeight: "600", fontSize: 14 },
   listCard: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, overflow: "hidden" },
   guestRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },

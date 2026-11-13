@@ -13,6 +13,8 @@ export const updateDetails = mutation({
     patch: v.object({
       title: v.optional(v.string()),
       slotId: v.optional(v.string()),
+      // A date the host picked on the calendar (month 1-12, hour 0-23). Becomes a slot row of its own.
+      customDate: v.optional(v.object({ year: v.number(), month: v.number(), day: v.number(), hour: v.number() })),
       venueId: v.optional(v.string()),
       vibe: v.optional(v.string()),
       description: v.optional(v.string()),
@@ -36,6 +38,21 @@ export const updateDetails = mutation({
       const slot = await ctx.db.query("slots").withIndex("by_slotId", (q) => q.eq("slotId", patch.slotId!)).unique();
       if (!slot) throw new Error("Unknown date");
       next.slotId = patch.slotId;
+    }
+    if (patch.customDate !== undefined) {
+      const { year, month, day, hour } = patch.customDate;
+      const d = new Date(Date.UTC(year, month - 1, day));
+      const valid = [year, month, day, hour].every(Number.isInteger) && hour >= 0 && hour <= 23 && year >= 2024 && year <= 2100 &&
+        d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+      if (!valid) throw new Error("That date isn't valid");
+      const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const label = `${WD[d.getUTCDay()]} ${day} ${MO[month - 1]}, ${h12}${hour < 12 ? "am" : "pm"}`;
+      const slotId = `c-${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}-${String(hour).padStart(2, "0")}`;
+      const existing = await ctx.db.query("slots").withIndex("by_slotId", (q) => q.eq("slotId", slotId)).unique();
+      if (!existing) await ctx.db.insert("slots", { slotId, label, part: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening" });
+      next.slotId = slotId;
     }
     if (patch.venueId !== undefined) {
       const venue = await ctx.db.query("venues").withIndex("by_venueId", (q) => q.eq("venueId", patch.venueId!)).unique();
