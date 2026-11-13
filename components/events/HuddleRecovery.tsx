@@ -16,6 +16,17 @@ export function HuddleRecovery({ eventId }: { eventId: string }) {
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
   }, []);
+  // "Restarting conversations…" describes an action, not a state, and nothing ever took it back
+  // down: it sat under a long-finished huddle, reading as though the restart itself had hung.
+  // It's a transient confirmation, so it expires. (Clearing it when the server state changes
+  // instead would wipe it almost immediately — retry bumps the run's attempt, so the query
+  // updates within a tick and the host would never read it.) The run rows above are what actually
+  // report progress, and they stay live.
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(""), 6000);
+    return () => clearTimeout(timer);
+  }, [message]);
   if (!state || (!state.runs.length && !state.legacy)) return null;
   const send = async (run?: (typeof state.runs)[number]) => {
     if (lock.current) return;

@@ -53,12 +53,18 @@ export default function Room() {
     () => messages.filter((m) => m.forPersona === personaId).slice().sort((a, b) => a.seq - b.seq),
     [messages, personaId],
   );
+  const nudge = guest?.nudge;
+  // Once this person's Muse has reached a verdict (or they've answered themselves), the
+  // deliberation is over. Counting distinct peers in the thread is a count of who TOOK PART, which
+  // is a history — on its own it left a finished room claiming "2 Muses talking" under a pulsing
+  // live dot indefinitely. Same rule the swarm uses for its "talking" node state: an exchange is
+  // live only until it resolves.
+  const settled = !!nudge || (!!guest?.status && guest.status !== "invited");
   const talkingCount = useMemo(
-    () => new Set(thread.filter((m) => m.fromPersona !== personaId).map((m) => m.fromPersona)).size,
-    [thread, personaId],
+    () => (settled ? 0 : new Set(thread.filter((m) => m.fromPersona !== personaId).map((m) => m.fromPersona)).size),
+    [thread, personaId, settled],
   );
 
-  const nudge = guest?.nudge;
   const verdict = nudge ? VERDICT[nudge.verdict] ?? VERDICT.maybe : null;
   // Only the person themselves can RSVP (events.updateRsvp enforces this server-side too) — the
   // host watching this room sees the verdict read-only rather than buttons they can't press.
