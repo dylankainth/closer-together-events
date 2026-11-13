@@ -35,7 +35,7 @@ function world() {
       const filters = [];
       const index = { eq(k, value) { filters.push((r) => r[k] === value); return index; } };
       const rows = () => tables[table].filter((r) => filters.every((f) => f(r)));
-      return { withIndex(_name, build) { build(index); return this; }, async unique() { return rows()[0] ?? null; }, async collect() { return rows(); } };
+      return { withIndex(_name, build) { build(index); return this; }, order() { return this; }, async take(n) { return rows().slice(0, n); }, async unique() { return rows()[0] ?? null; }, async collect() { return rows(); } };
     },
     async patch(id, patch) { const row = Object.values(tables).flat().find((r) => r._id === id); assert.ok(row); Object.assign(row, patch); writes.push({ id, patch }); },
   } };

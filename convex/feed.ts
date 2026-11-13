@@ -70,14 +70,32 @@ function chipsFrom(replies: { reply: any }[], reasons: string[]): Chip[] {
   return out;
 }
 
-async function loadWorld(ctx: any) {
-  const [events, guests, personas, venues, slots] = await Promise.all([
-    ctx.db.query("events").collect(),
-    ctx.db.query("guests").collect(),
+// Every event row carries its poster (a Muse Image is ~0.9 MB as a data URI) and Convex counts whole documents against
+// the 16 MB per-query read limit, so reading ALL events broke the feed once ~18 had posters. Read only what a viewer can
+// see: the newest sent events plus the viewer's own, or just the one event for the detail page.
+const FEED_SENT_EVENTS = 10;
+const FEED_HOSTED_EVENTS = 4;
+
+async function loadWorld(ctx: any, scope: { viewerId?: string; eventId?: string } = {}) {
+  let events: any[];
+  if (scope.eventId) {
+    const one = await ctx.db.query("events").withIndex("by_eventId", (q: any) => q.eq("eventId", scope.eventId)).unique();
+    events = one ? [one] : [];
+  } else {
+    const sent: any[] = await ctx.db.query("events").withIndex("by_status", (q: any) => q.eq("status", "sent")).order("desc").take(FEED_SENT_EVENTS);
+    const hosted: any[] = scope.viewerId
+      ? await ctx.db.query("events").withIndex("by_hostId", (q: any) => q.eq("hostId", scope.viewerId)).order("desc").take(FEED_HOSTED_EVENTS)
+      : [];
+    const seen = new Set<string>();
+    events = [...hosted, ...sent].filter((e) => !seen.has(e.eventId) && !!seen.add(e.eventId));
+  }
+  const [guestLists, personas, venues, slots] = await Promise.all([
+    Promise.all(events.map((e) => ctx.db.query("guests").withIndex("by_eventId", (q: any) => q.eq("eventId", e.eventId)).collect())),
     ctx.db.query("personas").collect(),
     ctx.db.query("venues").collect(),
     ctx.db.query("slots").collect(),
   ]);
+  const guests = guestLists.flat();
   return {
     events: events as any[],
     guests: guests as any[],
@@ -212,7 +230,7 @@ export const forViewer = query({
   args: { personaId: v.string() },
   handler: async (ctx, args) => {
     await requireActor(ctx, args.personaId, "read", "feed.forViewer");
-    const w = await loadWorld(ctx);
+    const w = await loadWorld(ctx, { viewerId: args.personaId });
     const visible = w.events.filter((e) => e.status === "sent" || e.hostId === args.personaId);
     const views = visible.map((e) => buildView(w, e, args.personaId));
 
@@ -253,7 +271,7 @@ export const detail = query({
   args: { eventId: v.string(), personaId: v.string() },
   handler: async (ctx, args) => {
     await requireActor(ctx, args.personaId, "read", "feed.detail");
-    const w = await loadWorld(ctx);
+    const w = await loadWorld(ctx, { eventId: args.eventId });
     const e = w.events.find((x) => x.eventId === args.eventId);
     if (!e) return null;
     const evGuests = w.guests.filter((g) => g.eventId === e.eventId);
