@@ -15,7 +15,9 @@ function publicEvent(e: any) {
 // What a non-host may see of a sent event: no shortlist (who else was considered), no vendor
 // drafts or venue options, no raw audience text. Only the host's own screens read those.
 function guestEvent(e: any) {
-  const { shortlist, drafts, venueOptions, query: audienceQuery, audienceRaw, ...rest } = publicEvent(e);
+  // hostDescription is the host's own words to their Muse (it can name people or private context); like
+  // audienceRaw it is for the host only.
+  const { shortlist, drafts, venueOptions, query: audienceQuery, audienceRaw, hostDescription, ...rest } = publicEvent(e);
   return rest;
 }
 
