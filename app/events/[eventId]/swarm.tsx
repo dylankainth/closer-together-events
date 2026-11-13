@@ -193,6 +193,11 @@ export default function Swarm() {
   const animX = useRef(new Animated.Value(0)).current;
   const animY = useRef(new Animated.Value(0)).current;
   const animScale = useRef(new Animated.Value(1)).current;
+  // The smallest scale the user may pinch to. MIN_SCALE is only a default: on a short frame the
+  // scale that actually fits the whole graph is smaller than it, and clamping the initial fit UP
+  // to MIN_SCALE is what cropped the ring no matter what headroom factor was used. onFrameLayout
+  // lowers this to the real fit, so "zoomed all the way out" means "everything visible".
+  const minScale = useRef(MIN_SCALE);
 
   const applyTransform = useCallback((t: { x: number; y: number; scale: number }) => {
     transform.current = t;
@@ -203,7 +208,16 @@ export default function Swarm() {
 
   const clampPan = useCallback((x: number, y: number, scale: number): [number, number] => {
     const dim = VIRTUAL_SIZE * scale;
-    return [clampAxis(x, dim, frameSize.current.w), clampAxis(y, dim, frameSize.current.h)];
+    // React Native scales a view about its CENTRE, not its top-left, so the translation moves the
+    // centre and the visible box spans centre +/- dim/2. clampAxis works in "left edge" terms, so
+    // convert in and back out. Treating the translation as the left edge is off by this much, and
+    // the error grows with zoom — which is what let the graph sit with the host node half off the
+    // bottom of the frame.
+    const edge = (VIRTUAL_SIZE - dim) / 2;
+    return [
+      clampAxis(x + edge, dim, frameSize.current.w) - edge,
+      clampAxis(y + edge, dim, frameSize.current.h) - edge,
+    ];
   }, []);
 
   const [hintVisible, setHintVisible] = useState(true);
@@ -240,7 +254,7 @@ export default function Swarm() {
             const midY = ((a.locationY ?? 0) + (b.locationY ?? 0)) / 2;
             if (!pinch.current) pinch.current = { startDist: dist, startScale: gestureBase.current.scale, startX: gestureBase.current.x, startY: gestureBase.current.y, midX, midY };
             const p = pinch.current;
-            const scale = clampNum(p.startScale * (dist / Math.max(p.startDist, 1)), MIN_SCALE, MAX_SCALE);
+            const scale = clampNum(p.startScale * (dist / Math.max(p.startDist, 1)), minScale.current, MAX_SCALE);
             // Anchor the pinch midpoint: whatever canvas point was under the fingers when the pinch
             // started stays under the fingers as the scale changes.
             const k = scale / p.startScale;
@@ -278,10 +292,16 @@ export default function Swarm() {
     const { width, height } = e.nativeEvent.layout;
     frameSize.current = { w: width, h: height };
     // The frame is wide and short, so height is the limiting dimension for fitting the (square)
-    // virtual canvas; add a little headroom so the outer ring doesn't sit flush on the edges.
-    const fitScale = clampNum((height / VIRTUAL_SIZE) * 1.15, MIN_SCALE, MAX_SCALE);
-    const dx = (width - VIRTUAL_SIZE * fitScale) / 2;
-    const dy = (height - VIRTUAL_SIZE * fitScale) / 2;
+    // virtual canvas. The factor is headroom, so it has to be BELOW 1 — it was 1.15, which zoomed
+    // past the fit and cropped the outer ring (and the host node with it) on first paint.
+    const fitScale = Math.min((height / VIRTUAL_SIZE) * 0.92, MAX_SCALE);
+    minScale.current = Math.min(MIN_SCALE, fitScale);
+    // Centring is independent of scale for the same reason as above: scaling about the centre
+    // leaves the centre where the translation put it, so this is just "put the canvas's centre on
+    // the frame's centre". The old form subtracted the SCALED size, which overshot by exactly the
+    // edge term in clampPan and opened the graph pushed down and to the right.
+    const dx = (width - VIRTUAL_SIZE) / 2;
+    const dy = (height - VIRTUAL_SIZE) / 2;
     defaultTransform.current = { x: dx, y: dy, scale: fitScale };
     if (!hasLaidOut.current) {
       hasLaidOut.current = true;
