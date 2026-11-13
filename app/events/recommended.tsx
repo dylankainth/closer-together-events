@@ -7,6 +7,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { SwipeCard } from "@/components/events/SwipeCard";
+import { Confetti } from "@/components/events/Confetti";
 import { AccountSheet } from "@/components/AccountSheet";
 import { swipe } from "@/theme/swipeTheme";
 
@@ -117,7 +118,18 @@ export default function Recommended() {
     [pan, flyAway],
   );
 
+  const [celebrating, setCelebrating] = useState(false);
   const answer = (action: "going" | "cant" | "snooze") => {
+    if (!current || celebrating) return;
+    if (action === "going") {
+      // Celebrate first, then save: the card only drops out of the stack once the burst is under way.
+      setCelebrating(true);
+      setTimeout(() => commit(action), 700);
+      return;
+    }
+    commit(action);
+  };
+  const commit = (action: "going" | "cant" | "snooze") => {
     if (!current) return;
     // Muse picks of real nearby events live in their own table (convex/picks.ts).
     if (current.relation === "pick") {
@@ -154,7 +166,7 @@ export default function Recommended() {
         <View style={styles.badge}>
           <Ionicons name="star" size={13} color="#fff" />
         </View>
-        <Text style={styles.heading}>Muse's picks</Text>
+        <Text style={styles.heading}>Your picks</Text>
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
         <Pressable onPress={runRefresh} disabled={refreshing} hitSlop={10} accessibilityLabel="Ask Muse for fresh picks" style={styles.refresh}>
           {refreshing ? <ActivityIndicator size="small" color={swipe.ink} /> : <Ionicons name="refresh" size={20} color={swipe.ink} />}
@@ -204,6 +216,7 @@ export default function Recommended() {
         </Pressable>
       </View>
       </Animated.View>
+      {celebrating && <Confetti onDone={() => setCelebrating(false)} />}
     </View>
   );
 }
