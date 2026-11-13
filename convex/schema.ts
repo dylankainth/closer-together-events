@@ -285,7 +285,7 @@ export default defineSchema({
   })
     .index("by_persona", ["personaId"])
     .index("by_persona_key", ["personaId", "eventKey"])
-    .index("by_eventKey", ["eventKey"]), // friends going to the same pick (card pill only)
+    .index("by_eventKey_status", ["eventKey", "status"]), // friends going to the same pick (card pill only)
 
   // Events a person went to before, with their one-line "How was it?" answer. Feeds Muse's picks.
   pastEvents: defineTable({

@@ -182,6 +182,10 @@ export const fetchParallel = internalAction({
       return { fetched: 0, inserted: 0 };
     }
     const items: DiscoveredInput[] = parseAlleventsResults(results);
+    const alleventsPages = results.filter((r) => /allevents\.in/.test(r.url ?? "")).length;
+    if (alleventsPages > 0 && items.length === 0) {
+      console.warn(`[discovery] parallel returned ${alleventsPages} allevents pages but parsed 0 allevents events; their page layout may have changed (convex/sources/parallel.ts)`);
+    }
     // Facebook event pages Parallel found: Apify reads their full details (same mapper as the city search).
     const fbUrls = facebookEventUrls(results);
     const token = process.env.APIFY_TOKEN;

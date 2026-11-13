@@ -69,7 +69,7 @@ test("no profile means popular picks: soonest first, no personal claim", () => {
   const picks = fallbackRank(null, mergeDuplicates([ev({ title: "Later", sourceId: "3", startsAt: NOW + 5 * 86400e3 }), ev({})]), NOW);
   assert.ok(picks.every((p) => p.kind === "popular" && p.verdict === "maybe"));
   assert.equal(picks.length, 2);
-  assert.equal(picks[0].reason, "Popular near you this week.");
+  assert.equal(picks[0].reason, "Popular near you, coming up soon."); // the window is 21 days, not a week
 });
 
 test("never more than MAX_PICKS", () => {

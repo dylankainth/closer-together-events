@@ -49,7 +49,7 @@ export const RADIUS_KM = 55;
 export const WINDOW_DAYS = 21;
 export const MAX_PICKS = 8;
 export const MAX_REASON = 90;
-export const POPULAR_REASON = "Popular near you this week.";
+export const POPULAR_REASON = "Popular near you, coming up soon."; // the window is 21 days
 const DAY_MS = 86_400_000;
 
 export const CITY_CENTRES: Record<string, { lat: number; lng: number }> = {

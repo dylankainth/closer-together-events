@@ -1,5 +1,6 @@
 import { internalMutation } from "./_generated/server";
 import { buildPersonas, HOST_ID, SLOTS, VENUES } from "./seedData";
+import { pastEventsFor } from "./discoveryCore";
 
 /**
  * Replaces the old app's serverless-unsafe `globalThis.__muse_db` in-memory store: Convex's
@@ -20,6 +21,8 @@ export const run = internalMutation({
     for (const p of personas) {
       const { id, ...rest } = p;
       await ctx.db.insert("personas", { personaId: id, ...rest });
+      // Events they went to, so Muse's picks can cite them (event discovery).
+      if (p.hasMuse) for (const row of pastEventsFor(id, p.interests)) await ctx.db.insert("pastEvents", row);
     }
 
     const jess = personas.find((p) => p.id === "jess")!;

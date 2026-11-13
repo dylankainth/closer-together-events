@@ -58,6 +58,7 @@ export const setApproved = mutation({
     await requireOwner(ctx, args.personaId, "musePersonas.setApproved");
     const existing = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
     if (!existing) throw new Error("Sync this persona's Muse context first.");
+    const changed = existing.profileApproved !== args.approved;
     await ctx.db.patch(existing._id, { profileApproved: args.approved });
     // Approving is the last step of Muse setup, so the persona now counts as a Muse guest in the
     // funnel and huddle. Un-approving takes a REAL user (fb_) back out, so the huddle never runs on
@@ -67,7 +68,8 @@ export const setApproved = mutation({
       const hasMuse = args.approved ? true : args.personaId.startsWith("fb_") ? false : persona.hasMuse;
       if (persona.hasMuse !== hasMuse) await ctx.db.patch(persona._id, { hasMuse });
     }
-    // Picks follow the approval straight away: personal once approved, popular if withdrawn.
-    await ctx.scheduler.runAfter(0, internal.discoveryRank.rankPersona, { personaId: args.personaId });
+    // Picks follow the approval straight away: personal once approved, popular if withdrawn. Only on a
+    // real change, so repeated taps on the same switch do not each cost a Muse call.
+    if (changed) await ctx.scheduler.runAfter(0, internal.discoveryRank.rankPersona, { personaId: args.personaId });
   },
 });

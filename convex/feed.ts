@@ -172,7 +172,10 @@ async function loadPicks(ctx: QueryCtx, w: World, viewerId: string) {
   for (const p of live) {
     const ev = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", p.eventKey)).unique();
     if (!ev || ev.startsAt <= now) continue;
-    const others = await ctx.db.query("picks").withIndex("by_eventKey", (q) => q.eq("eventKey", p.eventKey)).collect();
+    const others = await ctx.db
+      .query("picks")
+      .withIndex("by_eventKey_status", (q) => q.eq("eventKey", p.eventKey).eq("status", "going"))
+      .collect();
     const going = others
       .filter((o) => o.status === "going" && friends.has(o.personaId))
       .map((o) => person(w, o.personaId))

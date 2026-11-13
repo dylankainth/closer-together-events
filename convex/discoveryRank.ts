@@ -14,7 +14,7 @@ import { leaksIn } from "./privacy";
 import { buildRankPrompt, cleanRankResponse, excludeAnswered, fallbackRank, shouldSavePicks, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Persona } from "./types";
 
-const CONCURRENCY = 5;
+const CONCURRENCY = 2; // Muse answered 429 rate_limit_exceeded at 5 parallel calls
 
 // verdict is any string: one odd value must not throw away Muse's whole answer;
 // cleanRankResponse maps anything other than "go" to "maybe".

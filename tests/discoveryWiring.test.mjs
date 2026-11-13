@@ -34,3 +34,24 @@ test("picks show their real date in Discover, and a vanished pick cannot crash t
   assert.match(src("app/events/feed.tsx"), /ev\.whenLabel/);
   assert.match(src("app/events/recommended.tsx"), /respondToPick\(\{[\s\S]{0,200}?\}\)\.catch\(/);
 });
+
+test("leftover: Parallel warns when it returns results but none parse (allevents layout changed)", () => {
+  assert.match(src("convex/discoverySources.ts"), /parsed 0 allevents events/);
+});
+
+test("leftover: a fresh database is seeded with demo personas' past events", () => {
+  assert.match(src("convex/seed.ts"), /pastEventsFor\(/);
+});
+
+test("leftover: friends-going reads use the [eventKey, status] index", () => {
+  assert.match(src("convex/schema.ts"), /\.index\("by_eventKey_status", \["eventKey", "status"\]\)/);
+  assert.match(src("convex/feed.ts"), /withIndex\("by_eventKey_status"/);
+});
+
+test("leftover: approving or withdrawing Muse re-ranks only when the approval actually changes", () => {
+  assert.match(src("convex/musePersonas.ts"), /existing\.profileApproved !== args\.approved/);
+});
+
+test("Muse is not hammered: the cron ranks at most 2 people at a time (429s at 5)", () => {
+  assert.match(src("convex/discoveryRank.ts"), /const CONCURRENCY = 2;/);
+});
