@@ -76,6 +76,19 @@ export default function Recommended() {
   // isn't left showing underneath while the feed slides in.
   const fade = useRef(new Animated.Value(1)).current;
 
+  // A small bounce on the "swipe up" hint's arrow, so people notice the stack has a way out to all events.
+  const hintLift = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const bounce = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hintLift, { toValue: -4, duration: 600, useNativeDriver: true }),
+        Animated.timing(hintLift, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    bounce.start();
+    return () => bounce.stop();
+  }, [hintLift]);
+
   const reset = useCallback(() => pan.setValue({ x: 0, y: 0 }), [pan]);
   useEffect(reset, [viewerId, reset]);
 
@@ -227,6 +240,23 @@ export default function Recommended() {
         )}
       </View>
 
+      {/* Sits between the card and the buttons, not at the screen's bottom edge: a swipe that starts at the
+          bottom edge is the phone's own home gesture, and the in-app swipe only works on the card. Also tappable. */}
+      {current && (
+        <Pressable
+          style={styles.swipeHint}
+          onPress={() => router.navigate("/events/feed")}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="See all events"
+        >
+          <Animated.View style={{ transform: [{ translateY: hintLift }] }}>
+            <Ionicons name="chevron-up" size={16} color="#65676B" />
+          </Animated.View>
+          <Text style={styles.swipeHintText}>Swipe the card up for all events</Text>
+        </Pressable>
+      )}
+
       <View style={styles.actions}>
         <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current || confirming} accessibilityLabel="Not for me">
           <Ionicons name="close" size={26} color={swipe.ink} />
@@ -258,7 +288,10 @@ const styles = StyleSheet.create({
   looking: { color: "#6B6B76", fontSize: 13, fontWeight: "600", marginHorizontal: 20, marginBottom: 6 },
   museBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#EEF0FF" },
   museBannerText: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 14 },
-  stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10 },
+  // overflow hidden: a tall card (big picture + long reason + who's going) must never spill over the buttons.
+  stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10, overflow: "hidden" },
+  swipeHint: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F0F2F5" },
+  swipeHintText: { color: "#65676B", fontSize: 13, fontWeight: "600" },
   front: { flex: 1 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18, paddingVertical: 6 },
   round: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, borderColor: "#D5D5DC", alignItems: "center", justifyContent: "center" },
