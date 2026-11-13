@@ -183,6 +183,29 @@ const dropLoneSurrogate = (s: string) => {
   return last >= 0xd800 && last <= 0xdbff ? s.slice(0, -1) : s;
 };
 
+/**
+ * Remove ANY unpaired surrogate, anywhere in a string, on the way OUT.
+ *
+ * Sanitising only where text is saved leaves every row written before that fix — or by any other
+ * path — still able to kill a whole query, since one bad string makes the entire response
+ * unserialisable. Reads are the chokepoint every row passes through, so the guarantee belongs
+ * here too: a malformed row should cost its own text, never someone's screen.
+ */
+export function scrubText(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) { out += text[i] + text[i + 1]; i += 1; }
+      continue; // unpaired high surrogate: drop it
+    }
+    if (c >= 0xdc00 && c <= 0xdfff) continue; // unpaired low surrogate: drop it
+    out += text[i];
+  }
+  return out;
+}
+
 /** Keeps whole sentences up to MAX_REASON characters; one over-long sentence is cut at a word. */
 export function clampReason(text: string): string {
   const t = text.trim().replace(/\s+/g, " ");
@@ -270,7 +293,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
   const snoozed = p.status === "snoozed" && typeof p.snoozedUntil === "number" && p.snoozedUntil > now;
   return {
     eventId: `pick:${e.key}`,
-    title: e.title,
+    title: scrubText(e.title ?? ""),
     status: "sent",
     poster: e.imageUrl ? { url: e.imageUrl } : null,
     host: organizerCard(e.organizer),
@@ -281,7 +304,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     purpose: null as string | null,
     tags: e.category ? [e.category] : [],
     goingCount: Math.max(totalGoing, friendsGoing.length), // everyone going; friendsGoing is just the viewer's friends
-    goingList, // up to 5 of them, each with a one-liner for the viewer
+    goingList: goingList.map((g) => ({ ...g, note: scrubText((g as any).note ?? "") })), // up to 5, each with a one-liner for the viewer
     capacity: null as number | null,
     spotsLeft: null as number | null,
     relation: "pick" as const,
@@ -289,7 +312,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     snoozed,
     goIfFriend: null as string | null,
     verdict: (p.verdict === "go" ? "worth" : "maybe") as "worth" | "maybe" | "skip" | null,
-    reasons: [p.reason],
+    reasons: [scrubText(p.reason ?? "")],
     matchPct: p.verdict === "go" ? 78 : 55,
     friendsGoing: friendsGoing.slice(0, 3),
     chips: [] as { kind: "people" | "goal" | "fit" | "plan"; text: string }[],
@@ -297,7 +320,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     whenLabel: formatWhen(e.startsAt, e.allDay === true) as string | null,
     placeLabel: placeOf(e),
     // For the in-app event page; links to the source site are removed (picks read as Facebook events).
-    description: cleanText(e.description).slice(0, DESCRIPTION_CHARS),
+    description: scrubText(cleanText(e.description).slice(0, DESCRIPTION_CHARS)),
   };
 }
 

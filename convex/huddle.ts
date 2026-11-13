@@ -13,6 +13,21 @@ import type { CallBudget, MuseReply, Nudge, Persona } from "./types";
 
 const first = (p: Persona) => p.name.split(" ")[0];
 
+/** How many candidates' Muses work at once. See the call site for why this is bounded. */
+const CANDIDATE_CONCURRENCY = 4;
+
+/** Promise.allSettled with a ceiling on how many run concurrently; same result shape. */
+async function mapWithConcurrency<T>(
+  items: T[], limit: number, fn: (item: T) => Promise<unknown>,
+): Promise<PromiseSettledResult<unknown>[]> {
+  const results: PromiseSettledResult<unknown>[] = [];
+  for (let i = 0; i < items.length; i += limit) {
+    results.push(...(await Promise.allSettled(items.slice(i, i + limit).map(fn))));
+  }
+  return results;
+}
+
+
 // Slicing by UTF-16 code unit can cut an emoji in half, and the lone surrogate left behind
 // makes the whole Convex response unserialisable — the client then fails the entire query with
 // "unexpected end of hex escape", naming neither the field nor the event. One emoji in one
@@ -286,7 +301,14 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
     };
 
     // Wait for sibling candidates even if one fails, so the attempt cannot finalize while they write.
-    const results = await Promise.allSettled(candidates.map(async (c) => {
+    // Bounded concurrency, NOT a plain Promise.all over every candidate: free mode is now the
+    // default and runs up to maxTurns sequential model calls per peer per candidate, so an
+    // unbounded fan-out put ~24 exchanges in flight at once. The calls then queue behind each
+    // other, individual ones hit CONFIG.timeoutMs and degrade to offline fallbacks, and the run
+    // outlives huddleRuntime's 120s lease and is marked interrupted — observed live, stopping at
+    // 7 of 12 after ~75s. Going a few candidates at a time is slightly slower at best and
+    // finishes instead of stalling, and the steady message writes keep renewing the lease.
+    const results = await mapWithConcurrency(candidates, CANDIDATE_CONCURRENCY, async (c) => {
       await insert({
         kind: "ask", fromPersona: host.id, toPersona: c.id, forPersona: c.id,
         text: `Muse (${first(host)}) → Muse (${first(c)}): "Is ${event.title} worth it for ${first(c)}?"`,
@@ -340,7 +362,7 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
         await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
         await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge, runId: args.runId, attempt: args.attempt });
       }
-    }));
+    });
 
     await ctx.runMutation(internal.events.bumpCalls, { eventId: args.eventId, by: budget.used - event.museCalls });
     const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");

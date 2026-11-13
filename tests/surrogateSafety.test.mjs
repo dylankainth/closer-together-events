@@ -52,3 +52,23 @@ test("an all-emoji reason survives clamping", () => {
   assert.equal(hasLoneSurrogate(out), false);
   assert.ok(JSON.parse(JSON.stringify(out)) === out);
 });
+
+// Keanu's point: sanitising only at save time leaves every row written BEFORE the fix still able
+// to kill a whole query. Reads are the chokepoint, so the guarantee lives there too.
+test("scrubText removes unpaired surrogates anywhere, not just trailing", async () => {
+  const { scrubText } = await import("../convex/discoveryCore.ts");
+  const lone = "\ud83c"; // high surrogate with no partner
+  const low = "\udf89"; // low surrogate with no partner
+  for (const bad of [lone, `a${lone}b`, `${low}start`, `end${low}`, `${lone}${lone}`, `mid${lone}dle`]) {
+    const out = scrubText(bad);
+    assert.equal(hasLoneSurrogate(out), false, `failed on ${JSON.stringify(bad)}`);
+    assert.ok(JSON.parse(JSON.stringify(out)) === out);
+  }
+});
+
+test("scrubText keeps real emoji and ordinary text intact", async () => {
+  const { scrubText } = await import("../convex/discoveryCore.ts");
+  assert.equal(scrubText("Bowling 🎳 with Sam 🎉"), "Bowling 🎳 with Sam 🎉");
+  assert.equal(scrubText("plain"), "plain");
+  assert.equal(scrubText(""), "");
+});
