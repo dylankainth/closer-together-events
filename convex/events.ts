@@ -296,19 +296,25 @@ export const rejectTask = mutation({
 // Open by design: a person without a Muse RSVPs from a plain link (claude.md section 6).
 // Hardened: only for sent events, with a sane name.
 export const rsvpExternal = mutation({
-  args: { eventId: v.string(), name: v.string() },
+  args: {
+    eventId: v.string(),
+    name: v.string(),
+    // Older invite clients only sent a name; keep their default "going" response.
+    status: v.optional(v.union(v.literal("going"), v.literal("maybe"), v.literal("cant"))),
+  },
   handler: async (ctx, args) => {
     const name = args.name.trim();
     if (name.length < 1 || name.length > 80) throw new Error("Enter a name between 1 and 80 characters.");
+    const status = args.status ?? "going";
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e || e.status !== "sent") throw new Error("This invite isn't open.");
     const existing = await ctx.db.query("guests").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).collect();
     const dup = existing.find((g) => g.kind === "external" && g.name === name);
     if (dup) {
-      await ctx.db.patch(dup._id, { status: "going" });
+      await ctx.db.patch(dup._id, { status });
       return;
     }
-    await ctx.db.insert("guests", { eventId: args.eventId, name, kind: "external", status: "going" });
+    await ctx.db.insert("guests", { eventId: args.eventId, name, kind: "external", status });
   },
 });
 
