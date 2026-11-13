@@ -92,6 +92,20 @@ export interface EventSettings {
   reasons: { friendsOfFriends: string; quota: string; guestCount: string };
 }
 
+// Ad-hoc checklist items chat can add on top of the fixed plan-time steps (date/venue/poster/
+// vendors/guests/send) — e.g. "email all guests" (kind "send_invites", always blocked for
+// approval since it commits) or a free-form ask (kind "custom", resolved or blocked by
+// taskRunner.runNext). Stored, not derived, since progress through them is stateful.
+export type TaskStatus = "todo" | "active" | "done" | "blocked";
+export interface EventTask {
+  id: string;
+  label: string;
+  detail: string;
+  kind: "send_invites" | "custom";
+  status: TaskStatus;
+  needsYou?: { title: string; body: string };
+}
+
 export interface HostAnswers {
   purpose: string;
   vibe: string;

@@ -16,6 +16,9 @@ import type { Slot, Venue } from "./types";
 // request silently does nothing (the generic offline reply doesn't act on anything).
 const POSTER_WORDS = /\b(poster|cover art|invite (?:image|art|picture))\b/i;
 const LOOK_WORDS = /\b(colou?r|look|style|design|vibe|palette|blue|pink|purple|violet|green|red|orange|gold|dark|moody|black|warm)\b/i;
+// Same reasoning as POSTER_WORDS/LOOK_WORDS: an offline fallback never reaches the model, so an
+// obvious "send/email/notify the guests" ask needs to be caught here or it silently does nothing.
+const SEND_WORDS = /\b(send|email|notify|message|tell|ping)\b.*\b(guest|everyone|invite|them|all)\b|\bsend (the )?invites?\b/i;
 
 /**
  * The host's ongoing chat with their Muse about getting the event done (checklist page > chat).
@@ -61,6 +64,8 @@ export const reply = action({
         })
         .optional(),
       editPoster: z.object({ instruction: z.string().max(200) }).optional(),
+      sendInvites: z.boolean().optional(),
+      addTask: z.object({ label: z.string().max(60), detail: z.string().max(200) }).optional(),
     });
     type ReplyResult = z.infer<typeof ReplySchema>;
 
@@ -78,7 +83,13 @@ export const reply = action({
         "enquiry text (always use the key \"draft\" for that field). Tell them you've added it to their checklist for approval. " +
         "If it's already in existingDrafts, say so instead of proposing it again. " +
         "If the host wants the poster/cover art's look changed (colour, style, mood), set editPoster to {instruction} " +
-        "describing the change in a few words, and tell them you've updated it.",
+        "describing the change in a few words, and tell them you've updated it. " +
+        "If the host asks you to send, email or notify the guests, or to send the invites now, set sendInvites to true " +
+        "and tell them you've added it to the checklist and will ask once more before anything actually goes out. " +
+        "If the host asks for anything else you can't already do with proposeOrder/editPoster/sendInvites (e.g. checking on " +
+        "a specific guest, finding a backup option, anything else to track down), set addTask to {label, detail} — label is " +
+        "a short checklist title (a few words), detail is one line on what it's for — and tell them you've added it to the " +
+        "checklist and will work through it.",
       user: {
         message,
         recent: args.history.slice(-8).map((m) => ({ from: m.from, text: m.text.slice(0, 400) })),
@@ -112,6 +123,27 @@ export const reply = action({
         await ctx.runMutation(internal.events.setPoster, { eventId: args.eventId, poster });
         if (offlineLooksLikePosterEdit) return { reply: "Done — updated the poster's look." };
       }
+    }
+
+    const offlineLooksLikeSend = r.source === "offline" && SEND_WORDS.test(message);
+    if (r.data.sendInvites || offlineLooksLikeSend) {
+      await ctx.runMutation(internal.events.addTask, {
+        eventId: args.eventId,
+        label: "Send invites",
+        detail: "Invite your shortlisted guests — I'll ask before anything actually goes out.",
+        kind: "send_invites",
+      });
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+      if (offlineLooksLikeSend) return { reply: "Added to your checklist — I'll ask once more before anything actually goes out." };
+    }
+    if (r.data.addTask) {
+      await ctx.runMutation(internal.events.addTask, {
+        eventId: args.eventId,
+        label: r.data.addTask.label,
+        detail: r.data.addTask.detail,
+        kind: "custom",
+      });
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
     }
 
     return { reply: r.data.reply };

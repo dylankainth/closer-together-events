@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,8 @@ import { agent } from "@/theme/swipeTheme";
 import { Mascot, type MascotHandle } from "@/components/Mascot";
 
 type Msg = { from: "me" | "agent"; text: string; note?: string };
-type Step = { key: string; label: string; detail: string; explain: string; state: "done" | "active" | "todo" | "blocked" };
+type TraceLine = { kind: "tool" | "result" | "think"; text: string };
+type Step = { key: string; label: string; activeLabel: string; detail: string; explain: string; trace: TraceLine[]; state: "done" | "active" | "todo" | "blocked" };
 type PendingQuestion = { field?: string; options?: string[]; defaultOption?: string; inputType?: "chips" | "text" };
 
 // Two pages side by side: 0 = the checklist, 1 = the chat with the Muse agent. Sending a message slides
@@ -29,6 +30,18 @@ const EXAMPLES = [
   "Housewarming, close friends only",
 ];
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+// Agent-working engine: a tick-driven typewriter that plays through each step's trace lines
+// (tool call -> result -> reasoning), one character at a time, before settling the step and
+// moving to the next — modeled directly on the "Host 3b" design reference.
+const TICK_MS = 30;
+const WAIT_AFTER_THINK = 14; // ticks to hold after an italic reasoning line finishes typing
+const WAIT_AFTER_OTHER = 9; // ticks to hold after a tool-call or result line finishes typing
+const WAIT_BETWEEN_STEPS = 16; // ticks to hold on a freshly-settled step before the next one starts
+const charsPerTick = (kind: TraceLine["kind"]) => (kind === "result" ? 99 : kind === "tool" ? 3 : 2);
+
+type Engine = { s: number; l: number; c: number; wait: number; t: number };
+const ENGINE_START: Engine = { s: 0, l: 0, c: 0, wait: 12, t: 0 };
 
 // One continuous chat thread, start to finish: "what are we making happen" is the opening message,
 // Muse's clarifying questions and your plain-text/chip answers follow as ordinary chat bubbles, and
@@ -49,6 +62,8 @@ export default function Planning() {
   const approve = useMutation(api.events.approve);
   const approveDraft = useMutation(api.events.approveDraft);
   const rejectDraft = useMutation(api.events.rejectDraft);
+  const approveTask = useMutation(api.events.approveTask);
+  const rejectTask = useMutation(api.events.rejectTask);
   const chat = useAction(api.hostChat.reply);
   const startQuestionSession = useAction(api.questionSession.startQuestionSession);
   const submitAnswer = useAction(api.questionSession.submitAnswer);
@@ -72,15 +87,14 @@ export default function Planning() {
   // The mascot's eyes follow wherever the screen is touched.
   const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
 
-  // The first time the checklist page comes into view, its rows tick in one after another instead
-  // of all appearing at once — makes it feel like you're watching the agent work rather than just
-  // reading a static list. Later visits (swiping back and forth) show everything already settled.
-  const checklistIntroPlayed = useRef(false);
-  const rowAnimRef = useRef<Record<string, Animated.Value>>({});
-  const getRowAnim = useCallback((key: string) => {
-    if (!rowAnimRef.current[key]) rowAnimRef.current[key] = new Animated.Value(checklistIntroPlayed.current ? 1 : 0);
-    return rowAnimRef.current[key];
-  }, []);
+  // The first time the checklist page comes into view, it plays through each step one at a time —
+  // a live "agent at work" trace: a step goes active, its tool-call/result/reasoning lines type
+  // themselves out underneath, then it settles into its tick as the next step starts. A frozen
+  // snapshot of checklist.items is taken when the run starts, so later live query updates (e.g. a
+  // poster edit from chat) don't restart or glitch an already-running or finished playback.
+  const [engine, setEngine] = useState<Engine>(ENGINE_START);
+  const [planSnapshot, setPlanSnapshot] = useState<Step[] | null>(null);
+  const engineTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (draft || onboardingComplete) return;
@@ -122,14 +136,39 @@ export default function Planning() {
     scroller.current?.scrollToEnd({ animated: true });
   }, [messages.length, thinking, pendingQuestion]);
 
+  // Snapshot the plan once, the first time the checklist has data — freezes what the playback
+  // animates through independent of later live updates to checklist.items.
   useEffect(() => {
-    if (pageIdx !== 0 || !checklist || checklistIntroPlayed.current) return;
-    checklistIntroPlayed.current = true;
-    Animated.stagger(
-      90,
-      checklist.items.map((s) => Animated.timing(getRowAnim(s.key), { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
-    ).start();
-  }, [pageIdx, checklist, getRowAnim]);
+    if (!checklist || planSnapshot) return;
+    setPlanSnapshot(checklist.items);
+  }, [checklist, planSnapshot]);
+
+  const replay = useCallback(() => setEngine(ENGINE_START), []);
+
+  useEffect(() => {
+    if (!planSnapshot) return;
+    engineTimer.current = setInterval(() => {
+      setEngine((st) => {
+        const total = planSnapshot.length;
+        // Stop one step short of the end: the last step ("send invites") never auto-completes —
+        // nothing is actually sent until the host does it for real — so it stays pending/waiting.
+        if (st.s >= total - 1) return st;
+        const t = st.t + 1;
+        if (st.wait > 0) return { ...st, wait: st.wait - 1, t };
+        const lines = planSnapshot[st.s].trace;
+        if (lines.length === 0) return { ...st, s: st.s + 1, l: 0, c: 0, wait: WAIT_BETWEEN_STEPS, t }; // "send" has no trace
+        const line = lines[st.l];
+        const speed = charsPerTick(line.kind);
+        if (st.c < line.text.length) return { ...st, c: Math.min(st.c + speed, line.text.length), t };
+        const nextL = st.l + 1;
+        if (nextL < lines.length) return { ...st, l: nextL, c: 0, wait: line.kind === "think" ? WAIT_AFTER_THINK : WAIT_AFTER_OTHER, t };
+        return { ...st, s: st.s + 1, l: 0, c: 0, wait: WAIT_BETWEEN_STEPS, t };
+      });
+    }, TICK_MS);
+    return () => {
+      if (engineTimer.current) clearInterval(engineTimer.current);
+    };
+  }, [planSnapshot]); // one interval for the whole playback; replay() just resets `engine`, same interval keeps ticking it
 
   const completeOnboarding = async (sid: string) => {
     const mapped = await finishQuestionSession({ sessionId: sid });
@@ -214,6 +253,30 @@ export default function Planning() {
   const chatX = page.interpolate({ inputRange: [0, 1], outputRange: [-TOWARD * width, 0] });
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
 
+  // Derives what each step row looks like right now from the engine's raw tick state — mirrors
+  // the reference's renderVals(): which step is active, how far its current line has typed, and
+  // which steps are still dimmed and waiting their turn.
+  const playback = useMemo(() => {
+    if (!planSnapshot) return null;
+    const total = planSnapshot.length;
+    const { s, l, c, t } = engine;
+    const allDone = s >= total - 1;
+    const steps = planSnapshot.map((step, i) => {
+      const isDone = i < s;
+      const isActive = i === s && !allDone;
+      const isPending = !isDone && !isActive;
+      const waiting = i === total - 1 && allDone; // "send" step, once everything else has settled
+      const lines = isActive
+        ? step.trace.slice(0, l + 1).map((ln, j) => {
+            const full = j < l;
+            return { ...ln, text: full ? ln.text : ln.text.slice(0, c), cursor: j === l };
+          })
+        : [];
+      return { step, isDone, isActive, isPending, waiting, lines };
+    });
+    return { steps, allDone, doneCount: Math.min(s, total - 1), total, elapsed: (t * (TICK_MS / 1000)).toFixed(1) };
+  }, [planSnapshot, engine]);
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -258,10 +321,21 @@ export default function Planning() {
           ) : (
             <ScrollView contentContainerStyle={styles.checkContent}>
               <View>
+                <View style={styles.headRow}>
+                  <Pressable style={styles.replayBtn} onPress={replay} hitSlop={8}>
+                    <Text style={styles.replayText}>Replay</Text>
+                  </Pressable>
+                </View>
                 <Text style={styles.eventName}>{checklist.title}</Text>
                 <Text style={styles.title}>I'm on it</Text>
+                <Text style={styles.sub}>
+                  {playback ? playback.doneCount : checklist.doneCount} of {playback ? playback.total : checklist.total} done
+                  {playback ? ` · ${playback.elapsed}s` : ""} · you can close the app
+                </Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
-                  {checklist.items.map((s) => <StepRow key={s.key} s={s} anim={getRowAnim(s.key)} onPress={() => setExplainStep(s)} />)}
+                  {playback
+                    ? playback.steps.map((row) => <StepRow key={row.step.key} row={row} onPress={() => setExplainStep(row.step)} />)
+                    : checklist.items.map((s) => <StepRow key={s.key} row={{ step: s, isDone: s.state === "done", isActive: false, isPending: s.state !== "done", waiting: false, lines: [] }} onPress={() => setExplainStep(s)} />)}
                 </View>
               </View>
 
@@ -280,10 +354,32 @@ export default function Planning() {
                     </View>
                   </View>
                 ))}
+                {checklist.pendingTasks.map((t) => (
+                  <View key={t.id} style={styles.needs}>
+                    <Text style={styles.needsTitle}>{t.title}</Text>
+                    <Text style={styles.needsBody}>{t.body}</Text>
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                      <Pressable style={styles.draftApprove} onPress={() => approveTask({ eventId: eventId!, taskId: t.id })}>
+                        <Text style={styles.draftApproveText}>Go ahead</Text>
+                      </Pressable>
+                      <Pressable style={styles.draftReject} onPress={() => rejectTask({ eventId: eventId!, taskId: t.id })}>
+                        <Text style={styles.draftRejectText}>Not now</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
                 {checklist.needsYou && (
                   <View style={styles.needs}>
                     <Text style={styles.needsTitle}>{checklist.needsYou.title}</Text>
                     <Text style={styles.needsBody}>{checklist.needsYou.body}</Text>
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                      <Pressable style={styles.draftApprove} onPress={() => send(`Find another vendor for ${checklist.needsYou!.item}`)}>
+                        <Text style={styles.draftApproveText}>Find another</Text>
+                      </Pressable>
+                      <Pressable style={styles.draftReject} onPress={() => rejectDraft({ eventId: eventId!, draftId: checklist.needsYou!.draftId })}>
+                        <Text style={styles.draftRejectText}>Dismiss</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 )}
                 <Pressable onPress={review} style={{ alignSelf: "center", marginTop: 8 }} hitSlop={10}>
@@ -378,39 +474,89 @@ export default function Planning() {
   );
 }
 
-function StepRow({ s, anim, onPress }: { s: Step; anim: Animated.Value; onPress: () => void }) {
-  const todo = s.state === "todo";
+type PlaybackLine = TraceLine & { cursor: boolean };
+type PlaybackRow = { step: Step; isDone: boolean; isActive: boolean; isPending: boolean; waiting: boolean; lines: PlaybackLine[] };
+
+function Spinner() {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(spin, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [spin]);
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  return <Animated.View style={[styles.spinnerRing, { transform: [{ rotate }] }]} />;
+}
+
+function Cursor() {
+  const op = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(op, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(op, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [op]);
+  return <Animated.Text style={[styles.cursor, { opacity: op }]}>▍</Animated.Text>;
+}
+
+function StepRow({ row, onPress }: { row: PlaybackRow; onPress: () => void }) {
+  const { step, isDone, isActive, isPending, waiting, lines } = row;
+  const blocked = isDone && step.state === "blocked";
+  const dimmed = isPending && !waiting;
   return (
-    <Animated.View
-      style={[
-        styles.step,
-        { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] },
-      ]}
-    >
-      <Pressable style={styles.stepPress} onPress={onPress} hitSlop={6}>
-        <View
-          style={[
-            styles.circle,
-            s.state === "done" && styles.circleDone,
-            s.state === "active" && styles.circleActive,
-            s.state === "blocked" && styles.circleBlocked,
-            todo && styles.circleTodo,
-          ]}
-        >
-          {s.state === "done" && (
-            // Pops in during the back half of the row's own reveal, so the tick lands right as the row settles.
-            <Animated.View style={{ transform: [{ scale: anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0, 1] }) }] }}>
-              <Ionicons name="checkmark" size={16} color="#fff" />
-            </Animated.View>
+    <View style={[styles.step, dimmed && { opacity: 0.45 }]}>
+      <Pressable style={styles.stepPress} onPress={onPress} hitSlop={6} disabled={isActive}>
+        <View style={styles.circleSlot}>
+          {isActive ? (
+            <Spinner />
+          ) : blocked ? (
+            <View style={[styles.circle, styles.circleBlocked]}><Text style={styles.bang}>!</Text></View>
+          ) : isDone ? (
+            <View style={[styles.circle, styles.circleDone]}><Ionicons name="checkmark" size={14} color="#fff" /></View>
+          ) : (
+            <View style={[styles.circle, styles.circleTodo, waiting && styles.circleWaiting]} />
           )}
-          {s.state === "blocked" && <Text style={styles.bang}>!</Text>}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.stepLabel, todo && { color: agent.dim }]}>{s.label}</Text>
-          {!todo && <Text style={[styles.stepDetail, s.state === "blocked" && { color: agent.warn }]}>{s.detail}</Text>}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.stepLabel, isPending && !waiting && { color: agent.dim }]}>{isActive ? `${step.activeLabel}…` : step.label}</Text>
+          {(isDone || (isPending && waiting)) && (
+            <Text style={[styles.stepDetail, blocked && { color: agent.warn }]}>{isDone && !blocked ? `└ ${step.detail}` : step.detail}</Text>
+          )}
+          {isActive && (
+            <View style={styles.traceBlock}>
+              {lines.map((ln, i) => (
+                <View key={i}>
+                  {ln.kind === "think" ? (
+                    <Text style={styles.traceThink}>
+                      {ln.text}
+                      {ln.cursor && <Cursor />}
+                    </Text>
+                  ) : (
+                    <View style={ln.kind === "tool" ? styles.traceToolRow : undefined}>
+                      {ln.kind === "tool" && <View style={styles.traceDot} />}
+                      <Text style={ln.kind === "tool" ? styles.traceTool : styles.traceResult}>
+                        {ln.kind === "result" ? "└ " : ""}
+                        {ln.text}
+                        {ln.cursor && <Cursor />}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+          {waiting && isPending && (
+            <View style={styles.waitingPill}>
+              <Text style={styles.waitingPillText}>WAITING FOR YOU</Text>
+            </View>
+          )}
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -427,19 +573,35 @@ const styles = StyleSheet.create({
   waitingTitle: { color: agent.text, fontSize: 22, fontWeight: "800" },
   waitingBody: { color: agent.muted, fontSize: 15, lineHeight: 21 },
   checkContent: { flexGrow: 1, justifyContent: "space-between", padding: 24, paddingTop: 12, paddingBottom: 12 },
-  // The event's name, centred and big; "I'm on it" sits under it.
+  // The event's name, centred and big, under the mascot; "I'm on it" sits under it. Replay (top
+  // right of this block) floats above both so re-watching the trace doesn't disturb the layout.
+  headRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "flex-end" },
+  replayBtn: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: agent.line, alignItems: "center", justifyContent: "center" },
+  replayText: { color: agent.muted, fontSize: 12, fontWeight: "600" },
   eventName: { color: agent.text, fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -0.5, textAlign: "center" },
   title: { color: agent.text, fontSize: 20, lineHeight: 26, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  sub: { color: agent.muted, fontSize: 14, textAlign: "center", marginTop: 6 },
   step: {},
   stepPress: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
-  circle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  circleSlot: { width: 26, height: 26, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  circle: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   circleDone: { backgroundColor: agent.blue },
-  circleActive: { borderWidth: 2.5, borderColor: agent.ring },
   circleBlocked: { backgroundColor: agent.warn },
-  circleTodo: { borderWidth: 2.5, borderColor: agent.todo },
+  circleTodo: { borderWidth: 2, borderColor: agent.todo },
+  circleWaiting: { borderColor: agent.ring },
+  spinnerRing: { width: 26, height: 26, borderRadius: 13, borderWidth: 3, borderColor: agent.line, borderTopColor: agent.ring },
   bang: { color: "#1B1B1F", fontWeight: "900", fontSize: 16 },
-  stepLabel: { color: agent.text, fontSize: 17, fontWeight: "700", lineHeight: 22 },
+  stepLabel: { color: agent.text, fontSize: 16, fontWeight: "700", lineHeight: 21 },
   stepDetail: { color: agent.muted, fontSize: 14, lineHeight: 19, marginTop: 2 },
+  traceBlock: { marginTop: 6, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: agent.line, gap: 7 },
+  traceToolRow: { flexDirection: "row", gap: 7, alignItems: "flex-start" },
+  traceDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: agent.ring, marginTop: 6, flexShrink: 0 },
+  traceTool: { fontFamily: "SpaceMono", fontSize: 12, color: agent.link, lineHeight: 17, flexShrink: 1 },
+  traceResult: { fontFamily: "SpaceMono", fontSize: 12, color: agent.muted, lineHeight: 17 },
+  traceThink: { fontSize: 13, fontStyle: "italic", color: agent.think, lineHeight: 18 },
+  cursor: { color: agent.link },
+  waitingPill: { alignSelf: "flex-start", marginTop: 4, backgroundColor: agent.ring, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  waitingPillText: { fontSize: 11, fontWeight: "700", color: agent.bg },
   needs: { backgroundColor: agent.card, borderRadius: 18, padding: 18 },
   needsTitle: { color: agent.text, fontWeight: "700", fontSize: 15 },
   needsBody: { color: agent.muted, fontSize: 15, lineHeight: 21, marginTop: 4 },

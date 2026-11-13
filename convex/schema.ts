@@ -34,6 +34,30 @@ const museReply = v.object({
   approved_fields_only: v.literal(true),
 });
 
+// Ad-hoc checklist items hostChat can add on top of the fixed plan-time steps. "send_invites"
+// always lands as "blocked" (committing always asks first, claude.md §5.3); "custom" is resolved
+// or blocked by taskRunner.runNext — see convex/types.ts's EventTask for the shape.
+const eventTask = v.object({
+  id: v.string(),
+  label: v.string(),
+  detail: v.string(),
+  kind: v.union(v.literal("send_invites"), v.literal("custom")),
+  status: v.union(v.literal("todo"), v.literal("active"), v.literal("done"), v.literal("blocked")),
+  needsYou: v.optional(v.object({ title: v.string(), body: v.string() })),
+});
+
+// One real tool call the planning agent made (convex/agentLoop.ts), in order. This IS the "your
+// agent is on it" trace — checklist.ts reads it back verbatim instead of inferring progress from
+// which event fields happen to be filled.
+const agentLogEntry = v.object({
+  seq: v.number(),
+  tool: v.string(),
+  args: v.any(),
+  summary: v.string(),
+  source: v.union(v.literal("muse"), v.literal("offline")),
+  ts: v.number(),
+});
+
 const nudge = v.object({
   verdict: v.union(v.literal("worth"), v.literal("maybe"), v.literal("skip")),
   reasons: v.array(v.string()),
@@ -98,23 +122,29 @@ export default defineSchema({
       budget: v.union(v.literal(1), v.literal(2), v.literal(3)),
     }),
     audienceRaw: v.string(),
-    query: v.object({
-      tie: v.union(v.literal("close"), v.literal("any")),
-      topics: v.array(v.string()),
-      raw: v.string(),
-    }),
+    // Optional: a fresh draft starts with no reading on its audience yet — agentLoop's
+    // match_audience tool is what fills this in (and settings below), as its first real step.
+    query: v.optional(
+      v.object({
+        tie: v.union(v.literal("close"), v.literal("any")),
+        topics: v.array(v.string()),
+        raw: v.string(),
+      }),
+    ),
     // Per the team's adopted ballot proposal (B2/B4): no funnel `mode`/`maxAutoInvites` — Muse
     // infers friendsOfFriends + quota and shows each as an editable, reasoned chip on the single
-    // review screen. Auto-invite is dropped entirely.
-    settings: v.object({
-      friendsOfFriends: v.boolean(),
-      quota: v.number(),
-      reasons: v.object({
-        friendsOfFriends: v.string(),
-        quota: v.string(),
-        guestCount: v.string(),
+    // review screen. Auto-invite is dropped entirely. Optional for the same reason as `query`.
+    settings: v.optional(
+      v.object({
+        friendsOfFriends: v.boolean(),
+        quota: v.number(),
+        reasons: v.object({
+          friendsOfFriends: v.string(),
+          quota: v.string(),
+          guestCount: v.string(),
+        }),
       }),
-    }),
+    ),
     slotId: v.optional(v.string()),
     dateCheck: v.optional(
       v.object({
@@ -131,6 +161,8 @@ export default defineSchema({
     ),
     drafts: v.optional(v.array(v.any())), // VendorDraft[], write-once
     shortlist: v.optional(v.array(v.any())), // ShortlistItem[], write-once (re-plan = new event)
+    tasks: v.optional(v.array(eventTask)), // chat-added checklist items, appended/updated after plan time
+    agentLog: v.optional(v.array(agentLogEntry)), // real tool-call trace from agentLoop.run, in order
     museSource: v.optional(v.string()),
     // Host-edited details (Manage > Details). Optional so events made before these existed still validate.
     description: v.optional(v.string()),

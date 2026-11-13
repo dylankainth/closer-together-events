@@ -90,12 +90,17 @@ function cleanSettingsPatch(raw: unknown): Record<string, unknown> {
   return out;
 }
 
+const DEFAULT_SETTINGS = { friendsOfFriends: false, quota: 0, reasons: { friendsOfFriends: "", quota: "", guestCount: "" } };
+
 export const updateSettings = mutation({
   args: { eventId: v.string(), settings: v.any() },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     await requireHost(ctx, e, "write", "events.updateSettings");
-    await ctx.db.patch(e!._id, { settings: { ...e!.settings, ...cleanSettingsPatch(args.settings) } });
+    // e!.settings can be absent while the agent loop is still building the event up incrementally
+    // (settings land via its own tool call, not necessarily at creation) — fall back to a default
+    // shape so the spread below always produces a complete EventSettings, not a partial one.
+    await ctx.db.patch(e!._id, { settings: { ...(e!.settings ?? DEFAULT_SETTINGS), ...cleanSettingsPatch(args.settings) } });
   },
 });
 
@@ -151,31 +156,128 @@ export const bumpCalls = internalMutation({
   },
 });
 
-/** Sets status to "sent", seeds `guests` rows, then schedules the huddle action so it returns immediately. */
+/** Applies one real agentLoop.run tool-call result to the event doc: the patch it produced
+ * (e.g. { slotId, dateCheck }) plus one entry in the ordered agentLog — this log IS the "your
+ * agent is on it" trace; checklist.ts reads it back, nothing is reconstructed or faked. */
+export const applyAgentStep = internalMutation({
+  args: { eventId: v.string(), patch: v.any(), tool: v.string(), args: v.any(), summary: v.string(), source: v.union(v.literal("muse"), v.literal("offline")) },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) return;
+    const log = e.agentLog ?? [];
+    const entry = { seq: log.length + 1, tool: args.tool, args: args.args, summary: args.summary, source: args.source, ts: Date.now() };
+    await ctx.db.patch(e._id, { ...(args.patch as Record<string, unknown>), agentLog: [...log, entry] });
+  },
+});
+
+/** Same as applyAgentStep but with no state patch — used for the "finish" step and for logging a
+ * tool that threw, where there's nothing new to write to the event besides the trace entry. */
+export const appendAgentLog = internalMutation({
+  args: { eventId: v.string(), tool: v.string(), args: v.any(), summary: v.string(), source: v.union(v.literal("muse"), v.literal("offline")) },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) return;
+    const log = e.agentLog ?? [];
+    const entry = { seq: log.length + 1, tool: args.tool, args: args.args, summary: args.summary, source: args.source, ts: Date.now() };
+    await ctx.db.patch(e._id, { agentLog: [...log, entry] });
+  },
+});
+
+/** Shared by the "Send invites" button (events.sendEvent) and the host-chat "send invites" task
+ * (events.approveTask): sets status to "sent", seeds `guests` rows, then schedules the huddle
+ * action so the caller returns immediately. Caller must already hold a write-level requireHost. */
+async function doSendInvites(ctx: { db: any; scheduler: any }, e: { eventId: string; hostId: string; _id: any }, rawCandidateIds: string[]) {
+  const personas = await ctx.db.query("personas").collect();
+  const hostFriends = new Set(personas.find((x: any) => x.personaId === e.hostId)?.friends ?? []);
+  // A host can invite seeded demo personas (incl. friends of friends), but a REAL user only if
+  // they're the host's friend: no inviting (and Muse-huddling) arbitrary real people.
+  const candidateIds = rawCandidateIds.filter((pid) => !pid.startsWith("fb_") || hostFriends.has(pid));
+  for (const pid of candidateIds) {
+    const existing = await ctx.db.query("guests").withIndex("by_event_persona", (q: any) => q.eq("eventId", e.eventId).eq("personaId", pid)).unique();
+    if (existing) continue;
+    const p = personas.find((x: any) => x.personaId === pid);
+    if (!p) continue;
+    await ctx.db.insert("guests", { eventId: e.eventId, personaId: pid, name: p.name, kind: "muse", status: "invited" });
+  }
+  await ctx.db.patch(e._id, { status: "sent" });
+  await ctx.scheduler.runAfter(0, internal.huddle.runHuddle, {
+    eventId: e.eventId,
+    candidateIds,
+    profileMode: "event_safe",
+    codeCheck: true,
+  });
+}
+
 export const sendEvent = mutation({
   args: { eventId: v.string(), candidateIds: v.array(v.string()) },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     await requireHost(ctx, e, "write", "events.sendEvent");
-    const personas = await ctx.db.query("personas").collect();
-    const hostFriends = new Set(personas.find((x) => x.personaId === e!.hostId)?.friends ?? []);
-    // A host can invite seeded demo personas (incl. friends of friends), but a REAL user only if
-    // they're the host's friend: no inviting (and Muse-huddling) arbitrary real people.
-    const candidateIds = args.candidateIds.filter((pid) => !pid.startsWith("fb_") || hostFriends.has(pid));
-    for (const pid of candidateIds) {
-      const existing = await ctx.db.query("guests").withIndex("by_event_persona", (q) => q.eq("eventId", args.eventId).eq("personaId", pid)).unique();
-      if (existing) continue;
-      const p = personas.find((x) => x.personaId === pid);
-      if (!p) continue;
-      await ctx.db.insert("guests", { eventId: args.eventId, personaId: pid, name: p.name, kind: "muse", status: "invited" });
+    await doSendInvites(ctx, e!, args.candidateIds);
+  },
+});
+
+/** Appends a chat-requested checklist item (hostChat.reply). "send_invites" is deduped — only one
+ * live (non-done) send task per event — since chat may be asked to "send invites" more than once
+ * while one is still sitting in the checklist awaiting approval. Internal: hostChat already
+ * checked requireHost before calling it. */
+export const addTask = internalMutation({
+  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom")) },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) throw new Error("Event not found");
+    const tasks = e.tasks ?? [];
+    if (args.kind === "send_invites") {
+      const live = tasks.find((t: any) => t.kind === "send_invites" && t.status !== "done");
+      if (live) return { id: live.id as string };
     }
-    await ctx.db.patch(e!._id, { status: "sent" });
-    await ctx.scheduler.runAfter(0, internal.huddle.runHuddle, {
-      eventId: args.eventId,
-      candidateIds,
-      profileMode: "event_safe",
-      codeCheck: true,
-    });
+    const id = `t_${Date.now().toString(36)}_${tasks.length}`;
+    await ctx.db.patch(e._id, { tasks: [...tasks, { id, label: args.label, detail: args.detail, kind: args.kind, status: "todo" }] });
+    return { id };
+  },
+});
+
+/** Patches one task in place (taskRunner.runNext driving it through active -> done/blocked). */
+export const updateTask = internalMutation({
+  args: { eventId: v.string(), taskId: v.string(), patch: v.any() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) return;
+    const tasks = (e.tasks ?? []).map((t: any) => (t.id === args.taskId ? { ...t, ...args.patch } : t));
+    await ctx.db.patch(e._id, { tasks });
+  },
+});
+
+/** Host grants the permission a blocked task was waiting on. "send_invites" actually sends;
+ * a "custom" task is marked done and the queue continues with whatever's next. */
+export const approveTask = mutation({
+  args: { eventId: v.string(), taskId: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    await requireHost(ctx, e, "write", "events.approveTask");
+    const task = (e!.tasks ?? []).find((t: any) => t.id === args.taskId);
+    if (!task) throw new Error("Task not found");
+    if (task.kind === "send_invites" && e!.status !== "sent") {
+      const candidateIds = (e!.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
+      await doSendInvites(ctx, e!, candidateIds);
+    }
+    const tasks = (e!.tasks ?? []).map((t: any) =>
+      t.id === args.taskId ? { ...t, status: "done", detail: task.kind === "send_invites" ? "Invites sent." : "Approved — done.", needsYou: undefined } : t,
+    );
+    await ctx.db.patch(e!._id, { tasks });
+    if (task.kind !== "send_invites") await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+  },
+});
+
+/** Host declines a blocked task. The queue still moves on to whatever's next. */
+export const rejectTask = mutation({
+  args: { eventId: v.string(), taskId: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    await requireHost(ctx, e, "write", "events.rejectTask");
+    const tasks = (e!.tasks ?? []).map((t: any) => (t.id === args.taskId ? { ...t, status: "done", detail: "Skipped.", needsYou: undefined } : t));
+    await ctx.db.patch(e!._id, { tasks });
+    await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
   },
 });
 

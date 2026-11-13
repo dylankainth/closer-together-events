@@ -95,9 +95,11 @@ export function titleFor(hostFirst: string, answers: HostAnswers, topics: string
 }
 
 export function vendorDrafts(answers: HostAnswers, title: string, slot: Slot, venue: Venue, headcount: number) {
-  const drafts: { id: string; vendor: string; item: string; draft: string; simulatedReply: string; simulated: true }[] = [];
+  // "pending" so these flow through the same approve/reject UI as drafts proposed later in chat,
+  // per claude.md §3.1: the host approves before anything is sent or committed.
+  const drafts: { id: string; vendor: string; item: string; draft: string; simulatedReply: string; simulated: true; status: "pending" }[] = [];
   const add = (id: string, vendor: string, item: string, draft: string, simulatedReply: string) =>
-    drafts.push({ id, vendor, item, draft, simulatedReply, simulated: true });
+    drafts.push({ id, vendor, item, draft, simulatedReply, simulated: true, status: "pending" });
 
   if (answers.purpose === "Birthday") {
     add("cake", "Noe Valley Bakery", "cake", `Hi! Could we get a cake for "${title}" (${headcount} people) on ${slot.label}?`, "Sure thing, £30, ready for pickup that morning.");

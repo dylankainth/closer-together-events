@@ -41,6 +41,7 @@ export const agent = {
   link: "#9DB0FF",
   warn: "#F0A94B",
   bubbleMe: "#2B2F52",
+  think: "#D3D5DC", // the agent-working trace's italic reasoning line, a touch lighter than `text`
 };
 
 /** "Sat 21 Nov, 7pm" -> { month: "NOV", day: "21", weekday: "Sat", time: "7pm" } (null if it doesn't parse). */
