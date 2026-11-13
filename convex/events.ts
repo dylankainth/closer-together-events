@@ -109,6 +109,27 @@ export const updateSettings = mutation({
 /** Called by hostChat.reply when the host asks for something not already on the plan (e.g. "order
  * pizza"). Adds it to the checklist as a pending item — nothing is "sent" to a vendor until the
  * host approves it via approveDraft, consistent with every other vendor step being simulated. */
+/** The host telling everyone something, written through their Muse in chat ("moved to 8pm").
+ * Only for a sent event: there is nobody to tell before invites go out. Internal — hostChat.reply
+ * has already checked requireHost. Guests see it in their notifications. */
+export const addAnnouncement = internalMutation({
+  args: { eventId: v.string(), text: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e || e.status !== "sent") return { sent: false as const };
+    const text = args.text.trim().slice(0, 280);
+    if (!text) return { sent: false as const };
+    const announcements = e.announcements ?? [];
+    await ctx.db.patch(e._id, {
+      announcements: [...announcements, { id: `a_${Date.now().toString(36)}_${announcements.length}`, text, ts: Date.now() }],
+    });
+    const guests = await ctx.db.query("guests").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).collect();
+    // Count only people who can actually receive it, so the Muse's confirmation to the host is a
+    // fact rather than a guess: external RSVPs have no Muse and no notifications screen.
+    return { sent: true as const, reached: guests.filter((g) => g.personaId && g.personaId !== e.hostId).length };
+  },
+});
+
 export const proposeDraft = internalMutation({
   args: { eventId: v.string(), vendor: v.string(), item: v.string(), draft: v.string() },
   handler: async (ctx, args) => {

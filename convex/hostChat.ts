@@ -79,6 +79,7 @@ export const reply = action({
         .optional(),
       editPoster: z.object({ instruction: z.string().max(200) }).optional(),
       sendInvites: z.boolean().optional(),
+      tellGuests: z.object({ text: z.string().max(280) }).optional(),
       addTask: z.object({ label: z.string().max(60), detail: z.string().max(200) }).optional(),
     });
     type ReplyResult = z.infer<typeof ReplySchema>;
@@ -98,6 +99,10 @@ export const reply = action({
         "If it's already in existingDrafts, say so instead of proposing it again. " +
         "If the host wants the poster/flyer/cover art changed in any way (a different picture, colour, style, mood), set editPoster to {instruction} " +
         "describing the change in a few words, and tell them you've updated it. " +
+        "If the host wants to TELL the people already coming something (e.g. moved to 8, bring a towel), "
+        + "set tellGuests to {text} — the message in the host's own voice, one or two short sentences — "
+        + "and confirm you have passed it on. Only when invites have already gone out; if the event has not "
+        + "been sent yet, say so instead of pretending. " +
         "If the host asks you to send, email or notify the guests, or to send the invites now, set sendInvites to true " +
         "and tell them you've added it to the checklist and will ask once more before anything actually goes out. " +
         "If the host asks for anything else you can't already do with proposeOrder/editPoster/sendInvites (e.g. checking on " +
@@ -150,6 +155,16 @@ export const reply = action({
       });
       await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
       if (offlineLooksLikeSend) return say("Added to your checklist — I'll ask once more before anything actually goes out.");
+    }
+    if (r.data.tellGuests?.text) {
+      const out: any = await ctx.runMutation(internal.events.addAnnouncement, {
+        eventId: args.eventId,
+        text: r.data.tellGuests.text,
+      });
+      // Tell the host what actually happened rather than echoing the model's optimism: the
+      // mutation refuses on an unsent event, and only it knows how many people it reached.
+      if (!out?.sent) return say("I can't pass that on yet — nothing has gone out, so there's nobody to tell. Send the invites first.");
+      return say(`Passed on to ${out.reached} ${out.reached === 1 ? "guest" : "guests"}: "${r.data.tellGuests.text}"`);
     }
     if (r.data.addTask) {
       await ctx.runMutation(internal.events.addTask, {

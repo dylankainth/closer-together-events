@@ -14,7 +14,7 @@ import { canOfferInvite, eligibleFriend, type InviteEvent, type InviteGuest, typ
 // guests (invites, nudges), events (hosting, allowGuestInvites), and huddleMessages (replies).
 // Nothing is marked "read" anywhere; `read` is always false because there is nowhere to persist it.
 
-export type NotificationKind = "invite" | "nudge" | "plusOne" | "huddle";
+export type NotificationKind = "invite" | "nudge" | "plusOne" | "huddle" | "announcement";
 
 export type NotificationRow = {
   id: string;
@@ -125,6 +125,26 @@ export const forViewer = query({
         ts: event.createdAt as number,
         read: false,
       });
+    }
+
+    // --- The host told everyone something (convex/events.ts addAnnouncement). ---
+    // Guests only: the host already saw their Muse confirm it in chat, and telling them again in
+    // their own notifications would just be an echo of something they said themselves.
+    for (const g of myRows) {
+      const event = eventsById.get(g.eventId as string);
+      if (!event || event.hostId === viewerId) continue;
+      const from = first(personasById.get(event.hostId as string)?.name ?? "The host");
+      for (const a of (event.announcements ?? []) as { id: string; text: string; ts: number }[]) {
+        rows.push({
+          id: `announcement-${g.eventId}-${a.id}`,
+          kind: "announcement",
+          title: `${from} on ${event.title}`,
+          body: a.text,
+          eventId: g.eventId as string,
+          ts: a.ts,
+          read: false,
+        });
+      }
     }
 
     // --- Host-only: my friends' Muses have finished answering for an event I'm hosting. ---

@@ -13,10 +13,11 @@ import { colors, radius, spacing } from "@/theme/tokens";
 // to stumble onto it. convex/notifications.ts derives real rows from data that already exists
 // (invites, nudges, plus-one offers, huddle progress); this screen just lists them.
 
-type Kind = "invite" | "nudge" | "plusOne" | "huddle";
+type Kind = "invite" | "nudge" | "plusOne" | "huddle" | "announcement";
 
 const ICONS: Record<Kind, { name: React.ComponentProps<typeof Ionicons>["name"]; bg: string; fg: string }> = {
   invite: { name: "mail-outline", bg: colors.museTint, fg: colors.museAccentDark },
+  announcement: { name: "megaphone-outline", bg: colors.museTint, fg: colors.museAccentDark },
   nudge: { name: "sparkles-outline", bg: colors.museTint, fg: colors.museAccentDark },
   plusOne: { name: "person-add-outline", bg: "#DCFCE7", fg: colors.success },
   huddle: { name: "people-outline", bg: "#FDE9D9", fg: colors.warning },

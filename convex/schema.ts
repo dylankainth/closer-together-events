@@ -184,6 +184,13 @@ export default defineSchema({
     // own Muse. Separate from allowGuestInvites (one explicit plus-one chosen by the guest) —
     // this one is automatic, so it needs its own opt-in. Absent = off.
     allowSpread: v.optional(v.boolean()),
+    // Things the host told everyone ("moved to 8pm", "bring a towel"). Embedded rather than a
+    // table because they're few, short, written once and only ever read with the event — the same
+    // reasoning that keeps venueOptions/drafts here. The host writes these through their Muse in
+    // chat; convex/notifications.ts turns each into a notification for every guest.
+    announcements: v.optional(
+      v.array(v.object({ id: v.string(), text: v.string(), ts: v.number() })),
+    ),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
     // How this event's huddle runs (claude.md §5.1). "free" = real multi-turn agent-to-agent
