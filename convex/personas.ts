@@ -13,9 +13,15 @@ function toPersona(row: any): Persona {
   return { id: personaId, ...rest };
 }
 
+// What any client may see of a persona: the fields the app renders. Never memory, secrets,
+// neverShare, availability, friends or settings (memory/secrets hold the leak-test plants).
+function publicPersona(row: any) {
+  return { id: row.personaId as string, name: row.name as string, initials: row.initials as string, color: row.color as string, job: row.job as string, hop: row.hop as 1 | 2, hasMuse: row.hasMuse as boolean };
+}
+
 export const listAll = query({
   args: {},
-  handler: async (ctx) => (await ctx.db.query("personas").collect()).map(toPersona),
+  handler: async (ctx) => (await ctx.db.query("personas").collect()).map(publicPersona),
 });
 
 export const listAllInternal = internalQuery({
@@ -38,7 +44,7 @@ export const getByPersonaId = query({
       .query("personas")
       .withIndex("by_personaId", (q) => q.eq("personaId", args.personaId))
       .unique();
-    return row ? toPersona(row) : null;
+    return row ? publicPersona(row) : null;
   },
 });
 

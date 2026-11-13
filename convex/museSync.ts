@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { readMuseContext } from "./museAdapter";
 import { extractShareableProfile } from "./museContext";
+import { requireOwner } from "./authz";
 import type { Persona } from "./types";
 
 /** "Connect my Muse": read (or simulate reading) this persona's VM context, parse it down to the
@@ -12,6 +13,7 @@ import type { Persona } from "./types";
 export const syncMuseContext = action({
   args: { personaId: v.string() },
   handler: async (ctx, args): Promise<{ profile: ReturnType<typeof extractShareableProfile>; source: "muse" | "demo" }> => {
+    await requireOwner(ctx, args.personaId, "museSync.syncMuseContext");
     const persona: Persona | null = await ctx.runQuery(internal.personas.getByPersonaIdInternal, { personaId: args.personaId });
     if (!persona) throw new Error("Unknown persona");
     const { raw, source } = await readMuseContext(persona);

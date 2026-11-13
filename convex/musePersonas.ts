@@ -1,9 +1,13 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { allowedAs, requireOwner } from "./authz";
 
+// Owner-only: holds the never-share list and interests. Returns null (not an error) to anyone
+// else, so screens that render for a demo persona just hide the box.
 export const getByPersonaId = query({
   args: { personaId: v.string() },
   handler: async (ctx, args) => {
+    if (!(await allowedAs(ctx, args.personaId, "owner", "musePersonas.getByPersonaId"))) return null;
     const row = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
     return row ? (({ _id, _creationTime, ...rest }) => rest)(row) : null;
   },
@@ -49,6 +53,8 @@ export const upsertFromContext = internalMutation({
 export const setApproved = mutation({
   args: { personaId: v.string(), approved: v.boolean() },
   handler: async (ctx, args) => {
+    // Consent: only the person themself approves what their Muse may share.
+    await requireOwner(ctx, args.personaId, "musePersonas.setApproved");
     const existing = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
     if (!existing) throw new Error("Sync this persona's Muse context first.");
     await ctx.db.patch(existing._id, { profileApproved: args.approved });

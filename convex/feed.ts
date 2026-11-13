@@ -1,5 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { mayViewEvent, requireActor } from "./authz";
+import { canGoIf } from "./authPolicy";
 
 // Read layer for the recommended-events swipe stack, the guest event page and the general feed.
 //
@@ -109,6 +111,7 @@ function buildView(w: World, e: any, viewerId: string) {
 export const forViewer = query({
   args: { personaId: v.string() },
   handler: async (ctx, args) => {
+    await requireActor(ctx, args.personaId, "read", "feed.forViewer");
     const w = await loadWorld(ctx);
     const visible = w.events.filter((e) => e.status === "sent" || e.hostId === args.personaId);
     const views = visible.map((e) => buildView(w, e, args.personaId));
@@ -135,12 +138,16 @@ const TAG_TO_KIND: Record<string, "people" | "goal" | "fit"> = {
 export const detail = query({
   args: { eventId: v.string(), personaId: v.string() },
   handler: async (ctx, args) => {
+    await requireActor(ctx, args.personaId, "read", "feed.detail");
     const w = await loadWorld(ctx);
     const e = w.events.find((x) => x.eventId === args.eventId);
     if (!e) return null;
+    const evGuests = w.guests.filter((g) => g.eventId === e.eventId);
+    // Same visibility rule as forViewer: unsent events only for their host and guests.
+    const guestIds = evGuests.flatMap((g) => (g.personaId ? [g.personaId] : []));
+    if (!(await mayViewEvent(ctx, e, guestIds, args.personaId, "feed.detail"))) return null;
     const viewer = w.personas.get(args.personaId);
     const view = buildView(w, e, args.personaId);
-    const evGuests = w.guests.filter((g) => g.eventId === e.eventId);
 
     // Why-you chips: the viewer's own Muse replies from the huddle, grouped by what they're about.
     const msgs = await ctx.db
@@ -246,6 +253,7 @@ export const respond = mutation({
     friendId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireActor(ctx, args.personaId, "write", "feed.respond");
     const g = await ctx.db
       .query("guests")
       .withIndex("by_event_persona", (q: any) => q.eq("eventId", args.eventId).eq("personaId", args.personaId))
@@ -256,6 +264,16 @@ export const respond = mutation({
       await ctx.db.patch(g._id, { snoozedUntil: Date.now() + REMIND_LATER_MS });
     } else if (args.action === "goIf") {
       if (!args.friendId) throw new Error("goIf needs friendId");
+      // "Go if my friend goes" only makes sense for a real friend who is invited to this event.
+      const viewer = await ctx.db
+        .query("personas")
+        .withIndex("by_personaId", (q: any) => q.eq("personaId", args.personaId))
+        .unique();
+      const guests = await ctx.db.query("guests").withIndex("by_eventId", (q: any) => q.eq("eventId", args.eventId)).collect();
+      const guestIds = guests.flatMap((x: any) => (x.personaId ? [x.personaId] : []));
+      if (!canGoIf(viewer?.friends ?? [], guestIds, args.friendId)) {
+        throw new Error("Pick a friend who's invited to this event.");
+      }
       await ctx.db.patch(g._id, { status: "maybe", goIfFriend: args.friendId, snoozedUntil: undefined });
     } else {
       await ctx.db.patch(g._id, { status: args.action, goIfFriend: undefined, snoozedUntil: undefined });

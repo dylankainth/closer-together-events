@@ -5,9 +5,14 @@
 // Convex env vars (set with `npx convex env set`, never in the app bundle):
 //   FB_APP_ID      the Facebook app id
 //   FB_APP_SECRET  the Facebook app secret (server only; makes the app access token)
-import { action } from "./_generated/server";
+//   AUTH_JWT_PRIVATE_KEY, AUTH_JWT_KID   our session-token signing key (scripts/gen-auth-keys.mjs)
+//   DEMO_OPERATOR_PERSONA_IDS            comma list of fb_ personas allowed to act as seeded ones
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
+import { AUDIENCE, DEFAULT_KID, ISSUER, SESSION_TTL_SEC } from "./authConstants";
+import { parseOperators } from "./authPolicy";
+import { signSession, type EcJwk } from "./sessionJwt";
 import {
   checkDebugToken,
   FACEBOOK_ISSUERS,
@@ -104,7 +109,7 @@ export const loginWithFacebook = action({
     // Classic login (Android, or iOS with tracking allowed): the user access token.
     accessToken: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ personaId: string; name: string; pictureUrl: string | null; isNew: boolean }> => {
+  handler: async (ctx, args): Promise<LoginResult> => {
     const { appId, appSecret } = appConfig();
     let profile: FacebookProfile;
     try {
@@ -125,6 +130,56 @@ export const loginWithFacebook = action({
       throw e;
     }
     const res = await ctx.runMutation(internal.users.upsertFromFacebook, profile);
-    return { personaId: res.personaId, name: profile.name, pictureUrl: profile.pictureUrl ?? null, isNew: res.isNew };
+    const session = await mintSession(res.personaId);
+    return {
+      personaId: res.personaId,
+      name: profile.name,
+      pictureUrl: profile.pictureUrl ?? null,
+      isNew: res.isNew,
+      token: session?.token ?? null,
+      expiresAt: session?.expiresAt ?? null,
+      isOperator: parseOperators(process.env.DEMO_OPERATOR_PERSONA_IDS).has(res.personaId),
+    };
   },
+});
+
+interface LoginResult {
+  personaId: string;
+  name: string;
+  pictureUrl: string | null;
+  isNew: boolean;
+  token: string | null; // our session JWT; null if the signing key isn't configured yet
+  expiresAt: number | null; // ms since epoch
+  isOperator: boolean; // display hint only; the server re-checks the allowlist on every call
+}
+
+// Our own session token for Convex's customJwt provider (see auth.config.ts). Returns null when
+// AUTH_JWT_PRIVATE_KEY isn't set, so login keeps working before the keys are installed.
+async function mintSession(personaId: string): Promise<{ token: string; expiresAt: number } | null> {
+  const raw = process.env.AUTH_JWT_PRIVATE_KEY;
+  if (!raw) return null;
+  let privateJwk: EcJwk;
+  try {
+    privateJwk = JSON.parse(raw) as EcJwk;
+  } catch {
+    throw new Error("AUTH_JWT_PRIVATE_KEY is not valid JSON (re-run scripts/gen-auth-keys.mjs).");
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  const token = await signSession({
+    sub: personaId,
+    privateJwk,
+    kid: process.env.AUTH_JWT_KID || DEFAULT_KID,
+    nowSec,
+    ttlSec: SESSION_TTL_SEC,
+    issuer: ISSUER,
+    audience: AUDIENCE,
+  });
+  return { token, expiresAt: (nowSec + SESSION_TTL_SEC) * 1000 };
+}
+
+// For scripts/authSmoke.mjs only: mint a token for any persona. Internal, so only a holder of the
+// deployment's admin key can run it (`npx convex run fbAuth:devMint`).
+export const devMint = internalAction({
+  args: { personaId: v.string() },
+  handler: async (_ctx, args): Promise<string | null> => (await mintSession(args.personaId))?.token ?? null,
 });

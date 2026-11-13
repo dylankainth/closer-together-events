@@ -26,7 +26,7 @@ export default function Setup() {
         t.kind === "limited"
           ? await login({ idToken: t.idToken, nonce: t.nonce })
           : await login({ accessToken: t.accessToken });
-      onFacebookLogin(res.personaId);
+      onFacebookLogin(res.personaId, { token: res.token, expiresAt: res.expiresAt, isOperator: res.isOperator });
       router.push("/events");
     } catch (e: unknown) {
       if (!(e instanceof LoginCancelled)) {
