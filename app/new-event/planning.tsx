@@ -205,8 +205,6 @@ export default function Planning() {
     return () => clearInterval(id);
   }, [settled, event?.createdAt]);
 
-  const replay = useCallback(() => setCursor({ l: 0, c: 0, wait: 8 }), []);
-
   const completeOnboarding = async (sid: string) => {
     const mapped = await finishQuestionSession({ sessionId: sid });
     if (!mapped) return;
@@ -373,11 +371,6 @@ export default function Planning() {
           ) : (
             <ScrollView contentContainerStyle={styles.checkContent}>
               <View>
-                <View style={styles.headRow}>
-                  <Pressable style={styles.replayBtn} onPress={replay} hitSlop={8}>
-                    <Text style={styles.replayText}>Replay</Text>
-                  </Pressable>
-                </View>
                 <View style={styles.mascotWrap} pointerEvents="none">
                   <Mascot ref={mascot} size={120} thinking={thinking} />
                 </View>
@@ -385,7 +378,6 @@ export default function Planning() {
                 <Text style={styles.title}>I'm on it</Text>
                 <Text style={styles.sub}>
                   {playback ? playback.doneCount : checklist.doneCount} of {playback ? playback.total : checklist.total} done
-                  {playback ? ` · ${playback.elapsed}s` : ""} · you can close the app
                 </Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
                   {playback
@@ -702,7 +694,7 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   dots: { flexDirection: "row", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: agent.text },
-  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start" },
+  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start", marginBottom: 28 },
   pager: { flex: 1, overflow: "hidden", zIndex: 1 },
   status: { color: agent.muted, padding: 24 },
   waitingWrap: { flex: 1, justifyContent: "center", padding: 32, gap: 10 },
