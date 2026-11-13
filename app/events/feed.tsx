@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -82,6 +82,9 @@ export default function Feed() {
   // is safe to claim; anywhere else the feed scrolls as normal.
   const scrollY = useRef(0);
   const ty = useRef(new Animated.Value(0)).current;
+  // After sliding away to go back to the picks, the feed stays off-screen; put it back only when it is
+  // shown again (resetting straight away made it snap back into view while the screen change played).
+  useFocusEffect(useCallback(() => { ty.setValue(0); }, [ty]));
   const pullDown = useMemo(
     () =>
       PanResponder.create({
@@ -91,7 +94,6 @@ export default function Feed() {
           if (g.dy > 110 || g.vy > 0.9) {
             Animated.timing(ty, { toValue: height, duration: 200, useNativeDriver: false }).start(() => {
               goToPicks();
-              ty.setValue(0);
             });
           } else {
             Animated.spring(ty, { toValue: 0, useNativeDriver: false, friction: 8 }).start();
