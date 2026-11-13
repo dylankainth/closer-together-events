@@ -240,17 +240,8 @@ export default function Recommended() {
         )}
       </View>
 
-      <View style={styles.actions}>
-        <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current || confirming} accessibilityLabel="Not for me">
-          <Ionicons name="close" size={26} color={swipe.ink} />
-        </Pressable>
-        <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current || confirming}>
-          <Text style={styles.goingText}>{confirming ? "Saving…" : readyCondition ? "Confirm going" : "I'll go"}</Text>
-        </Pressable>
-        <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current || confirming} accessibilityLabel="Remind me later">
-          <Ionicons name="time-outline" size={26} color={swipe.ink} />
-        </Pressable>
-      </View>
+      {/* Sits between the card and the buttons, not at the screen's bottom edge: a swipe that starts at the
+          bottom edge is the phone's own home gesture, and the in-app swipe only works on the card. Also tappable. */}
       {current && (
         <Pressable
           style={styles.swipeHint}
@@ -262,9 +253,21 @@ export default function Recommended() {
           <Animated.View style={{ transform: [{ translateY: hintLift }] }}>
             <Ionicons name="chevron-up" size={16} color="#65676B" />
           </Animated.View>
-          <Text style={styles.swipeHintText}>Swipe up for all events</Text>
+          <Text style={styles.swipeHintText}>Swipe the card up for all events</Text>
         </Pressable>
       )}
+
+      <View style={styles.actions}>
+        <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current || confirming} accessibilityLabel="Not for me">
+          <Ionicons name="close" size={26} color={swipe.ink} />
+        </Pressable>
+        <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current || confirming}>
+          <Text style={styles.goingText}>{confirming ? "Saving…" : readyCondition ? "Confirm going" : "I'll go"}</Text>
+        </Pressable>
+        <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current || confirming} accessibilityLabel="Remind me later">
+          <Ionicons name="time-outline" size={26} color={swipe.ink} />
+        </Pressable>
+      </View>
       </Animated.View>
       {celebrating && <Confetti onDone={() => setCelebrating(false)} />}
     </View>
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
   museBannerText: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 14 },
   // overflow hidden: a tall card (big picture + long reason + who's going) must never spill over the buttons.
   stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10, overflow: "hidden" },
-  swipeHint: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F0F2F5" },
+  swipeHint: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F0F2F5" },
   swipeHintText: { color: "#65676B", fontSize: 13, fontWeight: "600" },
   front: { flex: 1 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18, paddingVertical: 6 },
