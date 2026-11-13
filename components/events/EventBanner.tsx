@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Image, StyleSheet, View, type ImageStyle, type StyleProp, type ViewStyle } from "react-native";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useViewer } from "@/hooks/useViewer";
 
 // The 16 banners in assets/banners, bundled with the app. Every event shows a banner: its own picture when it
 // has one, otherwise one of these. The same event always gets the same one, so it doesn't change between
@@ -51,7 +54,16 @@ type Props = {
  * has loaded.
  */
 export function EventBanner(props: Props) {
+  // posterUrl "" means "this event has a big picture the list left out": fetch it on its own. Until it arrives (or
+  // if it never does) the bundled banner shows.
+  if (props.posterUrl === "") return <LazyBanner {...props} />;
   return <Banner key={`${props.eventId}|${props.posterUrl ?? ""}`} {...props} />;
+}
+
+function LazyBanner(props: Props) {
+  const { viewerId } = useViewer();
+  const url = useQuery(api.feed.poster, { eventId: props.eventId, personaId: viewerId });
+  return <Banner key={`${props.eventId}|${url ?? "lazy"}`} {...props} posterUrl={url || null} />;
 }
 
 function Banner({ eventId, posterUrl, style, resizeMode = "cover" }: Props) {
