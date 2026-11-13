@@ -6,7 +6,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
-import { eventSafeProfile, guardOutgoing, looksLikeInjection } from "./privacy";
+import { eventSafeProfile, guardNudge, guardOutgoing, looksLikeInjection } from "./privacy";
 import { runExchange, type ChatTurn } from "./huddleChat";
 import type { CallBudget, MuseReply, Nudge, Persona } from "./types";
 
@@ -224,9 +224,9 @@ export const runHuddle = internalAction({
           return guard.reply ? { p, r: guard.reply } : null;
         }));
         const replies = collected.filter((x): x is { p: Persona; r: MuseReply } => !!x);
-        const nudge = await decide(c, event.slotId, topics, replies, budget);
-        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: nudge.text, status: "sent", checks: [], source: "offline" });
-        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge });
+        const guarded = await guardNudge(await decide(c, event.slotId, topics, replies, budget), c, args.codeCheck, budget);
+        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
+        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge });
       } else {
         // Free mode (convex/huddleChat.ts): per-peer multi-turn exchanges, with maxPeersFree (not
         // maxPeers) fanned out — see museConfig.ts for the per-event call-budget arithmetic. The
@@ -239,9 +239,12 @@ export const runHuddle = internalAction({
           const turns = await runExchange(c, p, { eventId: event.eventId, title: event.title, slotId: event.slotId, topics }, CONFIG.maxTurns, budget, insert, args.codeCheck);
           return { p, turns };
         }));
-        const nudge = await decideFromTranscript(c, event.slotId, topics, exchanges, budget);
-        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: nudge.text, status: "sent", checks: [], source: "offline" });
-        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge });
+        // The recommendation is model output too, and in free mode it is synthesized from several
+        // turns of free text — so it gets the same guard main added for structured mode (#18),
+        // not less.
+        const guarded = await guardNudge(await decideFromTranscript(c, event.slotId, topics, exchanges, budget), c, args.codeCheck, budget);
+        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
+        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge });
       }
     }));
 

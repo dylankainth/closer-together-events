@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { agent } from "@/theme/swipeTheme";
@@ -51,6 +52,23 @@ const ENGINE_START: Engine = { s: 0, l: 0, c: 0, wait: 12, t: 0 };
 export default function Planning() {
   const { eventId: paramEventId, from } = useLocalSearchParams<{ eventId?: string; from?: string }>();
   const { viewerId } = useViewer();
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(() => Keyboard.isVisible());
+
+  useEffect(() => {
+    const shown = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true),
+    );
+    const hidden = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
 
   const [eventId, setEventId] = useState<string | undefined>(paramEventId);
   const [onboardingComplete, setOnboardingComplete] = useState(!!paramEventId);
@@ -477,26 +495,30 @@ export default function Planning() {
         </Animated.View>
       </View>
 
-      <View style={styles.composer}>
-        <TextInput
-          style={styles.input}
-          placeholder={showOpeningPrompt ? "Tell Muse what's happening…" : pageIdx === 0 ? "Ask your agent anything…" : "Message your agent…"}
-          placeholderTextColor={agent.dim}
-          value={draft}
-          onChangeText={setDraft}
-          onSubmitEditing={() => send()}
-          returnKeyType="send"
-          editable={!thinking}
-        />
-        <Pressable style={[styles.sendBtn, (!draft.trim() || thinking) && { opacity: 0.4 }]} onPress={() => send()} disabled={!draft.trim() || thinking} accessibilityLabel="Send">
-          <Ionicons name="arrow-up" size={20} color="#fff" />
-        </Pressable>
+      {/* The composer and optional skip link share one inset. KeyboardAvoidingView already
+          clears the open keyboard, so only reserve the navigation area while it is closed. */}
+      <View style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            placeholder={showOpeningPrompt ? "Tell Muse what's happening…" : pageIdx === 0 ? "Ask your agent anything…" : "Message your agent…"}
+            placeholderTextColor={agent.dim}
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={() => send()}
+            returnKeyType="send"
+            editable={!thinking}
+          />
+          <Pressable style={[styles.sendBtn, (!draft.trim() || thinking) && { opacity: 0.4 }]} onPress={() => send()} disabled={!draft.trim() || thinking} accessibilityLabel="Send">
+            <Ionicons name="arrow-up" size={20} color="#fff" />
+          </Pressable>
+        </View>
+        {sessionId && !onboardingComplete && (
+          <Pressable style={styles.skipRow} onPress={onSkipRest} disabled={thinking}>
+            <Text style={styles.skipText}>Skip the rest, use my judgement →</Text>
+          </Pressable>
+        )}
       </View>
-      {sessionId && !onboardingComplete && (
-        <Pressable style={styles.skipRow} onPress={onSkipRest} disabled={thinking}>
-          <Text style={styles.skipText}>Skip the rest, use my judgement →</Text>
-        </Pressable>
-      )}
 
       <Modal visible={!!explainStep} transparent animationType="fade" onRequestClose={() => setExplainStep(null)}>
         <Pressable style={styles.explainBackdrop} onPress={() => setExplainStep(null)}>

@@ -4,7 +4,7 @@ import { action, mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireActor } from "./authz";
-import { toPickView } from "./discoveryCore";
+import { toPickView, type CardPerson } from "./discoveryCore";
 
 /** The refresh button: re-rank this person's picks from the events already fetched (seconds), then
  * fetch fresh events in the background and re-rank them again. Never clears what they see. */
@@ -31,8 +31,21 @@ export const detail = query({
       .unique();
     const ev = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", key)).unique();
     if (!pick || !ev) return null;
+    // Friends of the viewer who said they're going (same rule as the card's friends pill; never shown to Muse).
+    const me = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    const friends = new Set<string>(me?.friends ?? []);
+    const others = await ctx.db
+      .query("picks")
+      .withIndex("by_eventKey_status", (q) => q.eq("eventKey", key).eq("status", "going"))
+      .collect();
+    const going: CardPerson[] = [];
+    for (const o of others) {
+      if (!friends.has(o.personaId)) continue;
+      const p = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", o.personaId)).unique();
+      if (p) going.push({ id: p.personaId, name: p.name, initials: p.initials, color: p.color });
+    }
     const { _id, _creationTime, fetchedAt, ...event } = ev;
-    return toPickView(event, pick, Date.now());
+    return toPickView(event, pick, Date.now(), going);
   },
 });
 

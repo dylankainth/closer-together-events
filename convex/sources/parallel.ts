@@ -77,6 +77,11 @@ function toEvent(b: Block): DiscoveredInput {
   };
 }
 
+/** "Free" or "USD 10": a price line, which a block without a venue line puts where the venue goes. */
+function isPrice(s: string | undefined): boolean {
+  return /^\s*(Free|USD [\d.,]+)\s*$/.test(s ?? "");
+}
+
 /** A truncated excerpt leaves "..." where the venue was; that is not a venue. */
 function realLine(s: string | undefined): string | null {
   const t = (s ?? "").trim();
@@ -91,7 +96,7 @@ export function parseAlleventsResults(results: ParallelResult[]): DiscoveredInpu
     const text = (r.excerpts ?? []).join("\n");
     for (const m of text.matchAll(BLOCK_RE)) {
       const [, day, mon, year, hh, mm, ampm, title, url, citySlug, id, venue, price] = m;
-      if (!byId.has(id)) byId.set(id, toEvent({ id, url, citySlug, title, day, mon, year, hh, mm, ampm, venue: realLine(venue), address: null, price: price ?? null }));
+      if (!byId.has(id)) byId.set(id, toEvent({ id, url, citySlug, title, day, mon, year, hh, mm, ampm, venue: isPrice(venue) ? null : realLine(venue), address: null, price: price ?? (isPrice(venue) ? venue.trim() : null) }));
     }
     for (const m of text.matchAll(DETAIL_RE)) {
       const [, title, url, citySlug, id, day, mon, year, hh, mm, ampm, location] = m;

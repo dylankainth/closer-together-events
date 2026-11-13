@@ -226,13 +226,13 @@ export const sendEvent = mutation({
  * while one is still sitting in the checklist awaiting approval. Internal: hostChat already
  * checked requireHost before calling it. */
 export const addTask = internalMutation({
-  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom")) },
+  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake")) },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) throw new Error("Event not found");
     const tasks = e.tasks ?? [];
-    if (args.kind === "send_invites") {
-      const live = tasks.find((t: any) => t.kind === "send_invites" && t.status !== "done");
+    if (args.kind === "send_invites" || args.kind === "order_cake") {
+      const live = tasks.find((t: any) => t.kind === args.kind && t.status !== "done");
       if (live) return { id: live.id as string };
     }
     const id = `t_${Date.now().toString(36)}_${tasks.length}`;
@@ -261,6 +261,18 @@ export const approveTask = mutation({
     await requireHost(ctx, e, "write", "events.approveTask");
     const task = (e!.tasks ?? []).find((t: any) => t.id === args.taskId);
     if (!task) throw new Error("Task not found");
+    if (task.kind === "order_cake") {
+      // Only a blocked (awaiting-approval) task fires — guards a double tap or stale client from
+      // sending the order twice.
+      if (task.status !== "blocked") return;
+      // Host approved the vendor email: hand off to the action that composes + sends it (it marks
+      // the task done with the real result) and keep the queue moving while it goes out.
+      const next = (e!.tasks ?? []).map((t: any) => (t.id === args.taskId ? { ...t, status: "active", needsYou: undefined } : t));
+      await ctx.db.patch(e!._id, { tasks: next });
+      await ctx.scheduler.runAfter(0, internal.emailAction.sendCakeOrder, { eventId: args.eventId, taskId: args.taskId });
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+      return;
+    }
     if (task.kind === "send_invites" && e!.status !== "sent") {
       const candidateIds = (e!.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
       await doSendInvites(ctx, e!, candidateIds);
@@ -288,19 +300,25 @@ export const rejectTask = mutation({
 // Open by design: a person without a Muse RSVPs from a plain link (claude.md section 6).
 // Hardened: only for sent events, with a sane name.
 export const rsvpExternal = mutation({
-  args: { eventId: v.string(), name: v.string() },
+  args: {
+    eventId: v.string(),
+    name: v.string(),
+    // Older invite clients only sent a name; keep their default "going" response.
+    status: v.optional(v.union(v.literal("going"), v.literal("maybe"), v.literal("cant"))),
+  },
   handler: async (ctx, args) => {
     const name = args.name.trim();
     if (name.length < 1 || name.length > 80) throw new Error("Enter a name between 1 and 80 characters.");
+    const status = args.status ?? "going";
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e || e.status !== "sent") throw new Error("This invite isn't open.");
     const existing = await ctx.db.query("guests").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).collect();
     const dup = existing.find((g) => g.kind === "external" && g.name === name);
     if (dup) {
-      await ctx.db.patch(dup._id, { status: "going" });
+      await ctx.db.patch(dup._id, { status });
       return;
     }
-    await ctx.db.insert("guests", { eventId: args.eventId, name, kind: "external", status: "going" });
+    await ctx.db.insert("guests", { eventId: args.eventId, name, kind: "external", status });
   },
 });
 

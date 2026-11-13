@@ -45,3 +45,11 @@ test("garbage input yields nothing instead of throwing", () => {
   assert.deepEqual(parseAlleventsResults([{ url: "https://allevents.in/x", excerpts: ["nothing here"] }]), []);
   assert.deepEqual(facebookEventUrls([{ url: "https://www.facebook.com/somepage" }]), []);
 });
+
+test("a block with no venue line keeps the price as the price, not the venue", () => {
+  const block = "* Sat, 14 Nov, 2026 - 01:00 PM\n  \n  [### Pottery Drop-in](https://allevents.in/palo-alto/pottery-drop-in/1000000000001 \"Pottery\")\n  \n  Free\n* Sun";
+  const [e] = parseAlleventsResults([{ url: "https://allevents.in/palo-alto/all", excerpts: [block] }]);
+  assert.equal(e.title, "Pottery Drop-in");
+  assert.equal(e.venueName, null);
+  assert.equal(e.price, "free");
+});

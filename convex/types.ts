@@ -101,7 +101,7 @@ export interface EventTask {
   id: string;
   label: string;
   detail: string;
-  kind: "send_invites" | "custom";
+  kind: "send_invites" | "custom" | "order_cake";
   status: TaskStatus;
   needsYou?: { title: string; body: string };
 }

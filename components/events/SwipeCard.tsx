@@ -76,7 +76,7 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
 
 const styles = StyleSheet.create({
   card: { flex: 1 },
-  banner: { aspectRatio: 1, borderRadius: 22, overflow: "hidden" },
+  banner: { width: "85%", aspectRatio: 1, alignSelf: "center", borderRadius: 22, overflow: "hidden" },
   verdictRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 },
   verdict: { fontSize: 44, lineHeight: 48, fontWeight: "800", letterSpacing: -1 },
   meta: { color: discover.muted, fontSize: 12, paddingBottom: 8, flexShrink: 1, textAlign: "right", marginLeft: 12 },

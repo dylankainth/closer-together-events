@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
 import { shortPlace } from "@/components/events/place";
-import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
@@ -123,29 +123,17 @@ export default function Feed() {
   // After sliding away to go back to the picks, the feed stays off-screen; put it back only when it is
   // shown again (resetting straight away made it snap back into view while the screen change played).
   useFocusEffect(useCallback(() => { ty.setValue(0); }, [ty]));
-  const pullDown = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_, g) => scrollY.current <= 0 && g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
-        onPanResponderMove: (_, g) => ty.setValue(Math.max(0, g.dy)),
-        onPanResponderRelease: (_, g) => {
-          if (g.dy > 110 || g.vy > 0.9) {
-            Animated.timing(ty, { toValue: height, duration: 200, useNativeDriver: false }).start(() => {
-              goToPicks();
-            });
-          } else {
-            Animated.spring(ty, { toValue: 0, useNativeDriver: false, friction: 8 }).start();
-          }
-        },
-        onPanResponderTerminate: () => Animated.spring(ty, { toValue: 0, useNativeDriver: false, friction: 8 }).start(),
-      }),
-    [ty, height],
-  );
+  // The native pull-to-refresh gesture does the pulling (a JS PanResponder never got the drag on Android, where
+  // the ScrollView owns the touch): pull down at the top and we slide to the picks instead of refreshing.
+  const onPull = useCallback(() => {
+    Animated.timing(ty, { toValue: height, duration: 200, useNativeDriver: false }).start(() => goToPicks());
+  }, [ty, height]);
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.screen, { transform: [{ translateY: ty }] }]} {...pullDown.panHandlers}>
+      <Animated.View style={[styles.screen, { transform: [{ translateY: ty }] }]}>
       <ScrollView
+        refreshControl={<RefreshControl refreshing={false} onRefresh={onPull} progressViewOffset={40} />}
         contentContainerStyle={{ paddingTop: 56, paddingBottom: 40 }}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
