@@ -2,7 +2,7 @@
 // viewers' picks so their reasons can mention who is going.
 //
 //   node scripts/seed-pick-going.mjs                    # dry run: counts, changes nothing
-//   node scripts/seed-pick-going.mjs --apply            # marks 1-3 friends going per upcoming event
+//   node scripts/seed-pick-going.mjs --apply            # marks 2-4 friends going per upcoming event
 //   node scripts/seed-pick-going.mjs --rerank           # re-ranks the six demo viewers' picks (Muse calls; run after --apply)
 //
 // Needs admin access from .env.local or the environment (the key is never printed):

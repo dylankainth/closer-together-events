@@ -4,7 +4,7 @@ import { v } from "convex/values";
 
 // One-off maintenance: make the "friends going" pill on Muse's picks real for the demo. Picks are real nearby events,
 // and the pill shows which of YOUR friends said they are going to the same one (their own pick row with status
-// "going"). Nobody has tapped anything, so it is empty. This marks 1-3 friends of the demo viewers as going to each
+// "going"). Nobody has tapped anything, so it is empty. This marks 2-4 friends of the demo viewers as going to each
 // upcoming event, preferring friends whose interests fit the event. Internal-only (scripts/seed-pick-going.mjs).
 // The demo viewers themselves are never marked, so their own cards stay open. Safe to re-run.
 
@@ -42,7 +42,7 @@ export const run = internalAction({
     for (const e of events) {
       const text = `${e.title} ${e.category ?? ""} ${e.description}`.toLowerCase();
       const fit = (p: { id: string; interests: string[] }) => p.interests.filter((i) => text.includes(i.toLowerCase())).length;
-      const count = 1 + (hash(e.key) % 3);
+      const count = 2 + (hash(e.key) % 3);
       const goers = [...pool].sort((a, b) => fit(b) - fit(a) || hash(e.key + a.id) - hash(e.key + b.id)).slice(0, count).map((p) => p.id);
       marked += await ctx.runMutation(internal.seedPickGoing.markGoing, { key: e.key, personaIds: goers, dryRun: args.dryRun });
     }
