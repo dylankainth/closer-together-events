@@ -138,11 +138,17 @@ export const forViewer = query({
       if (replies.length === 0) continue;
       const answered = new Set(replies.map((m: any) => m.forPersona as string));
       const latestTs = replies.reduce((max: number, m: any) => Math.max(max, m.ts as number), event.createdAt as number);
+      // Lead with the OUTCOME, not the activity. A host with several events otherwise gets a
+      // column of identical "13 of your friends' Muses have answered" rows that carry no
+      // information and read like the screen is broken — which is exactly how it looked on device.
+      const upForIt = allGuests.filter(
+        (g: any) => g.eventId === event.eventId && (g.status === "going" || g.nudge?.verdict === "worth"),
+      ).length;
       rows.push({
         id: `huddle-${event.eventId}`,
         kind: "huddle",
-        title: `${answered.size} of your friends' Muses have answered`,
-        body: `See how the huddle for ${event.title} is going.`,
+        title: upForIt > 0 ? `${upForIt} up for ${event.title}` : `Your Muses have answered on ${event.title}`,
+        body: `${answered.size} of your friends' Muses have weighed in. See how it's going.`,
         eventId: event.eventId as string,
         ts: latestTs,
         read: false,
