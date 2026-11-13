@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useAction } from "convex/react";
 import { ConvexError } from "convex/values";
@@ -39,8 +39,14 @@ export default function Setup() {
     }
   }
 
+  // ScrollView with automatic insets so content starts below iOS's translucent navigation bar
+  // instead of drawing underneath it.
   return (
-    <View style={styles.screen}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <Text style={styles.header}>Get your own Muse</Text>
       <Text style={styles.body}>
         Muse finds events worth going to, with a reason. Login with Facebook is used for your name
@@ -61,12 +67,13 @@ export default function Setup() {
         </Pressable>
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, padding: spacing.xl, paddingTop: spacing.xxl },
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.xl },
   header: { fontSize: 24, fontWeight: "700", color: colors.text },
   body: { color: colors.textMuted, marginTop: spacing.md, lineHeight: 20 },
   list: { marginTop: spacing.lg, gap: spacing.xs },
