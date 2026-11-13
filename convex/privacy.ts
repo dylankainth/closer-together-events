@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { museJSON } from "./muse";
-import type { CallBudget, EventSafeProfile, MsgStatus, MuseReply, Persona } from "./types";
+import type { CallBudget, EventSafeProfile, MsgStatus, MuseReply, Nudge, Persona } from "./types";
 
 /** Fixed reply schema: structured fields plus ONE short free-text line. */
 export const ReplySchema = z
@@ -156,6 +156,22 @@ export async function guardText(
   const s = await sparkCheck(text, owner, budget);
   if (!s.ok) return { status: "rewritten", text: NEUTRAL_WHY, checks: ["spark pass: private detail"] };
   return { status: "sent", text, checks: [] };
+}
+
+/** A fresh recommendation is model output too. Check both display text and stored reasons
+ * (skip verdicts can have reasons that aren't present in their short display text).
+ */
+export async function guardNudge(nudge: Nudge, owner: Persona, enabled: boolean, budget: CallBudget) {
+  const guard = await guardText([nudge.text, ...nudge.reasons].join("\n"), owner, enabled, budget);
+  return {
+    status: guard.status,
+    checks: guard.checks,
+    nudge: guard.status === "sent" ? nudge : {
+      ...nudge,
+      text: guard.text,
+      reasons: guard.status === "blocked" ? [] : [guard.text],
+    },
+  };
 }
 
 /** Leak detector for the eval: counts planted canaries or patterns in what was actually delivered. */
