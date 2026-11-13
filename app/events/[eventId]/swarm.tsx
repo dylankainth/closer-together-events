@@ -92,7 +92,26 @@ export default function Swarm() {
   void viewerId; // not needed for reads here (getByEventId/listForEvent key off the event's host), kept for parity with sibling screens
 
   const event = useQuery(api.events.getByEventId, { eventId });
-  const messages = useQuery(api.huddleData.messagesForEvent, { eventId }) ?? [];
+  const allMessages = useQuery(api.huddleData.messagesForEvent, { eventId }) ?? [];
+  // Replay: reveal the stored transcript in seq order over ~25 s. null = not replaying, show everything.
+  // It is a playback of an earlier run, never a live one, and the header says so while it plays.
+  const [playSeq, setPlaySeq] = useState<number | null>(null);
+  const maxSeq = useMemo(() => allMessages.reduce((m, x) => Math.max(m, x.seq), 0), [allMessages]);
+  const messages = useMemo(
+    () => (playSeq === null ? allMessages : allMessages.filter((m) => m.seq <= playSeq)),
+    [allMessages, playSeq],
+  );
+  const replaying = playSeq !== null;
+  useEffect(() => {
+    if (playSeq === null) return;
+    if (playSeq >= maxSeq) {
+      const done = setTimeout(() => setPlaySeq(null), 1200);
+      return () => clearTimeout(done);
+    }
+    const step = Math.max(1, Math.ceil(maxSeq / 250));
+    const t = setTimeout(() => setPlaySeq((v) => (v === null ? null : Math.min(maxSeq, v + step))), 100);
+    return () => clearTimeout(t);
+  }, [playSeq, maxSeq]);
   const guests = useQuery(api.guests.listForEvent, { eventId }) ?? [];
 
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -112,11 +131,30 @@ export default function Swarm() {
     return m;
   }, [guests]);
 
+  // Order the live feed by how recently each persona's thread last moved (any message touching
+  // them, by seq) — guests themselves carry no timestamp, so the huddle transcript's seq is the
+  // next best "when did this resolve" signal. Over the FULL transcript, so replay knows when each
+  // persona's thread is finished.
+  const lastSeqByPersona = useMemo(() => {
+    const ids = new Set(allCandidates.map((c) => c.personaId));
+    const m = new Map<string, number>();
+    for (const msg of allMessages) {
+      for (const pid of [msg.forPersona, msg.fromPersona, msg.toPersona]) {
+        if (ids.has(pid)) m.set(pid, Math.max(m.get(pid) ?? 0, msg.seq));
+      }
+    }
+    return m;
+  }, [allMessages, allCandidates]);
+
   // idle -> no "ask" message mentions this persona yet; talking -> asked but unresolved; otherwise
   // the resolved state, real RSVP first and the Muse's verdict only as a stand-in (see below).
   const stateByPersona = useMemo(() => {
     const m = new Map<string, NodeState>();
     for (const c of allCandidates) {
+      if (playSeq !== null && (lastSeqByPersona.get(c.personaId) ?? 0) > playSeq) {
+        m.set(c.personaId, messages.some((msg) => msg.forPersona === c.personaId) ? "talking" : "idle");
+        continue;
+      }
       const guest = guestByPersona.get(c.personaId);
       // What the PERSON did outranks what their Muse suggested. This used to read the nudge
       // first and fall back to `status`, but every invited guest has a nudge, so the fallback
@@ -140,7 +178,7 @@ export default function Swarm() {
       m.set(c.personaId, state);
     }
     return m;
-  }, [allCandidates, guestByPersona, messages]);
+  }, [allCandidates, guestByPersona, messages, playSeq, lastSeqByPersona]);
 
   // Two different numbers, deliberately not conflated. `upForIt` is what the Muses concluded,
   // which is what the swarm is showing while the huddle runs; `rsvpdCount` is how many people
@@ -158,19 +196,6 @@ export default function Swarm() {
   const nodeCandidates = allCandidates.slice(0, 14);
   const positions = useMemo(() => nodePositions(nodeCandidates.length), [nodeCandidates.length]);
 
-  // Order the live feed by how recently each persona's thread last moved (any message touching
-  // them, by seq) — guests themselves carry no timestamp, so the huddle transcript's seq is the
-  // next best "when did this resolve" signal.
-  const lastSeqByPersona = useMemo(() => {
-    const ids = new Set(allCandidates.map((c) => c.personaId));
-    const m = new Map<string, number>();
-    for (const msg of messages) {
-      for (const pid of [msg.forPersona, msg.fromPersona, msg.toPersona]) {
-        if (ids.has(pid)) m.set(pid, Math.max(m.get(pid) ?? 0, msg.seq));
-      }
-    }
-    return m;
-  }, [messages, allCandidates]);
 
   const feed = useMemo(() => {
     return allCandidates
@@ -346,7 +371,8 @@ export default function Swarm() {
   const replay = useCallback(() => {
     resetView();
     scrollRef.current?.scrollTo({ y: 0, animated: !reducedMotion });
-  }, [resetView, reducedMotion]);
+    if (maxSeq > 0) setPlaySeq(0);
+  }, [resetView, reducedMotion, maxSeq]);
 
   if (event === undefined) {
     return (
@@ -375,7 +401,7 @@ export default function Swarm() {
         </Pressable>
         <View style={styles.livePill}>
           <Animated.View style={[styles.liveDot, { opacity: reducedMotion ? 1 : blinkAnim }]} />
-          <Text style={styles.livePillText}>LIVE</Text>
+          <Text style={styles.livePillText}>{replaying ? "REPLAY" : "LIVE"}</Text>
         </View>
         <Pressable onPress={replay} hitSlop={12} style={styles.iconBtn} accessibilityLabel="Replay">
           <Ionicons name="refresh" size={21} color={palette.text} />
@@ -383,7 +409,9 @@ export default function Swarm() {
       </View>
 
       <View style={styles.headlineBlock}>
-        <Text style={styles.eyebrow}>{activeCount} conversation{activeCount === 1 ? "" : "s"} live</Text>
+        <Text style={styles.eyebrow}>
+          {replaying ? `Replaying an earlier run · ${activeCount} talking` : `${activeCount} conversation${activeCount === 1 ? "" : "s"} live`}
+        </Text>
         <Text style={styles.eventTitle}>{event.title}</Text>
       </View>
 
