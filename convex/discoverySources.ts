@@ -71,21 +71,26 @@ export const fetchAll = internalAction({
       ["apify-facebook", internal.discoverySources.fetchApifyFacebook, 60 * 60_000],
       ["parallel", internal.discoverySources.fetchParallel, 60 * 60_000],
     ] as const;
-    for (const [name, fn, minGapMs] of sources) {
-      try {
+    // All sources at once, so their worst cases do not add up past Convex's 10-minute action limit;
+    // each one fails on its own.
+    const results = await Promise.allSettled(
+      sources.map(async ([name, fn, minGapMs]) => {
         // Refresh taps must not re-run a source (Apify is paid per event) more often than its gap.
-        if (!(await ctx.runMutation(internal.discoveryData.claimSourceRun, { source: name, minGapMs }))) {
-          fetched[name] = 0;
-          continue;
-        }
+        if (!(await ctx.runMutation(internal.discoveryData.claimSourceRun, { source: name, minGapMs }))) return { name, fetched: 0, inserted: 0 };
         const r = await ctx.runAction(fn, {});
-        fetched[name] = r.fetched;
-        inserted += r.inserted;
-      } catch (err) {
-        console.warn(`[discovery] ${name} failed: ${err instanceof Error ? err.message : "unknown error"}`);
+        return { name, ...r };
+      }),
+    );
+    results.forEach((res, i) => {
+      const name = sources[i][0];
+      if (res.status === "fulfilled") {
+        fetched[name] = res.value.fetched;
+        inserted += res.value.inserted;
+      } else {
+        console.warn(`[discovery] ${name} failed: ${res.reason instanceof Error ? res.reason.message : "unknown error"}`);
         fetched[name] = 0;
       }
-    }
+    });
     if (shouldRerankAfterFetch(personaId, inserted)) {
       try {
         if (personaId) await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
@@ -191,7 +196,7 @@ export const fetchParallel = internalAction({
     const token = process.env.APIFY_TOKEN;
     if (fbUrls.length > 0 && token) {
       try {
-        const rows = (await postJson(APIFY_URL, { Authorization: `Bearer ${token}` }, { searchQueries: [], startUrls: fbUrls.map((url) => ({ url })), maxEvents: fbUrls.length }, APIFY_TIMEOUT_MS)) as unknown[];
+        const rows = (await postJson(APIFY_URL, { Authorization: `Bearer ${token}` }, { searchQueries: [], startUrls: fbUrls, maxEvents: fbUrls.length }, APIFY_TIMEOUT_MS)) as unknown[];
         for (const row of Array.isArray(rows) ? rows : []) {
           const mapped = mapApifyFacebook(row);
           if (mapped) items.push(mapped);

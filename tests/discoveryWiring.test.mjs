@@ -55,3 +55,10 @@ test("leftover: approving or withdrawing Muse re-ranks only when the approval ac
 test("Muse is not hammered: the cron ranks at most 2 people at a time (429s at 5)", () => {
   assert.match(src("convex/discoveryRank.ts"), /const CONCURRENCY = 2;/);
 });
+
+test("Task 9 review: sources fetch concurrently (10-minute action limit) and Apify gets startUrls as plain strings", () => {
+  const s = src("convex/discoverySources.ts");
+  assert.match(s, /Promise\.allSettled\(/);
+  assert.match(s, /startUrls: fbUrls[,\s]/);
+  assert.doesNotMatch(s, /fbUrls\.map\(\(url\) => \(\{ url \}\)\)/);
+});
