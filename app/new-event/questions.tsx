@@ -31,9 +31,10 @@ export default function Questions() {
 
   const [stage, setStage] = useState<"asking" | "error">("asking");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [field, setField] = useState("other");
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>([]);
-  const [inputType, setInputType] = useState<"chips" | "text" | "voice">("text");
+  const [inputType, setInputType] = useState<"chips" | "text">("text");
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
   const [textValue, setTextValue] = useState("");
   const [questionCount, setQuestionCount] = useState(0);
@@ -49,6 +50,7 @@ export default function Questions() {
     try {
       const result = await startQuestionSession({ hostId: viewerId });
       setSessionId(result.sessionId);
+      setField(result.field ?? "other");
       setQuestion(result.question);
       setOptions(result.options ?? []);
       setInputType(result.inputType);
@@ -76,7 +78,7 @@ export default function Questions() {
     try {
       const result = await submitAnswer({
         sessionId: sessionId!,
-        questionId: `q${questionCount}`,
+        field,
         answer,
       });
 
@@ -99,6 +101,7 @@ export default function Questions() {
         return;
       }
 
+      setField(result.field ?? "other");
       setQuestion(result.question ?? "");
       setOptions(result.options ?? []);
       setInputType(result.inputType ?? "text");
@@ -157,12 +160,6 @@ export default function Questions() {
         />
       )}
 
-      {inputType === "voice" && (
-        <Pressable style={styles.voiceBtn} onPress={() => setTextValue("voice input")}>
-          <Text style={styles.voiceText}>🎙️ Voice</Text>
-        </Pressable>
-      )}
-
       <Pressable
         style={[styles.next, !canAnswer && styles.nextDisabled]}
         disabled={!canAnswer || loading}
@@ -192,18 +189,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xl,
   },
-  voiceBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    marginBottom: spacing.xl,
-  },
-  voiceText: { color: colors.museAccent, fontWeight: "600" },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
