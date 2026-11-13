@@ -39,6 +39,24 @@ export function buildNotifications(rows: NotificationRow[]): NotificationRow[] {
   return deduped.sort((a, b) => b.ts - a.ts);
 }
 
+/**
+ * What an invite notification says, which depends on how the invite came about.
+ *
+ * A spread invite (convex/spread.ts) did NOT come from the host — it exists because a friend of
+ * the recipient said yes. Telling them "Jess invited you" when Jess never picked them is untrue,
+ * and it buries the one fact that makes the invite make sense: someone they know is going. Pure
+ * so the wording is pinned by a test instead of reviewed by eye.
+ */
+export function inviteCopy(eventTitle: string, hostName: string, viaName?: string): { title: string; body: string } {
+  if (!viaName) {
+    return { title: `${first(hostName)} invited you to ${eventTitle}`, body: "Tap to see who's going and reply." };
+  }
+  return {
+    title: `${first(viaName)} is going to ${eventTitle}`,
+    body: `${first(viaName)} said yes, so ${first(hostName)}'s event came your way. Tap to see who's going and reply.`,
+  };
+}
+
 /** Minimal persona shape plusOnePolicy's pure functions need, read straight off the personas table. */
 function toInvitePerson(p: any): InvitePerson {
   return {
@@ -76,11 +94,15 @@ export const forViewer = query({
       const hostName = personasById.get(event.hostId as string)?.name ?? "Someone";
 
       if (g.status === "invited") {
+        // A spread invite did not come from the host — it exists because a friend said yes
+        // (convex/spread.ts). Saying "Jess invited you" when Jess never picked you is simply
+        // untrue, and it hides the one thing that makes the mechanic make sense to the person
+        // receiving it: someone you know is going. Name them.
+        const via = g.spreadFrom ? personasById.get(g.spreadFrom as string)?.name : undefined;
         rows.push({
           id: `invite-${g.eventId}`,
           kind: "invite",
-          title: `${first(hostName)} invited you to ${event.title}`,
-          body: "Tap to see who's going and reply.",
+          ...inviteCopy(event.title as string, hostName, via),
           eventId: g.eventId as string,
           ts: event.createdAt as number,
           read: false,

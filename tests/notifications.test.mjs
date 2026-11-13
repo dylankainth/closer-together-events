@@ -29,3 +29,23 @@ test("does not mutate the input array", () => {
   buildNotifications(input);
   assert.deepEqual(input, copy);
 });
+
+// A spread invite reaches someone the host never picked, because a friend of theirs said yes.
+// Attributing it to the host is both false and useless: it hides the only fact that explains
+// why the event turned up at all. Verified live first — Leo's notification read "Jess invited
+// you" when it was Blake's acceptance that reached him.
+test("a spread invite names the friend whose yes caused it, not the host", async () => {
+  const { inviteCopy } = await import("../convex/notifications.ts");
+  const { title, body } = inviteCopy("Jess's climbing social", "Jess Kim", "Blake Okafor");
+  assert.equal(title, "Blake is going to Jess's climbing social");
+  assert.match(body, /^Blake said yes, so Jess's event came your way\./);
+  // The host still gets credit for the event; they just didn't pick this person.
+  assert.ok(body.includes("Jess"));
+});
+
+test("an ordinary invite still reads as coming from the host", async () => {
+  const { inviteCopy } = await import("../convex/notifications.ts");
+  const { title, body } = inviteCopy("Bowling night", "Maya Chen");
+  assert.equal(title, "Maya invited you to Bowling night");
+  assert.equal(body, "Tap to see who's going and reply.");
+});
