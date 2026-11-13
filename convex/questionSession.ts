@@ -12,12 +12,12 @@ import { requireActor } from "./authz";
 
 // Core fields planEvent actually needs; "other" is for anything else Muse asks (constraints,
 // date, etc.) that gets recorded but doesn't feed the mapping in questionSessionData.ts.
-const CORE_FIELDS = ["purpose", "vibe", "audience", "budget"] as const;
+const CORE_FIELDS = ["purpose", "vibe", "audience", "budget", "visibility"] as const;
 const MAX_ROUNDS = 6; // hard cap so a live model that never says "complete" can't strand the host
 
 const QuestionSchema = z.object({
   kind: z.union([z.literal("question"), z.literal("complete")]),
-  field: z.enum(["purpose", "vibe", "audience", "budget", "other"]).optional(),
+  field: z.enum(["purpose", "vibe", "audience", "budget", "visibility", "other"]).optional(),
   question: z.string().max(200),
   // Short reasoning shown under the question, e.g. "Most of your likely guests said under £35 is comfortable."
   note: z.string().max(140).optional(),
@@ -45,7 +45,8 @@ const FALLBACK_OPENING: QuestionResult = {
 const FIELD_FALLBACKS: Record<(typeof CORE_FIELDS)[number], QuestionResult> = {
   purpose: FALLBACK_OPENING,
   vibe: { kind: "question", field: "vibe", question: "What's the vibe?", options: ["Chill", "Lively", "Fancy"], defaultOption: "Lively", inputType: "chips" },
-  audience: { kind: "question", field: "audience", question: "Who gets in?", options: ["Only who I pick", "My picks + they can bring 1", "Anyone can apply"], defaultOption: "My picks + they can bring 1", inputType: "chips" },
+  audience: { kind: "question", field: "audience", question: "Who is it for?", options: ["My closest friends", "Friends who'd get along", "Anyone I know"], defaultOption: "My closest friends", inputType: "chips" },
+  visibility: { kind: "question", field: "visibility", question: "Is this public or private?", note: "Public means guests can bring a friend. Private means no plus-ones.", options: ["Private (no plus-ones)", "Public (plus-ones welcome)"], defaultOption: "Private (no plus-ones)", inputType: "chips" },
   budget: { kind: "question", field: "budget", question: "Budget per head?", options: ["Under £25", "£25-35", "£35+", "I'm paying"], defaultOption: "£25-35", inputType: "chips" },
 };
 
@@ -71,7 +72,7 @@ export const startQuestionSession = action({
       budget,
       effort: "low",
       system:
-        'You are Muse helping a host plan an event. They just described it in one line. Ask ONE friendly follow-up question to learn more — skip anything the description already answers. Always propose your own best-guess default so the host can just accept it. Keep the question under 200 characters, and any "note" under 140. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"other", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget this question is collecting — use "other" only if it fits none of those.',
+        'You are Muse helping a host plan an event. They just described it in one line. Ask ONE friendly follow-up question to learn more — skip anything the description already answers. Always propose your own best-guess default so the host can just accept it. Keep the question under 200 characters, and any "note" under 140. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"visibility"|"other", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget/visibility this question is collecting — use "other" only if it fits none of those. "visibility" is whether the event is public (guests may bring a friend) or private (no plus-ones): always ask it, with the two options "Private (no plus-ones)" and "Public (plus-ones welcome)".',
       user: { description: args.initialDescription },
       schema: QuestionSchema,
       fallback: (): QuestionResult => FALLBACK_OPENING,

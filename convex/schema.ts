@@ -122,6 +122,8 @@ export default defineSchema({
       purpose: v.string(),
       vibe: v.string(),
       budget: v.union(v.literal(1), v.literal(2), v.literal(3)),
+      // Asked by Muse in the planner. Public = guests may bring a friend (plus-ones); private = no plus-ones.
+      visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     }),
     audienceRaw: v.string(),
     // Optional: a fresh draft starts with no reading on its audience yet — agentLoop's
