@@ -64,7 +64,7 @@ export const run = internalMutation({
           status: "invited",
           nudge: available
             ? { verdict: "worth", reasons: [`${d.host.name.split(" ")[0]} is hosting.`, "You're free then."], text: `${d.host.name.split(" ")[0]} is hosting ${d.title.split("'s ")[1]}. Worth going:\n1. ${d.host.name.split(" ")[0]} is hosting.\n2. You're free then.` }
-            : { verdict: "skip", reasons: ["You're not free then."], text: `${d.host.name.split(" ")[0]} is hosting ${d.title.split("'s ")[1]}. Probably skip: you're not free then.` },
+            : { verdict: "maybe", reasons: ["Heads up: you're not free then."], text: `${d.host.name.split(" ")[0]} is hosting ${d.title.split("'s ")[1]}. Might be fun:\n1. Heads up: you're not free then.` },
         });
       }
     }
