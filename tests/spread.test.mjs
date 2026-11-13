@@ -44,8 +44,33 @@ test("rule 3: capped per acceptance, however many friends they have", () => {
 });
 
 test("rule 3: never exceeds the event's remaining room", () => {
-  const w = world({ settings: { quota: 2 } }); // room = 2 - 1 existing guest = 1
-  assert.equal(run(w).length, 1);
+  const w = world(); // capacity 2 - 1 existing guest = room for 1
+  assert.equal(run(w, 2).length, 1);
+  assert.deepEqual(run(w, 1), []); // already full
+});
+
+// These two are the regression. Every fixture above hands out generous quota headroom, so twelve
+// passing tests hid the fact that spread was bounded by invitationLimit() — the PLUS-ONE budget,
+// which both the seed and the planner set equal to the number of guests they go on to invite.
+// room was quota - quota = 0 on essentially every real event and spread could never fire.
+// Caught on a device: accepted an invite on the seeded climbing social and watched a guest list
+// of 8 stay a guest list of 8.
+test("spreads on an event whose plus-one quota is already used up by the invited guests", () => {
+  const w = world({
+    settings: { quota: 4 }, // exactly the four friends already invited — the seed's shape
+    guests: [
+      { personaId: "sam", status: "going" },
+      ...["w", "x", "y"].map((id) => ({ personaId: id, status: "invited" })),
+    ],
+  });
+  assert.ok(run(w, 40).length > 0, "a used-up plus-one quota must not disable spread");
+});
+
+test("spreads on an event with no plus-one quota set at all", () => {
+  const w = world({ settings: undefined });
+  assert.ok(run(w, 40).length > 0, "spread must not depend on a quota the host never set");
+  // Still bounded without a capacity to bound it: three per yes, one hop.
+  assert.equal(run(w).length, Math.min(MAX_PER_ACCEPTANCE, FRIENDS.length));
 });
 
 test("rule 1: one hop — someone who arrived via spread cannot spread onward", () => {

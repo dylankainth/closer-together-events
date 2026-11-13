@@ -34,6 +34,12 @@ const STATUS_TEXT: Record<string, { title: string; body: string }> = {
  */
 export default function Manage() {
   const { viewerId, canActAsViewer } = useViewer();
+  // A real account (fb_) needs a real session before it can change anything. A demo persona
+  // picked from the switcher has no session and never will — it IS the demo, and everything else
+  // on this screen already treats it that way: it can plan the event, send the invites and retry
+  // a huddle. Holding the two permission cards to a stricter rule than the Send button didn't
+  // protect anything, it just made them look broken. The server stays the authority either way.
+  const canEditHostSettings = canActAsViewer || !viewerId.startsWith("fb_");
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const event = useQuery(api.events.getByEventId, { eventId });
   const guests = useQuery(api.guests.listForEvent, { eventId });
@@ -125,11 +131,11 @@ export default function Manage() {
                 problem the spread control was added to fix. Writing still needs a session, and
                 the server refuses regardless. */}
             {viewerId === event.hostId && <>
-              <GuestInviteControl key={eventId} eventId={eventId} canEdit={canActAsViewer} hostName={byId.get(event.hostId)?.name}
+              <GuestInviteControl key={eventId} eventId={eventId} canEdit={canEditHostSettings} hostName={byId.get(event.hostId)?.name}
                 enabled={event.allowGuestInvites ?? false} limit={event.settings?.quota || Math.max(12, guests.length)} />
               {/* The other way the event reaches someone the host didn't pick. Both grants live
                   here together so the host can see and change what they agreed to at plan time. */}
-              <SpreadControl key={`spread-${eventId}`} eventId={eventId} canEdit={canActAsViewer}
+              <SpreadControl key={`spread-${eventId}`} eventId={eventId} canEdit={canEditHostSettings}
                 hostName={byId.get(event.hostId)?.name} enabled={event.allowSpread ?? false} />
             </>}
             <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
