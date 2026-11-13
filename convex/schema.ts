@@ -156,6 +156,10 @@ export default defineSchema({
     // Q1 (ballot, agreed 2026-11-12): one-tap post-event "how was it?" — the signal that tells
     // Muse who/what to suggest next time (events.listDiscoverable reads this).
     feedback: v.optional(v.union(v.literal("fun"), v.literal("meh"), v.literal("skip"))),
+    // Swipe-card "remind me later": hide this recommendation until this timestamp (ms).
+    snoozedUntil: v.optional(v.number()),
+    // "Go if <friend> goes": a conditional RSVP, stored as status "maybe" + that friend's personaId.
+    goIfFriend: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
     .index("by_event_persona", ["eventId", "personaId"]),
