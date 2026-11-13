@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { discoveredInputFields, pickKindV, pickStatusV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
 
 // Normalization rule: `guests` and `huddleMessages` are separate tables because the UI needs
 // independent, incremental writes (RSVP status per guest; one huddle message at a time as it
@@ -226,6 +227,41 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_hostId", ["hostId"]),
+
+  // ---- event discovery: real nearby events merged from outside sources, and each person's
+  // Muse picks from them (docs/superpowers/specs/2026-11-13-event-discovery-design.md). Kept apart
+  // from `events`, which assumes a host persona, planning fields and the fixed demo slots. ----
+  discoveredEvents: defineTable({
+    ...discoveredInputFields,
+    key: v.string(), // discoveryCore.eventKey: normalised title + local day + city
+    fetchedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_startsAt", ["startsAt"]),
+
+  picks: defineTable({
+    personaId: v.string(),
+    eventKey: v.string(),
+    verdict: pickVerdictV,
+    reason: v.string(),
+    score: v.number(),
+    kind: pickKindV,
+    status: pickStatusV,
+    snoozedUntil: v.optional(v.number()),
+    rankedAt: v.number(),
+    reasonSource: reasonSourceV,
+  })
+    .index("by_persona", ["personaId"])
+    .index("by_persona_key", ["personaId", "eventKey"]),
+
+  // Events a person went to before, with their one-line "How was it?" answer. Feeds Muse's picks.
+  pastEvents: defineTable({
+    personaId: v.string(),
+    title: v.string(),
+    category: v.union(v.string(), v.null()),
+    when: v.number(),
+    feedback: v.union(v.string(), v.null()),
+  }).index("by_persona", ["personaId"]),
 
   // ---- app-level bookkeeping ----
   appMeta: defineTable({
