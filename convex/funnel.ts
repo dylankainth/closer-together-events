@@ -150,8 +150,17 @@ export async function rerank(
     effort: "low",
     budget,
     system:
-      'Rank these candidates for the event by relevance and write a one-line reason each (max 12 words). Never invent facts not given to you. Return {"ranking": [{"id": string, "reason": string}, ...]} covering every given id, best first.',
-    user: { items: toRank.map(({ id, available, base }) => ({ id, available, base })) },
+      // "facts", not "base": the field name leaks into the output. With `base` the model wrote
+      // reasons like "Available; base says Close Boxes with you Free then." — it described the
+      // payload instead of the person, and that string is the "why you" line on every guest card
+      // and in the picker. Naming the field for what it holds, and saying explicitly not to echo
+      // the input, is what stops it.
+      'Rank these candidates for the event by relevance and write a one-line reason each (max 12 words). ' +
+      'Each item gives you facts about that person: write a natural sentence a host would read, in the ' +
+      'second person about the guest (e.g. "Boxes with you and free that night."). Never invent facts not ' +
+      'given to you, and never mention the input fields or quote them back ("facts says", "available:" etc). ' +
+      'Return {"ranking": [{"id": string, "reason": string}, ...]} covering every given id, best first.',
+    user: { items: toRank.map(({ id, available, base }) => ({ id, available, facts: base })) },
     schema: z.object({ ranking: z.array(z.object({ id: z.string(), reason: z.string().max(120) })).max(toRank.length) }),
     fallback: () => ({
       ranking: [...items]
