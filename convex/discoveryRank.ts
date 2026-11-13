@@ -11,13 +11,15 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { museJSON } from "./muse";
 import { leaksIn } from "./privacy";
-import { buildRankPrompt, cleanRankResponse, excludeAnswered, fallbackRank, shouldSavePicks, type Keyed, type RankProfile } from "./discoveryCore";
+import { buildGoingPrompt, buildRankPrompt, cleanGoingNotes, cleanRankResponse, excludeAnswered, fallbackRank, shouldSavePicks, type GoingCandidate, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Persona } from "./types";
 
 const CONCURRENCY = 2; // Muse answered 429 rate_limit_exceeded at 5 parallel calls
 
 // verdict is any string: one odd value must not throw away Muse's whole answer;
 // cleanRankResponse maps anything other than "go" to "maybe".
+const GoingResponse = z.object({ notes: z.array(z.object({ id: z.string(), note: z.string() })) });
+
 const RankResponse = z.object({
   picks: z.array(z.object({ key: z.string(), verdict: z.string(), reason: z.string() })),
 });
@@ -60,6 +62,38 @@ export const rankPersona = internalAction({
     // Muse down or slow: keep the Muse-written picks the person already has.
     if (!shouldSavePicks(reasonSource, state.liveSources)) return { picks: 0, source: reasonSource };
     const { saved } = await ctx.runMutation(internal.discoveryData.savePicks, { personaId, reasonSource, picks });
+
+    // Light agent-to-agent step: for each pick, your Muse reads who is going (their approved, event-safe profile only)
+    // and writes one line per person on why they matter to you. One Muse call per pick; a failure falls back to a
+    // plain line and never blocks the picks.
+    const byKey = new Map(candidates.map((c) => [c.key, c]));
+    const leakGuards = new Map<string, string[]>([[personaId, guard]]);
+    for (const p of picks) {
+      try {
+        const going: GoingCandidate[] = await ctx.runQuery(internal.discoveryData.goingPeopleFor, { personaId, eventKey: p.key });
+        if (going.length === 0) continue;
+        const shown = going.slice(0, 5);
+        for (const g of shown) {
+          if (!leakGuards.has(g.id)) leakGuards.set(g.id, await ctx.runQuery(internal.discoveryData.leakGuardFor, { personaId: g.id }));
+        }
+        const owners = { secrets: [...leakGuards.values()].flat() } as unknown as Persona;
+        const ev = byKey.get(p.key);
+        const { system: gSystem, user: gUser } = buildGoingPrompt(profile, { title: ev?.title ?? "", category: ev?.category ?? null }, shown);
+        const r = await museJSON({
+          model: "ember",
+          effort: "low",
+          system: gSystem,
+          user: gUser,
+          schema: GoingResponse,
+          budget: { used: 0, max: 1 },
+          fallback: () => ({ notes: [] }),
+        });
+        const notes = cleanGoingNotes(r.data, profile, shown, (s) => leaksIn(s, owners));
+        await ctx.runMutation(internal.discoveryData.saveGoingNotes, { personaId, eventKey: p.key, notes });
+      } catch {
+        // keep the pick; the list just shows without notes
+      }
+    }
     return { picks: saved, source: reasonSource };
   },
 });

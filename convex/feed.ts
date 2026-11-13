@@ -152,6 +152,7 @@ function buildView(w: World, e: any, viewerId: string) {
     reasons: (mine?.nudge?.reasons ?? []) as string[],
     matchPct: mine ? matchPct(mine.nudge?.verdict, free, friendsGoing.length) : null,
     friendsGoing: friendsGoing.slice(0, 3),
+    goingList: [] as { id: string; name: string; initials: string; color: string; note: string; friend: boolean }[],
     // Filled in by forViewer for the recommended stack only (it needs a huddle lookup per event).
     chips: [] as Chip[],
     createdAt: e.createdAt as number,
@@ -184,7 +185,7 @@ async function loadPicks(ctx: QueryCtx, w: World, viewerId: string) {
       .map((o) => person(w, o.personaId))
       .filter(Boolean) as CardPerson[];
     const { _id, _creationTime, fetchedAt, ...event } = ev;
-    cards.push(toPickView(event, { ...p, status: "new" }, now, going, others.filter((o) => o.status === "going").length));
+    cards.push(toPickView(event, { ...p, status: "new" }, now, going, others.filter((o) => o.status === "going").length, p.goingNotes ?? []));
   }
   return cards;
 }

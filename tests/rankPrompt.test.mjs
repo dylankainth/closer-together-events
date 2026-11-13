@@ -65,3 +65,34 @@ test("past events for a demo persona come from their interests, in Sep/Oct, with
   assert.match(rows[0].title.toLowerCase(), /bowling/);
   assert.deepEqual(pastEventsFor("x", []), []);
 });
+
+// ---- who is going, and why each matters to you ----
+import { buildGoingPrompt, cleanGoingNotes, fallbackGoingNote, MAX_GOING_NOTE } from "../convex/discoveryCore.ts";
+
+const sam = { id: "sam", name: "Sam Rivera", initials: "SR", color: "#f00", friend: true, interests: ["boxing", "tech"], vibe: "Chill", talkingPoints: ["Bowls, and takes it more seriously than he admits."] };
+const mia = { id: "p-fof-001", name: "Mia Garcia", initials: "MG", color: "#0f0", friend: false, interests: ["gardening"], vibe: "Lively", talkingPoints: [] };
+
+test("the going prompt carries only event-safe data about the people going", () => {
+  const { system, user } = buildGoingPrompt({ ...profile, recentChats: ["Asked for a beginner boxing gym."] }, { title: "Boxing night", category: "fitness" }, [sam, mia]);
+  const text = JSON.stringify(user);
+  for (const banned of ["memory", "secrets", "neverShare", "ties", "lu.ma"]) assert.ok(!text.includes(banned), `prompt contains ${banned}`);
+  assert.equal(user.going.length, 2);
+  assert.equal(user.going[0].isYourFriend, true);
+  assert.deepEqual(user.you.recentlyToldYou, ["Asked for a beginner boxing gym."]);
+  assert.match(system, new RegExp(`${MAX_GOING_NOTE} characters`));
+});
+
+test("going notes: unknown ids and leaks fall back to a plain line, long lines are clamped, at most 5 listed", () => {
+  const many = Array.from({ length: 8 }, (_, i) => ({ ...sam, id: `p${i}`, name: `Person ${i}` }));
+  const out = cleanGoingNotes({ notes: [{ id: "p0", note: "x".repeat(400) }, { id: "p1", note: "Call 415 555 0100." }, { id: "ghost", note: "nope" }] }, { ...profile, interests: ["boxing"] }, many, (s) => /555/.test(s));
+  assert.equal(out.length, 5);
+  assert.ok(out[0].note.length <= MAX_GOING_NOTE);
+  assert.ok(!/555/.test(out[1].note));
+  assert.match(out[2].note, /boxing/);
+});
+
+test("fallback going line prefers shared interests, then friendship, then vibe", () => {
+  assert.match(fallbackGoingNote({ ...profile, interests: ["boxing"] }, sam), /both like boxing/);
+  assert.match(fallbackGoingNote({ ...profile, interests: ["jazz"] }, sam), /friend of yours/);
+  assert.match(fallbackGoingNote({ ...profile, interests: ["jazz"] }, mia), /lively vibe/);
+});

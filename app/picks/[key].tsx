@@ -129,14 +129,32 @@ export default function PickPage() {
         {ev.goingCount > 0 && (
           <>
             <View style={styles.sectionHead}><Text style={styles.sectionLabel}>{ev.goingCount} going{friends.length > 0 ? ` · ${friends.length} friend${friends.length === 1 ? "" : "s"}` : ""}</Text></View>
-            <View style={styles.faces}>
-              {friends.map((f, i) => (
-                <View key={f.id} style={[styles.face, i > 0 && { marginLeft: -10 }]}>
-                  <Avatar initials={f.initials} color={f.color} size={38} />
+            {ev.goingList && ev.goingList.length > 0 ? (
+              // Each person going, with a one-liner from your Muse on why they matter to you.
+              <View style={{ gap: 14, marginTop: 14 }}>
+                {ev.goingList.map((g) => (
+                  <View key={g.id} style={styles.goingRow}>
+                    <Avatar initials={g.initials} color={g.color} size={40} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.goingWho}>{g.name}{g.friend ? "  ·  friend" : ""}</Text>
+                      <Text style={styles.goingWhy}>{g.note}</Text>
+                    </View>
+                  </View>
+                ))}
+                {ev.goingCount > ev.goingList.length && <Text style={styles.goingNames}>and {ev.goingCount - ev.goingList.length} more</Text>}
+              </View>
+            ) : (
+              <>
+                <View style={styles.faces}>
+                  {friends.map((f, i) => (
+                    <View key={f.id} style={[styles.face, i > 0 && { marginLeft: -10 }]}>
+                      <Avatar initials={f.initials} color={f.color} size={38} />
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-            <Text style={styles.goingNames}>{goingText}</Text>
+                <Text style={styles.goingNames}>{goingText}</Text>
+              </>
+            )}
           </>
         )}
 
@@ -192,6 +210,9 @@ const styles = StyleSheet.create({
   hostName: { flex: 1, fontSize: 18, fontWeight: "600", color: swipe.ink },
   faces: { flexDirection: "row", marginTop: 14 },
   face: { borderRadius: 22, borderWidth: 2, borderColor: swipe.cream },
+  goingRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  goingWho: { fontSize: 16, fontWeight: "700", color: swipe.ink },
+  goingWhy: { fontSize: 14, lineHeight: 20, color: discover.textDim, marginTop: 2 },
   goingNames: { color: discover.muted, fontSize: 15, lineHeight: 21, marginTop: 10 },
   about: { color: swipe.ink, fontSize: 17, lineHeight: 26, marginTop: 14 },
   seeMore: { color: swipe.blue, fontWeight: "700", fontSize: 16, marginTop: 8 },

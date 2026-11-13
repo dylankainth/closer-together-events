@@ -301,6 +301,8 @@ export default defineSchema({
     snoozedUntil: v.optional(v.number()),
     rankedAt: v.number(),
     reasonSource: reasonSourceV,
+    // Who is going, each with a one-line reason they matter to this viewer (written by the viewer's Muse at rank time).
+    goingNotes: v.optional(v.array(v.object({ id: v.string(), name: v.string(), initials: v.string(), color: v.string(), note: v.string(), friend: v.boolean() }))),
   })
     .index("by_persona", ["personaId"])
     .index("by_persona_key", ["personaId", "eventKey"])

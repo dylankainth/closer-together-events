@@ -5,7 +5,7 @@ import { Mascot } from "@/components/Mascot";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
-import { AvatarStack } from "@/components/ui";
+import { Avatar, AvatarStack } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
 export type EventView = FunctionReturnType<typeof api.feed.forViewer>["recommended"][number];
@@ -72,10 +72,28 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
         ))}
       </View>
 
-      <View style={styles.pill}>
-        {ev.friendsGoing.length > 0 && <AvatarStack people={ev.friendsGoing} max={3} />}
-        <Text style={styles.pillText} numberOfLines={1}>{goingText}</Text>
-      </View>
+      {ev.goingList && ev.goingList.length > 0 ? (
+        // Who is going, each with a one-liner from your Muse on why they matter to you.
+        <View style={styles.goingList}>
+          {ev.goingList.slice(0, 3).map((g) => (
+            <View key={g.id} style={styles.goingRow}>
+              <Avatar initials={g.initials} color={g.color} size={28} />
+              <Text style={styles.goingNote} numberOfLines={2}>
+                <Text style={styles.goingName}>{first(g.name)}</Text>
+                {"  "}{g.note}
+              </Text>
+            </View>
+          ))}
+          {(ev.goingCount ?? 0) > Math.min(ev.goingList.length, 3) && (
+            <Text style={styles.goingMore}>+{(ev.goingCount ?? 0) - Math.min(ev.goingList.length, 3)} more going</Text>
+          )}
+        </View>
+      ) : (
+        <View style={styles.pill}>
+          {ev.friendsGoing.length > 0 && <AvatarStack people={ev.friendsGoing} max={3} />}
+          <Text style={styles.pillText} numberOfLines={1}>{goingText}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -94,6 +112,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#ECECF0" },
   tag: { width: 58, fontSize: 10, fontWeight: "800", letterSpacing: 1, paddingTop: 3 },
   rowText: { flex: 1, color: swipe.ink, fontSize: 15, lineHeight: 20 },
+  goingList: { gap: 8, marginTop: 14, backgroundColor: "#F1F1F4", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 10 },
+  goingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  goingName: { color: swipe.ink, fontWeight: "700" },
+  goingNote: { flex: 1, color: discover.textDim, fontSize: 12.5, lineHeight: 17 },
+  goingMore: { color: discover.muted, fontSize: 12, marginLeft: 38 },
   pill: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F1F1F4", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14 },
   pillText: { flex: 1, color: discover.textDim, fontSize: 14 },
 });

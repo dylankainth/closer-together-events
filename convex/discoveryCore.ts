@@ -220,6 +220,16 @@ export interface PickState {
   snoozedUntil?: number;
 }
 
+/** One person going to a pick, with the one-liner for why they matter to the viewer. */
+export interface GoingItem {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  note: string;
+  friend: boolean;
+}
+
 export interface CardPerson {
   id: string;
   name: string;
@@ -241,7 +251,7 @@ function placeOf(e: DiscoveredInput): string | null {
   return e.venueName ?? city;
 }
 
-export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: CardPerson[] = [], totalGoing: number = friendsGoing.length) {
+export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: CardPerson[] = [], totalGoing: number = friendsGoing.length, goingList: GoingItem[] = []) {
   const snoozed = p.status === "snoozed" && typeof p.snoozedUntil === "number" && p.snoozedUntil > now;
   return {
     eventId: `pick:${e.key}`,
@@ -256,6 +266,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     purpose: null as string | null,
     tags: e.category ? [e.category] : [],
     goingCount: Math.max(totalGoing, friendsGoing.length), // everyone going; friendsGoing is just the viewer's friends
+    goingList, // up to 5 of them, each with a one-liner for the viewer
     capacity: null as number | null,
     spotsLeft: null as number | null,
     relation: "pick" as const,
@@ -401,6 +412,89 @@ export function cleanRankResponse(resp: RankResponseShape, keys: Set<string>, fa
     }
   }
   return out;
+}
+
+// ---- who is going, and why each person matters to you ----
+
+export const MAX_GOING_LISTED = 5;
+export const MAX_GOING_NOTE = 130;
+
+export interface GoingCandidate {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  friend: boolean;
+  // Event-safe only: what that person has approved sharing. Never their private notes.
+  interests: string[];
+  vibe: string;
+  talkingPoints: string[];
+}
+
+const GOING_SYSTEM = [
+  "You are this person's Muse. Some people are going to an event you recommended to them.",
+  `For EACH person going, write ONE short line (at most ${MAX_GOING_NOTE} characters) saying why they matter to your person,`,
+  "written to your person as 'you'. Use only the data given: interests you share, something your person recently told you (recentlyToldYou),",
+  "that the person is your person's friend, or one of that person's approved talkingPoints. Be specific, not generic. Never invent facts,",
+  "never mention anything private, and do not repeat the same line for two people.",
+  'Reply as JSON: {"notes":[{"id":"<person id>","note":"..."}]}.',
+].join(" ");
+
+export function buildGoingPrompt(profile: RankProfile, ev: { title: string; category: string | null }, going: GoingCandidate[]) {
+  return {
+    system: GOING_SYSTEM,
+    user: {
+      event: { title: ev.title, category: ev.category },
+      you: {
+        interests: profile.interests,
+        vibe: profile.vibe,
+        ...(profile.about?.length ? { aboutYou: profile.about } : {}),
+        ...(profile.recentChats?.length ? { recentlyToldYou: profile.recentChats } : {}),
+        ...(profile.curious?.length ? { curiousAbout: profile.curious } : {}),
+      },
+      going: going.map((g) => ({
+        id: g.id,
+        name: g.name.split(" ")[0],
+        isYourFriend: g.friend,
+        theirInterests: g.interests,
+        theirVibe: g.vibe,
+        ...(g.talkingPoints.length ? { theirTalkingPoints: g.talkingPoints } : {}),
+      })),
+    },
+  };
+}
+
+/** Deterministic one-liner (used when Muse is down or answers badly): shared interests, else friendship, else vibe. */
+export function fallbackGoingNote(profile: RankProfile, g: GoingCandidate): string {
+  const mine = new Set(profile.interests.map((i) => i.toLowerCase()));
+  const shared = g.interests.filter((i) => mine.has(i.toLowerCase()));
+  const first = g.name.split(" ")[0];
+  if (shared.length) return `You and ${first} both like ${shared.slice(0, 2).join(" and ")}.`;
+  if (g.friend) return `${first} is a friend of yours, so it would be easy company.`;
+  return `${first}'s ${g.vibe.toLowerCase()} vibe could be a good match.`;
+}
+
+export function clampGoingNote(text: string): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (t.length <= MAX_GOING_NOTE) return t;
+  const cut = t.slice(0, MAX_GOING_NOTE - 1);
+  const atSpace = cut.lastIndexOf(" ");
+  return `${(atSpace > 40 ? cut.slice(0, atSpace) : cut).replace(/[,;:\s]+$/, "")}.`;
+}
+
+/** Keep one safe line per listed person: unknown ids and leaks fall back to the deterministic line. */
+export function cleanGoingNotes(
+  resp: { notes?: { id: string; note: string }[] },
+  profile: RankProfile,
+  going: GoingCandidate[],
+  isLeak: (s: string) => boolean,
+): GoingItem[] {
+  const byId = new Map((resp.notes ?? []).map((n) => [n.id, n.note]));
+  return going.slice(0, MAX_GOING_LISTED).map((g) => {
+    let note = clampGoingNote(byId.get(g.id) ?? "");
+    if (!note || isLeak(note)) note = fallbackGoingNote(profile, g);
+    return { id: g.id, name: g.name, initials: g.initials, color: g.color, note, friend: g.friend };
+  });
 }
 
 // ---- seeded history for demo personas ----

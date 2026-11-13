@@ -3,7 +3,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
-import { findDuplicate, mergeDuplicates, pastEventsFor, qualifies, refreshDecision, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
+import { findDuplicate, mergeDuplicates, pastEventsFor, qualifies, refreshDecision, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile, type GoingCandidate } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
 import { DEMO_SNAPSHOT } from "./demoSnapshot";
 
@@ -115,6 +115,37 @@ export const friendsGoingFor = internalQuery({
       for (const r of rows) if (r.status === "going") (out[r.eventKey] ??= []).push(f.name.split(" ")[0]);
     }
     return out;
+  },
+});
+
+/** Who is going to an event, as the viewer's Muse may know them: friends first, then everyone else. Event-safe fields
+ * only (interests, vibe, approved talking points). Never memory, secrets, ties or never-share. */
+export const goingPeopleFor = internalQuery({
+  args: { personaId: v.string(), eventKey: v.string() },
+  handler: async (ctx, { personaId, eventKey }): Promise<GoingCandidate[]> => {
+    const me = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    const friends = new Set<string>(me?.friends ?? []);
+    const rows = await ctx.db.query("picks").withIndex("by_eventKey_status", (q) => q.eq("eventKey", eventKey).eq("status", "going")).collect();
+    const out: GoingCandidate[] = [];
+    for (const r of rows) {
+      if (r.personaId === personaId) continue;
+      const p = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", r.personaId)).unique();
+      if (!p) continue;
+      out.push({ id: p.personaId, name: p.name, initials: p.initials, color: p.color, friend: friends.has(p.personaId), interests: p.interests, vibe: p.vibe, talkingPoints: p.shareable ?? [] });
+    }
+    return out.sort((a, b) => Number(b.friend) - Number(a.friend) || (b.talkingPoints.length - a.talkingPoints.length));
+  },
+});
+
+export const saveGoingNotes = internalMutation({
+  args: {
+    personaId: v.string(),
+    eventKey: v.string(),
+    notes: v.array(v.object({ id: v.string(), name: v.string(), initials: v.string(), color: v.string(), note: v.string(), friend: v.boolean() })),
+  },
+  handler: async (ctx, { personaId, eventKey, notes }) => {
+    const row = await ctx.db.query("picks").withIndex("by_persona_key", (q) => q.eq("personaId", personaId).eq("eventKey", eventKey)).unique();
+    if (row) await ctx.db.patch(row._id, { goingNotes: notes });
   },
 });
 
