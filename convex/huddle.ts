@@ -292,6 +292,18 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
     }) => ctx.runMutation(internal.huddleData.insertMessage, { eventId: args.eventId, runId: args.runId, attempt: args.attempt, ...m });
 
     const candidates = args.candidateIds.map((id) => byId.get(id)).filter((p): p is Persona => !!p && p.hasMuse && p.settings.nudgesOn && p.settings.talkToMuses);
+    // Peers a candidate's Muse may talk to are drawn from people who are ACTUALLY INVITED, not
+    // from the candidate's friends at large. The bound question is "is this event worth it for my
+    // person", and the useful evidence is who will be in the room — asking an uninvited friend
+    // produced answers about someone who was never coming, and those answers fed reasons like
+    // "Maya will be there" about a non-guest. Measured on a real 15-guest event before changing
+    // it: every invitee had at least 4 friends among the other invitees (mean 7.5, none with
+    // zero), and maxPeersFree is 2, so this costs no conversation and removes the fabrication.
+    // Reuses the invitedIds set built above for peopleYouKnow — same question, same answer: who is
+    // actually in the room. The host is prepended separately, so they are excluded here rather
+    // than being allowed to appear twice when they are also in the candidate's friends.
+    const peersFor = (c: Persona, limit: number) =>
+      [host, ...c.friends.map((id) => byId.get(id)).filter((p): p is Persona => !!p && p.id !== host.id && invitedIds.has(p.id) && p.hasMuse && p.settings.talkToMuses)].slice(0, limit + 1);
 
     const cache = new Map<string, Promise<{ guard: Awaited<ReturnType<typeof guardOutgoing>>; source: "muse" | "offline" }>>();
     const replyFor = (p: Persona) => {
@@ -328,7 +340,7 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
 
       if (mode === "structured") {
         // Shipped demo path (claude.md §5.1 "C underneath"): unchanged from before free mode existed.
-        const peers = [host, ...c.friends.map((id) => byId.get(id)).filter((p): p is Persona => !!p && p.hasMuse && p.settings.talkToMuses)].slice(0, CONFIG.maxPeers + 1);
+        const peers = peersFor(c, CONFIG.maxPeers);
         const collected = await Promise.all(peers.map(async (p) => {
           if (p.id === host.id) {
             const avail = host.availability.includes(event.slotId);
@@ -353,7 +365,7 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
         // Free mode (convex/huddleChat.ts): per-peer multi-turn exchanges, with maxPeersFree (not
         // maxPeers) fanned out — see museConfig.ts for the per-event call-budget arithmetic. The
         // host still doesn't chat; it keeps the same synthetic reply as structured mode.
-        const peers = [host, ...c.friends.map((id) => byId.get(id)).filter((p): p is Persona => !!p && p.hasMuse && p.settings.talkToMuses)].slice(0, CONFIG.maxPeersFree + 1);
+        const peers = peersFor(c, CONFIG.maxPeersFree);
         const exchanges = await Promise.all(peers.map(async (p) => {
           if (p.id === host.id) {
             return { p, turns: [{ from: "peer", text: "Hosting." } as ChatTurn] };

@@ -9,7 +9,9 @@ for (const mode of ["structured", "free"]) {
     assert.ok(result.report.delivered > 0, "a fully blocked/empty huddle is not a useful passing baseline");
     assert.equal(result.report.leakingRows, 0);
     assert.ok(result.report.blocked + result.report.rewritten > 0);
-    assert.equal(result.nudges.length, 1);
+    // One per invited candidate, and the fixture now invites both sam and priya — a Muse only
+    // exchanges turns with peers who are actually in the room, so sam needs an invited friend.
+    assert.equal(result.nudges.length, 2);
   });
   test(`${mode}: phone disclosure is blocked before delivery`, async () => {
     const result = await runPrivacyFixture({ mode, scenario: "phone" });

@@ -86,7 +86,10 @@ export async function runPrivacyFixture({ mode = "structured", codeCheck = true,
     },
   };
   if (mode === "free" && !runtime.hasFreeMode) throw new Error("Free-conversation source is missing; do not substitute a simulated implementation.");
-  await runtime.huddle().runHuddle.handler(ctx, { eventId: event.eventId, candidateIds: ["sam"], profileMode: "event_safe", codeCheck });
+  // priya is invited as well as sam, not just listed as his friend: a Muse only talks to peers who
+  // are actually in the room (convex/huddle.ts peersFor), so inviting sam alone would leave him
+  // with nobody to exchange turns with and the injection arms below would have no turns to scrub.
+  await runtime.huddle().runHuddle.handler(ctx, { eventId: event.eventId, candidateIds: ["sam", "priya"], profileMode: "event_safe", codeCheck });
   return {
     report: auditHuddleMessages(messages, owners, runtime.privacy.leaksIn),
     messages, nudges, prompts, calls: runtime.calls,
