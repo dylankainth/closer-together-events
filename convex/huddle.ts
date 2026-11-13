@@ -99,6 +99,21 @@ export const runHuddle = internalAction({
     if (!event) return;
     const personas: Persona[] = await ctx.runQuery(internal.personas.listAllInternal, {});
     const byId = new Map(personas.map((p) => [p.id, p]));
+
+    // Route A overlay (additive, see convex/museContext.ts): swap in a candidate's real,
+    // approved Muse-derived profile in place of their seeded fields, wherever one exists. Only
+    // the shareable fields move — friends/settings/id stay the seeded ones so huddle mechanics
+    // (who's a candidate, who's a peer) are unaffected.
+    const overlayIds = Array.from(new Set(args.candidateIds.flatMap((id) => {
+      const p = byId.get(id);
+      return p ? [id, ...p.friends] : [id];
+    })));
+    const overlays = await ctx.runQuery(internal.musePersonas.approvedForPersonas, { personaIds: overlayIds });
+    for (const [id, o] of Object.entries(overlays)) {
+      const p = byId.get(id);
+      if (p) byId.set(id, { ...p, interests: o.interests, vibe: o.vibe, availability: o.availability, neverShare: o.neverShare });
+    }
+
     const host = byId.get(event.hostId)!;
     const topics: string[] = event.query?.topics ?? [];
     const budget: CallBudget = { used: event.museCalls, max: CONFIG.maxCallsPerEvent };

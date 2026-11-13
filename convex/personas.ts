@@ -23,6 +23,14 @@ export const listAllInternal = internalQuery({
   handler: async (ctx) => (await ctx.db.query("personas").collect()).map(toPersona),
 });
 
+export const getByPersonaIdInternal = internalQuery({
+  args: { personaId: v.string() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
+    return row ? toPersona(row) : null;
+  },
+});
+
 export const getByPersonaId = query({
   args: { personaId: v.string() },
   handler: async (ctx, args) => {

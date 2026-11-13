@@ -194,6 +194,32 @@ export default defineSchema({
     .index("by_fbId", ["fbId"])
     .index("by_personaId", ["personaId"]),
 
+  // ---- real-memories route A (additive, parallel to route B's "Connect your Muse" connector):
+  // a distilled shareable profile parsed from a person's exported Muse VM files, overlaid onto
+  // their persona when profileApproved. Never stores raw .md content, only the filtered subset
+  // convex/museContext.ts's extractShareableProfile() produces. ----
+  musePersonas: defineTable({
+    personaId: v.string(),
+    name: v.string(),
+    vibe: v.string(),
+    interests: v.array(v.string()),
+    socialStyle: v.string(),
+    availability: v.array(v.string()),
+    neverShare: v.array(v.string()),
+    source: v.union(v.literal("muse"), v.literal("demo")),
+    profileApproved: v.boolean(), // user tapped "Connect my Muse" after previewing the parsed profile
+    lastSyncedAt: v.number(),
+  }).index("by_personaId", ["personaId"]),
+
+  // ---- adaptive question session (Muse interviews the host before planning) ----
+  questionSessions: defineTable({
+    hostId: v.string(),
+    answers: v.record(v.string(), v.any()),
+    status: v.union(v.literal("open"), v.literal("complete"), v.literal("abandoned")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_hostId", ["hostId"]),
+
   // ---- app-level bookkeeping ----
   appMeta: defineTable({
     key: v.string(), // "seeded" -> true once seed.run has populated the database

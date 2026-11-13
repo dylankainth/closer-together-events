@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { facebookLoginAvailable, LoginCancelled, signInWithFacebook, signOutOfFacebook } from "@/lib/facebookLogin";
-import { Avatar } from "./ui";
+import { Avatar, Switch } from "./ui";
 import { colors, radius, spacing } from "@/theme/tokens";
 
 // Opened from the Menu screen's profile row: real Facebook login/logout, plus (underneath, since
@@ -18,6 +18,11 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const profile = useQuery(api.users.profileForPersona, isLoggedIn ? { personaId: viewerId } : "skip");
   const login = useAction(api.fbAuth.loginWithFacebook);
   const me = personas?.find((p) => p.id === viewerId);
+
+  const museProfile = useQuery(api.musePersonas.getByPersonaId, { personaId: viewerId });
+  const syncMuse = useAction(api.museSync.syncMuseContext);
+  const setApproved = useMutation(api.musePersonas.setApproved);
+  const [syncing, setSyncing] = useState(false);
 
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,6 +50,15 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const onLogout = async () => {
     await signOutOfFacebook();
     logout();
+  };
+
+  const onConnectMuse = async () => {
+    setSyncing(true);
+    try {
+      await syncMuse({ personaId: viewerId });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -80,6 +94,39 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
         )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        <View style={styles.museBox}>
+          <View style={styles.museHeaderRow}>
+            <Text style={styles.sectionTitle}>Muse memory</Text>
+            {museProfile?.profileApproved ? (
+              <Text style={styles.museStatus}>Connected</Text>
+            ) : museProfile ? (
+              <Text style={styles.museStatusPending}>Not shared yet</Text>
+            ) : null}
+          </View>
+          {museProfile ? (
+            <>
+              <Text style={styles.museLine}>
+                Muse would share: interests: {museProfile.interests.join(", ") || "—"}; availability:{" "}
+                {museProfile.availability.length || 0} slot{museProfile.availability.length === 1 ? "" : "s"}.
+              </Text>
+              <Text style={styles.museLine}>
+                Never share: {museProfile.neverShare.length ? museProfile.neverShare.join(", ") : "nothing set"}.
+              </Text>
+              <View style={styles.museApproveRow}>
+                <Text style={styles.rowName}>Share this with friends' Muses in huddles</Text>
+                <Switch value={museProfile.profileApproved} onValueChange={(v) => setApproved({ personaId: viewerId, approved: v })} />
+              </View>
+              <Pressable onPress={onConnectMuse} disabled={syncing}>
+                <Text style={styles.resyncText}>{syncing ? "Syncing…" : "Re-sync"}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable style={styles.secondaryBtn} onPress={onConnectMuse} disabled={syncing}>
+              {syncing ? <ActivityIndicator color={colors.text} /> : <Text style={styles.secondaryBtnTextNeutral}>Connect my Muse</Text>}
+            </Pressable>
+          )}
+        </View>
+
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Switch demo user</Text>
         <TextInput placeholder="Search" value={search} onChangeText={setSearch} style={styles.search} placeholderTextColor={colors.textMuted} />
@@ -113,7 +160,15 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: "white", fontWeight: "700" },
   secondaryBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
   secondaryBtnText: { color: colors.danger, fontWeight: "700" },
+  secondaryBtnTextNeutral: { color: colors.text, fontWeight: "700" },
   error: { color: colors.danger, marginTop: spacing.sm, fontSize: 13 },
+  museBox: { marginTop: spacing.md, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.md },
+  museHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  museStatus: { color: colors.success, fontWeight: "700", fontSize: 12 },
+  museStatusPending: { color: colors.warning, fontWeight: "700", fontSize: 12 },
+  museLine: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
+  museApproveRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  resyncText: { color: colors.museAccent, fontWeight: "600", fontSize: 13, marginTop: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
   sectionTitle: { fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
   search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md, color: colors.text },
