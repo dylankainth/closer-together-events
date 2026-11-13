@@ -191,7 +191,7 @@ export default function Planning() {
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.topBar}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events"))} hitSlop={12} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={agent.text} />
