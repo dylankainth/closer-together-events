@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Avatar, Skeleton } from "@/components/ui";
 import { Mascot } from "@/components/Mascot";
 import { GuestInviteControl } from "@/components/events/GuestInviteControl";
+import { HuddleRecovery } from "@/components/events/HuddleRecovery";
 import { useViewer } from "@/hooks/useViewer";
 import { discover, swipe } from "@/theme/swipeTheme";
 
@@ -109,7 +110,10 @@ export default function Manage() {
         </View>
 
         {tab === "overview" && (
+          <>
+          {viewerId === event.hostId && <HuddleRecovery key={eventId} eventId={eventId} />}
           <Overview event={event} guests={guests} slotLabel={slot?.label} venue={venue} going={going} sending={sending} onSend={onSend} onEdit={() => setTab("details")} onTranscript={() => router.push(`/events/${eventId}/swarm`)} />
+          </>
         )}
         {tab === "guests" && (
           <>

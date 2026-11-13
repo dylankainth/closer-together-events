@@ -1,7 +1,8 @@
 "use node";
 
 import { z } from "zod";
-import { internalAction } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { museJSON } from "./muse";
@@ -151,14 +152,12 @@ async function decideFromTranscript(
   return { verdict: r.data.verdict, reasons: r.data.reasons, text };
 }
 
-export const runHuddle = internalAction({
-  args: {
-    eventId: v.string(),
-    candidateIds: v.array(v.string()),
-    profileMode: v.union(v.literal("event_safe"), v.literal("raw")),
-    codeCheck: v.boolean(),
-  },
-  handler: async (ctx, args): Promise<void> => {
+type HuddleArgs = {
+  eventId: string; candidateIds: string[]; profileMode: "event_safe" | "raw"; codeCheck: boolean;
+  runId?: Id<"huddleRuns">; attempt?: number;
+};
+
+async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
     const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
     if (!event) return;
     const personas: Persona[] = await ctx.runQuery(internal.personas.listAllInternal, {});
@@ -189,7 +188,7 @@ export const runHuddle = internalAction({
       kind: "ask" | "reply"; fromPersona: string; toPersona: string; forPersona: string; text: string;
       reply?: MuseReply; status: "sent" | "rewritten" | "blocked"; checks: string[]; source: "muse" | "offline";
       edgeId?: string; turn?: number;
-    }) => ctx.runMutation(internal.huddleData.insertMessage, { eventId: args.eventId, ...m });
+    }) => ctx.runMutation(internal.huddleData.insertMessage, { eventId: args.eventId, runId: args.runId, attempt: args.attempt, ...m });
 
     const candidates = args.candidateIds.map((id) => byId.get(id)).filter((p): p is Persona => !!p && p.hasMuse && p.settings.nudgesOn && p.settings.talkToMuses);
 
@@ -205,7 +204,8 @@ export const runHuddle = internalAction({
       return cache.get(p.id)!;
     };
 
-    await Promise.all(candidates.map(async (c) => {
+    // Wait for sibling candidates even if one fails, so the attempt cannot finalize while they write.
+    const results = await Promise.allSettled(candidates.map(async (c) => {
       await insert({
         kind: "ask", fromPersona: host.id, toPersona: c.id, forPersona: c.id,
         text: `Muse (${first(host)}) → Muse (${first(c)}): "Is ${event.title} worth it for ${first(c)}?"`,
@@ -239,7 +239,7 @@ export const runHuddle = internalAction({
         const replies = collected.filter((x): x is { p: Persona; r: MuseReply } => !!x);
         const guarded = await guardNudge(await decide(c, event.slotId, topics, replies, budget), c, args.codeCheck, budget);
         await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
-        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge });
+        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge, runId: args.runId, attempt: args.attempt });
       } else {
         // Free mode (convex/huddleChat.ts): per-peer multi-turn exchanges, with maxPeersFree (not
         // maxPeers) fanned out — see museConfig.ts for the per-event call-budget arithmetic. The
@@ -257,10 +257,30 @@ export const runHuddle = internalAction({
         // not less.
         const guarded = await guardNudge(await decideFromTranscript(c, event.slotId, topics, exchanges, budget), c, args.codeCheck, budget);
         await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
-        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge });
+        await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge, runId: args.runId, attempt: args.attempt });
       }
     }));
 
     await ctx.runMutation(internal.events.bumpCalls, { eventId: args.eventId, by: budget.used - event.museCalls });
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) throw failed.reason;
+}
+
+export const runHuddle = internalAction({
+  args: {
+    eventId: v.string(), candidateIds: v.array(v.string()),
+    profileMode: v.union(v.literal("event_safe"), v.literal("raw")), codeCheck: v.boolean(),
+    runId: v.optional(v.id("huddleRuns")), attempt: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const tracked = args.runId ? { eventId: args.eventId, runId: args.runId, attempt: args.attempt! } : null;
+    if (tracked && !(await ctx.runMutation(internal.huddleRecovery.start, tracked))) return;
+    try {
+      await executeHuddle(ctx, args);
+      if (tracked) await ctx.runMutation(internal.huddleRecovery.finish, { ...tracked, failed: false });
+    } catch (error) {
+      if (tracked) await ctx.runMutation(internal.huddleRecovery.finish, { ...tracked, failed: true });
+      throw error;
+    }
   },
 });

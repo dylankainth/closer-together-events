@@ -2,6 +2,7 @@ import { query, mutation, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { mayViewEvent, requireActor } from "./authz";
 import { canGoIf } from "./authPolicy";
+import { currentHuddleMessages } from "./huddleRuntime";
 import { toPickView, type CardPerson } from "./discoveryCore";
 
 // Read layer for the recommended-events swipe stack, the guest event page and the general feed.
@@ -48,7 +49,7 @@ async function loadReplies(ctx: any, eventId: string, viewerId: string) {
     .query("huddleMessages")
     .withIndex("by_event_forPersona", (q: any) => q.eq("eventId", eventId).eq("forPersona", viewerId))
     .collect();
-  return msgs.flatMap((m) =>
+  return (await currentHuddleMessages(ctx, eventId, msgs)).flatMap((m) =>
     m.kind === "reply" && m.reply && m.status !== "blocked" ? [{ fromPersona: m.fromPersona as string, reply: m.reply as any }] : [],
   );
 }

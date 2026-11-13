@@ -2,6 +2,7 @@ import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { allowedAs, requireActor, requireHost } from "./authz";
+import { scheduleHuddle } from "./huddleRuntime";
 
 function publicEvent(e: any) {
   const { _id, _creationTime, ...rest } = e;
@@ -209,12 +210,7 @@ async function doSendInvites(ctx: { db: any; scheduler: any }, e: { eventId: str
     await ctx.db.insert("guests", { eventId: e.eventId, personaId: pid, name: p.name, kind: "muse", status: "invited" });
   }
   await ctx.db.patch(e._id, { status: "sent" });
-  await ctx.scheduler.runAfter(0, internal.huddle.runHuddle, {
-    eventId: e.eventId,
-    candidateIds,
-    profileMode: "event_safe",
-    codeCheck: true,
-  });
+  await scheduleHuddle(ctx, e.eventId, candidateIds);
 }
 
 export const sendEvent = mutation({

@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
+import { scheduleHuddle } from "./huddleRuntime";
 import { requireActor, requireHost, requireOwner } from "./authz";
 import { canOfferInvite, eligibleFriend, invitationLimit, type InvitePerson } from "./plusOnePolicy";
 
@@ -61,9 +61,7 @@ export const invite = mutation({
     await ctx.db.insert("guests", {
       eventId, personaId: friendId, name: friend.name, kind: "muse", status: "invited", invitedByPersonaId: personaId,
     });
-    await ctx.scheduler.runAfter(0, internal.huddle.runHuddle, {
-      eventId, candidateIds: [friendId], profileMode: "event_safe", codeCheck: true,
-    });
+    await scheduleHuddle(ctx, eventId, [friendId]);
   },
 });
 
