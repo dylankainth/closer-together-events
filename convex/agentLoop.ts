@@ -28,6 +28,27 @@ export const run = internalAction({
       const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
       if (!event || event.status !== "draft") return; // event gone, or host already moved it past planning
 
+      // Stop at anything waiting on the host instead of working around it. A drafted vendor order
+      // is a real decision ("order the pizza?"), so carrying on past it would mean the rest of the
+      // plan was built on an answer the host never gave. A Convex action can't sit blocked for
+      // minutes, so the loop EXITS here — events.approveDraft/rejectDraft re-schedule it, and it
+      // picks up from whatever the event doc looks like then.
+      const pending = (event.drafts ?? []).filter((d: any) => d.status === "pending");
+      if (pending.length > 0) {
+        const log = (event.agentLog ?? []) as any[];
+        // Only log the pause once, however many times approve/reject re-enters this loop.
+        if (log[log.length - 1]?.tool !== "awaiting_approval") {
+          await ctx.runMutation(internal.events.appendAgentLog, {
+            eventId: args.eventId,
+            tool: "awaiting_approval",
+            args: { items: pending.map((d: any) => d.item) },
+            summary: `Waiting on you: ${pending.map((d: any) => d.item).join(", ")}. Nothing else moves until you decide.`,
+            source: "offline",
+          });
+        }
+        return;
+      }
+
       const options = availableTools(event);
       const canFinish = planComplete(event);
       if (options.length === 0 && !canFinish) return; // truly stuck — nothing left it's allowed to try

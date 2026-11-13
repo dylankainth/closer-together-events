@@ -133,6 +133,9 @@ export const approveDraft = mutation({
       d.id === args.draftId ? { ...d, status: "confirmed", simulatedReply: "Sorted, confirming shortly (simulated, nothing is paid)." } : d,
     );
     await ctx.db.patch(e._id, { drafts });
+    // The planning agent parks itself whenever a draft is pending (convex/agentLoop.ts), so the
+    // host answering is what lets it carry on. No-ops if the plan is already finished.
+    if (e.status === "draft") await ctx.scheduler.runAfter(0, internal.agentLoop.run, { eventId: args.eventId });
   },
 });
 
@@ -144,6 +147,8 @@ export const rejectDraft = mutation({
     if (!e) throw new Error("Event not found");
     await requireHost(ctx, e, "write", "events.rejectDraft");
     await ctx.db.patch(e._id, { drafts: (e.drafts ?? []).filter((d: any) => d.id !== args.draftId) });
+    // "Not now" is just as much an answer as "approve" — either way the agent is unblocked.
+    if (e.status === "draft") await ctx.scheduler.runAfter(0, internal.agentLoop.run, { eventId: args.eventId });
   },
 });
 
