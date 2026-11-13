@@ -11,6 +11,12 @@ import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
+import { rsvpLink } from "@/convex/rsvpPage";
+
+// The web RSVP page (convex/http.ts) lives on the Convex *site* URL, which pairs with the API URL the app
+// already has. EXPO_PUBLIC_CONVEX_SITE_URL wins if set.
+const SITE_URL =
+  process.env.EXPO_PUBLIC_CONVEX_SITE_URL ?? (process.env.EXPO_PUBLIC_CONVEX_URL ?? "").replace("://convex-api.", "://convex-site.");
 
 const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } as const;
 type RsvpResponse = { action: "going" | "goIf" | "cant" | "confirmGoIf"; friendId?: string };
@@ -237,7 +243,7 @@ function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: stri
         </Pressable>
         <Text style={[styles.topTitle, !scrolled && { opacity: 0 }]} numberOfLines={1}>{ev.title}</Text>
         <Pressable
-          onPress={() => void Share.share({ message: `${ev.title}${slot ? ` · ${dateLine}` : ""}` }).catch(() => undefined)}
+          onPress={() => void Share.share({ message: `${ev.title}${slot ? ` · ${dateLine}` : ""}\nRSVP: ${rsvpLink(SITE_URL, ev.eventId)}` }).catch(() => undefined)}
           style={styles.circle}
           hitSlop={8}
           accessibilityLabel="Share"
