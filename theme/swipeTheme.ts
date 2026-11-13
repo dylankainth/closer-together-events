@@ -20,6 +20,9 @@ export const discover = {
   line: "#E5E1DA",
   text: "#14141C",
   muted: "#6B6B76",
+  // Secondary muted role, a touch darker than `muted` — body copy on light surfaces that needs a
+  // little more contrast than a caption but shouldn't compete with `text`.
+  textDim: "#55555F",
   pill: "#ECE8E0",
   categoryColors: ["#A855F7", "#D69E2E", "#E08A00", "#C79A00", "#4F7CFF", "#EC5FA0", "#14B8A6", "#F97316"],
 };

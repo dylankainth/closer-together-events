@@ -4,11 +4,11 @@ import { Ionicons } from "@expo/vector-icons";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import { AvatarStack } from "@/components/ui";
-import { priceLabel, swipe } from "@/theme/swipeTheme";
+import { discover, priceLabel, swipe } from "@/theme/swipeTheme";
 
 export type EventView = FunctionReturnType<typeof api.feed.forViewer>["recommended"][number];
 
-const VERDICT: Record<string, string> = { worth: "Go.", maybe: "Maybe.", skip: "Skip." };
+const VERDICT: Record<string, string> = { worth: "Go", maybe: "Maybe", skip: "Skip" };
 
 /** Front card of the "Your week, by your agent" stack. Presentational: gestures live in the screen. */
 export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void }) {
@@ -41,8 +41,11 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
       <Pressable style={styles.body} onPress={onOpen}>
         <Text style={styles.meta}>{meta}</Text>
         <Text style={styles.title}>{ev.title} →</Text>
-        {/* Every Muse-written line is labelled as from Muse. */}
-        <Text style={styles.from}>✦ MUSE</Text>
+        {/* Every Muse-written line is labelled as from Muse (claude.md §9.4). */}
+        <View style={styles.from}>
+          <Ionicons name="sparkles" size={11} color={swipe.blue} />
+          <Text style={styles.fromText}>Muse</Text>
+        </View>
         <Text style={styles.headline}>{headline}</Text>
         <View style={styles.people}>
           <AvatarStack people={going} max={3} />
@@ -68,13 +71,14 @@ const styles = StyleSheet.create({
   match: { position: "absolute", top: 14, right: 14, backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   matchText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   body: { padding: 18, flex: 1 },
-  meta: { color: "#6B6B76", fontSize: 13 },
+  meta: { color: discover.muted, fontSize: 13 },
   title: { color: swipe.ink, fontWeight: "700", fontSize: 15, marginTop: 4 },
-  from: { color: swipe.blue, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: 12 },
+  from: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 12 },
+  fromText: { color: swipe.blue, fontSize: 12, fontWeight: "600" },
   headline: { color: swipe.ink, fontWeight: "800", fontSize: 24, lineHeight: 29, marginTop: 4 },
   people: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
-  micro: { flex: 1, color: "#55555F", fontSize: 13, lineHeight: 17 },
-  footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 12, borderTopWidth: 1, borderTopColor: "#ECECF0" },
-  footerText: { color: "#6B6B76", fontSize: 13, flex: 1 },
+  micro: { flex: 1, color: discover.textDim, fontSize: 13, lineHeight: 17 },
+  footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 12, borderTopWidth: 1, borderTopColor: discover.line },
+  footerText: { color: discover.muted, fontSize: 13, flex: 1 },
   why: { color: swipe.blue, fontWeight: "800", fontSize: 14 },
 });

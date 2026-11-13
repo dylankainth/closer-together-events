@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Pill, Skeleton } from "@/components/ui";
@@ -49,11 +50,15 @@ export default function Planning() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}>
-      <Text style={styles.header}>Your agent is on it!</Text>
+      <Text style={styles.header}>Your agent is on it</Text>
       <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
         {checklist.map((c) => (
           <View key={c.label} style={styles.checkRow}>
-            <Text style={{ fontSize: 16 }}>{c.done ? "✅" : "⏳"}</Text>
+            <Ionicons
+              name={c.done ? "checkmark-circle" : "time-outline"}
+              size={18}
+              color={c.done ? colors.museAccent : colors.textMuted}
+            />
             <Text style={styles.checkLabel}>{c.label}</Text>
           </View>
         ))}

@@ -1,6 +1,7 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
@@ -28,7 +29,7 @@ export default function Story() {
     <View style={styles.backdrop}>
       <View style={styles.card}>
         <Pressable style={styles.close} onPress={() => router.back()}>
-          <Text style={{ color: "white", fontSize: 18 }}>✕</Text>
+          <Ionicons name="close" size={18} color="white" />
         </Pressable>
         {event?.poster?.url ? (
           <Image source={{ uri: event.poster.url }} style={styles.photo} resizeMode="cover" />
@@ -42,15 +43,15 @@ export default function Story() {
 
           {myGuest?.nudge && (
             <View style={styles.reasoning}>
-              <Pill label="Agent Reasoning" tone="purple" />
+              <Pill label="Agent reasoning" tone="purple" />
               <Text style={styles.reasoningText}>{myGuest.nudge.text}</Text>
             </View>
           )}
 
           <View style={styles.actions}>
             <Pressable style={styles.remind} onPress={() => router.back()}><Text style={styles.actionText}>Remind me later</Text></Pressable>
-            <Pressable style={styles.no} onPress={() => respond("cant")}><Text style={styles.actionText}>No!</Text></Pressable>
-            <Pressable style={styles.yes} onPress={() => respond("going")}><Text style={[styles.actionText, { color: "white" }]}>Yes!</Text></Pressable>
+            <Pressable style={styles.no} onPress={() => respond("cant")}><Text style={styles.actionText}>No</Text></Pressable>
+            <Pressable style={styles.yes} onPress={() => respond("going")}><Text style={[styles.actionText, { color: "white" }]}>Yes</Text></Pressable>
           </View>
         </View>
       </View>
