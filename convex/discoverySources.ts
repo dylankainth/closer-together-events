@@ -3,6 +3,7 @@
 // others or the ranker (design: "never empty").
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { v } from "convex/values";
 import { MENLO } from "./discoveryCore";
 import { mapHackRadar } from "./sources/hackradar";
 import type { DiscoveredInput } from "./discoveryCore";
@@ -46,6 +47,28 @@ export async function fetchHackRadarItems(): Promise<DiscoveredInput[]> {
   }
   return out;
 }
+
+/** Fetch every source (each fails on its own), then re-rank: one person after a manual refresh,
+ * everyone on the schedule. Demo personas left with no picks get the saved snapshot back. */
+export const fetchAll = internalAction({
+  args: { personaId: v.optional(v.string()) },
+  handler: async (ctx, { personaId }): Promise<{ fetched: Record<string, number> }> => {
+    const fetched: Record<string, number> = {};
+    const sources = [["hackradar", internal.discoverySources.fetchHackRadar]] as const;
+    for (const [name, fn] of sources) {
+      try {
+        fetched[name] = (await ctx.runAction(fn, {})).fetched;
+      } catch (err) {
+        console.warn(`[discovery] ${name} failed: ${err instanceof Error ? err.message : "unknown error"}`);
+        fetched[name] = 0;
+      }
+    }
+    if (personaId) await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
+    else await ctx.runAction(internal.discoveryRank.rankAll, {});
+    await ctx.runMutation(internal.discoveryData.loadSnapshot, {});
+    return { fetched };
+  },
+});
 
 export const fetchHackRadar = internalAction({
   args: {},

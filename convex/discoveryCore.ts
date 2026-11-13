@@ -397,3 +397,13 @@ export function pastEventsFor(personaId: string, interests: string[]) {
     };
   });
 }
+
+// ---- refresh button gate ----
+
+export const REFRESH_GAP_MS = 60_000;
+
+/** At most one manual refresh per person per minute. A future timestamp (clock skew) never locks it. */
+export function canRefresh(lastAt: number | null, now: number): boolean {
+  if (lastAt === null || lastAt > now) return true;
+  return now - lastAt >= REFRESH_GAP_MS;
+}

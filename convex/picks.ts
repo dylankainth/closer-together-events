@@ -1,9 +1,24 @@
 // Event discovery: one Muse pick as an in-app event page, and the person's own answers to their
 // picks (X / I'm going / snooze).
-import { mutation, query } from "./_generated/server";
+import { action, mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import { requireActor } from "./authz";
 import { toPickView } from "./discoveryCore";
+
+/** The refresh button: re-rank this person's picks from the events already fetched (seconds), then
+ * fetch fresh events in the background and re-rank them again. Never clears what they see. */
+export const refresh = action({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<{ status: "ranked" | "too_soon"; picks: number }> => {
+    await requireActor(ctx, personaId, "write", "picks.refresh");
+    const claimed: boolean = await ctx.runMutation(internal.discoveryData.claimRefresh, { personaId });
+    if (!claimed) return { status: "too_soon", picks: 0 };
+    const { picks } = await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
+    await ctx.scheduler.runAfter(0, internal.discoverySources.fetchAll, { personaId });
+    return { status: "ranked", picks };
+  },
+});
 
 /** The pick's event page for this viewer, or null if it no longer exists. */
 export const detail = query({

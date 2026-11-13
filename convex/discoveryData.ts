@@ -3,7 +3,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
-import { mergeDuplicates, pastEventsFor, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
+import { canRefresh, mergeDuplicates, pastEventsFor, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
 import { DEMO_SNAPSHOT } from "./demoSnapshot";
 
@@ -192,5 +192,20 @@ export const loadSnapshot = internalMutation({
       restored += 1;
     }
     return { restored };
+  },
+});
+
+/** Atomically claim this person's refresh slot (at most one per minute). */
+export const claimRefresh = internalMutation({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<boolean> => {
+    const now = Date.now();
+    const key = `refresh:${personaId}`;
+    const row = await ctx.db.query("appMeta").withIndex("by_key", (q) => q.eq("key", key)).unique();
+    const last = row && typeof row.value === "number" ? row.value : null;
+    if (!canRefresh(last, now)) return false;
+    if (row) await ctx.db.patch(row._id, { value: now });
+    else await ctx.db.insert("appMeta", { key, value: now });
+    return true;
   },
 });

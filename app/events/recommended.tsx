@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { SwipeCard } from "@/components/events/SwipeCard";
@@ -30,6 +30,15 @@ export default function Recommended() {
   const respond = useMutation(api.feed.respond);
   const respondToPick = useMutation(api.picks.respond);
   const [accountOpen, setAccountOpen] = useState(false);
+  const refreshPicks = useAction(api.picks.refresh);
+  const [refreshing, setRefreshing] = useState(false);
+  // Re-ranks from events already fetched; the list stays on screen and updates live when done.
+  const runRefresh = () => {
+    setRefreshing(true);
+    refreshPicks({ personaId: viewerId })
+      .catch(() => undefined)
+      .finally(() => setRefreshing(false));
+  };
 
   const list = data?.recommended ?? [];
   const n = list.length;
@@ -137,7 +146,11 @@ export default function Recommended() {
         </View>
         <Text style={styles.heading}>Your agent's picks</Text>
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
+        <Pressable onPress={runRefresh} disabled={refreshing} hitSlop={10} accessibilityLabel="Ask Muse for fresh picks" style={styles.refresh}>
+          {refreshing ? <ActivityIndicator size="small" color={swipe.ink} /> : <Ionicons name="refresh" size={20} color={swipe.ink} />}
+        </Pressable>
       </View>
+      {refreshing && <Text style={styles.looking}>Muse is looking...</Text>}
 
       {data?.needsMuse && (
         <Pressable style={styles.museBanner} onPress={() => setAccountOpen(true)}>
@@ -199,6 +212,8 @@ const styles = StyleSheet.create({
   badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: swipe.blue, alignItems: "center", justifyContent: "center" },
   heading: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 15 },
   count: { color: "#6B6B76", fontWeight: "600", fontSize: 13 },
+  refresh: { width: 32, height: 32, alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  looking: { color: "#6B6B76", fontSize: 13, fontWeight: "600", marginHorizontal: 20, marginBottom: 6 },
   museBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#EEF0FF" },
   museBannerText: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 14 },
   stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10 },
