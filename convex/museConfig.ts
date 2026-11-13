@@ -30,9 +30,18 @@ export const CONFIG = {
   // than failing, so the back half would quietly stop being real while still looking real.
   maxCallsPerEvent: 240,
   // Measured low-effort spark calls average ~8.5s, wonder ~4.2s; every museJSON call site uses
-  // "low" effort (no medium/high), so 10s gives headroom above the slowest normal case while
-  // still cutting a genuine hang far short of the old 25s dead-air wait.
-  timeoutMs: 10000,
+  // "low" effort (no medium/high).
+  //
+  // This was 10s, which is an average plus almost no headroom — so every call slower than typical
+  // was killed. On a real 12-candidate huddle that meant 34 AbortErrors and HALF the transcript
+  // (43 of 86 messages) coming back as deterministic offline fallback while still looking like a
+  // conversation. The deployment logs for that run contain no auth, rate-limit or schema failures
+  // at all: every single fallback was this timeout firing on a call that would have succeeded.
+  //
+  // Raising it costs much less wall-clock than it looks, because an abort already burned the full
+  // 10s and returned nothing — the choice is "wait 10s for nothing" vs "wait a bit longer for a
+  // real answer". 20s sits well past the observed tail while still cutting a genuine hang short.
+  timeoutMs: 20000,
 };
 
 export const museLive = () => Boolean(CONFIG.museKey);
