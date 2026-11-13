@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swarm — agents filling the room</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#AFC0FF}a:hover{color:#FFFFFF}
+.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(79,107,255,0.75)}50%{box-shadow:0 0 0 12px rgba(79,107,255,0)}}
+.live{animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0E0F14; color: #F2F1EC; font-family: Inter, system-ui, sans-serif; display: flex">
+  <div style="position: relative; width: 960px; height: 900px; flex-shrink: 0; overflow: hidden">
+    <div style="position: absolute; left: 40px; top: 36px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; font-weight: 600; color: #8A8D96; letter-spacing: 1.5px; text-transform: uppercase">Twin network</div>
+      <div style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">{{active}} conversations live</div>
+    </div>
+
+    <sc-for list="{{lines}}" as="l" hint-placeholder-count="20">
+      <div style="position: absolute; left: 480px; top: 470px; width: {{l.len}}px; height: 2px; background: {{l.color}}; transform-origin: 0 50%; transform: rotate({{l.deg}}deg); transition: background 0.4s"></div>
+    </sc-for>
+
+    <div style="position: absolute; left: 430px; top: 420px; width: 100px; height: 100px; border-radius: 999px; background: #F2F1EC; color: #0E0F14; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 0 10px rgba(242,241,236,0.08), 0 0 0 22px rgba(242,241,236,0.04)">
+      <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700">Your event</div>
+      <div style="font-size: 11px; color: #3D4047">Fri 21</div>
+    </div>
+
+    <sc-for list="{{nodes}}" as="n" hint-placeholder-count="20">
+      <div class="{{n.cls}}" style="position: absolute; left: {{n.left}}px; top: {{n.top}}px; width: {{n.size}}px; height: {{n.size}}px; border-radius: 999px; background: {{n.bg}}; border: 2px solid {{n.bd}}; color: {{n.fg}}; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; transition: background 0.4s, border-color 0.4s, color 0.4s">{{n.initial}}</div>
+      <div style="position: absolute; left: {{n.labelLeft}}px; top: {{n.labelTop}}px; width: 90px; text-align: center; font-size: 12px; color: {{n.labelColor}}">{{n.name}}</div>
+    </sc-for>
+
+    <div style="position: absolute; left: 40px; bottom: 36px; display: flex; gap: 20px; font-size: 13px; color: #B8BAC2">
+      <div style="display: flex; align-items: center; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 999px; background: #1E2A6E; border: 2px solid #4F6BFF"></div>Talking</div>
+      <div style="display: flex; align-items: center; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 999px; background: #5BD69A"></div>In</div>
+      <div style="display: flex; align-items: center; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 999px; background: #F2C14E"></div>Maybe</div>
+      <div style="display: flex; align-items: center; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 999px; background: #2A2C35; border: 2px solid #4A4D57"></div>Can't make it</div>
+    </div>
+  </div>
+
+  <div style="flex: 1; background: #15161C; border-left: 1px solid #23252D; padding: 36px 36px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px; min-width: 0">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #5BD69A"><div class="live" style="width: 8px; height: 8px; border-radius: 999px; background: #5BD69A"></div>LIVE · your agent is filling the room</div>
+      <div style="font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.5px">Founders &amp; Operators Dinner</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: baseline; gap: 12px">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 96px; font-weight: 700; line-height: 0.9; letter-spacing: -3px">{{yes}}</div>
+        <div style="font-size: 18px; color: #B8BAC2">/ 20 confirmed</div>
+      </div>
+      <div style="height: 10px; border-radius: 999px; background: #23252D; overflow: hidden"><div style="height: 10px; width: {{pct}}%; background: #5BD69A; border-radius: 999px; transition: width 0.5s"></div></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+      <div style="background: #1C1E25; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><div style="font-size: 12px; color: #8A8D96">Twins asked</div><div style="font-size: 22px; font-weight: 700">{{contacted}}</div></div>
+      <div style="background: #1C1E25; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><div style="font-size: 12px; color: #8A8D96">Messages</div><div style="font-size: 22px; font-weight: 700">{{messages}}</div></div>
+      <div style="background: #1C1E25; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><div style="font-size: 12px; color: #8A8D96">Private info shared</div><div style="font-size: 22px; font-weight: 700; color: #5BD69A">0</div></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; overflow: hidden">
+      <div style="font-size: 12px; font-weight: 600; color: #8A8D96; letter-spacing: 1.5px; text-transform: uppercase">What the twins are saying</div>
+      <sc-for list="{{log}}" as="e" hint-placeholder-count="6">
+        <div style="display: flex; gap: 12px; align-items: flex-start; background: #1C1E25; border-radius: 14px; padding: 12px 14px; opacity: {{e.opacity}}">
+          <div style="width: 32px; height: 32px; border-radius: 999px; background: {{e.color}}; color: #0E0F14; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{e.initial}}</div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+              <div style="font-size: 12px; color: #8A8D96">{{e.name}}'s twin</div>
+              <div style="font-size: 11px; font-weight: 700; color: #0E0F14; background: {{e.color}}; padding: 2px 8px; border-radius: 999px">{{e.chip}}</div>
+            </div>
+            <div style="font-size: 14px; line-height: 1.35; color: #F2F1EC">{{e.text}}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <button onClick="{{replay}}" style="height: 48px; border-radius: 14px; border: 1px solid #33363F; background: transparent; color: #F2F1EC; font-family: Inter, sans-serif; font-size: 14px; font-weight: 600">Replay</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 30 };
+    this.people = [
+      ['Dylan', 'D', 'maybe', "He'd rather it's social than networking. Suggests dinner first."],
+      ['Priya', 'P', 'yes', 'In. Hiring for growth and wants to meet builders.'],
+      ['Sam', 'S', 'maybe', 'Goes if one more friend goes.'],
+      ['Amir', 'A', 'yes', 'Yes, via Dylan. Building in fintech.'],
+      ['Jess', 'J', 'no', 'Away that weekend. Details kept private.'],
+      ['Leo', 'L', 'yes', 'In. Looking for a technical co-founder.'],
+      ['Mia', 'M', 'yes', "Yes. Rated her last 2 dinners 'worth it'."],
+      ['Noah', 'N', 'yes', 'In, as long as he can leave by 10.'],
+      ['Ola', 'O', 'yes', 'Yes. Wants to meet other first-time founders.'],
+      ['Ravi', 'R', 'yes', 'In. Already knows 4 people going.'],
+      ['Tara', 'T', 'yes', 'Yes. Free Friday and under budget.'],
+      ['Ben', 'B', 'yes', 'In. Wants honest feedback on his pitch.'],
+      ['Chloe', 'C', 'yes', 'Yes. Just moved to London, wants to meet people.'],
+      ['Ezra', 'E', 'yes', "In as Priya's plus-one."],
+      ['Fatima', 'F', 'yes', "Yes. Likes the 'no pitches' format."],
+      ['Hugo', 'H', 'no', 'Exam on Saturday. Wants the next one.'],
+      ['Isla', 'I', 'yes', 'In. Veggie menu confirmed.'],
+      ['Kofi', 'K', 'yes', 'Yes. Wants to meet Amir.'],
+      ['Zara', 'Z', 'yes', 'In. Ran a similar dinner, wants to compare notes.'],
+      ['Yusuf', 'Y', 'yes', 'Yes. 15 min away, free all evening.']
+    ];
+    const n = this.people.length;
+    const ev = [];
+    for (let k = 0; k < n + 3; k++) {
+      if (k < n) ev.push({ n: k, s: 'talking' });
+      const r = k - 3;
+      if (r >= 0 && r < n) ev.push({ n: r, s: this.people[r][2], t: this.people[r][3] });
+      if (k === 8) ev.push({ n: 0, s: 'yes', t: "Dinner at 6:30 agreed. Dylan's in." });
+      if (k === 11) ev.push({ n: 2, s: 'yes', t: "Dylan's in, so Sam's in." });
+    }
+    this.events = ev;
+    const pos = [];
+    for (let i = 0; i < 8; i++) pos.push({ r: 200, a: (i / 8) * 360 + 22.5 });
+    for (let i = 0; i < 12; i++) pos.push({ r: 340, a: (i / 12) * 360 + 15 });
+    this.pos = pos;
+  }
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      const next = this.state.step + 1;
+      this.setState({ step: next > this.events.length + 8 ? 0 : next });
+    }, 650);
+  }
+  componentWillUnmount() { clearInterval(this.timer); }
+  renderVals() {
+    const step = Math.min(this.state.step, this.events.length);
+    const status = this.people.map(() => 'idle');
+    let messages = 0;
+    for (let i = 0; i < step; i++) { status[this.events[i].n] = this.events[i].s; messages += 2; }
+    const look = {
+      idle: { bg: '#1E2028', bd: '#33363F', fg: '#6E717A', line: 'rgba(255,255,255,0.06)', cls: '', label: '#6E717A' },
+      talking: { bg: '#1E2A6E', bd: '#4F6BFF', fg: '#FFFFFF', line: '#4F6BFF', cls: 'pulse', label: '#F2F1EC' },
+      yes: { bg: '#5BD69A', bd: '#5BD69A', fg: '#0E0F14', line: 'rgba(91,214,154,0.45)', cls: '', label: '#F2F1EC' },
+      maybe: { bg: '#F2C14E', bd: '#F2C14E', fg: '#0E0F14', line: 'rgba(242,193,78,0.5)', cls: '', label: '#F2F1EC' },
+      no: { bg: '#2A2C35', bd: '#4A4D57', fg: '#8A8D96', line: 'rgba(255,255,255,0.03)', cls: '', label: '#6E717A' }
+    };
+    const cx = 480, cy = 470;
+    const nodes = [], lines = [];
+    this.people.forEach((p, i) => {
+      const L = look[status[i]];
+      const pp = this.pos[i];
+      const rad = (pp.a * Math.PI) / 180;
+      const size = pp.r === 200 ? 54 : 44;
+      const x = cx + Math.cos(rad) * pp.r, y = cy + Math.sin(rad) * pp.r;
+      nodes.push({ name: p[0], initial: p[1], size, left: Math.round(x - size / 2), top: Math.round(y - size / 2), labelLeft: Math.round(x - 45), labelTop: Math.round(y + size / 2 + 6), bg: L.bg, bd: L.bd, fg: L.fg, cls: L.cls, labelColor: L.label });
+      lines.push({ len: pp.r, deg: pp.a.toFixed(1), color: L.line });
+    });
+    const yes = status.filter((s) => s === 'yes').length;
+    const active = status.filter((s) => s === 'talking').length;
+    const contacted = status.filter((s) => s !== 'idle').length;
+    const chipOf = { yes: ['IN', '#5BD69A'], maybe: ['MAYBE', '#F2C14E'], no: ["CAN'T", '#8A8D96'] };
+    const log = this.events.slice(0, step).filter((e) => e.s !== 'talking').slice(-6).reverse().map((e, i) => {
+      const c = chipOf[e.s];
+      return { name: this.people[e.n][0], initial: this.people[e.n][1], text: e.t, chip: c[0], color: c[1], opacity: (1 - i * 0.12).toFixed(2) };
+    });
+    return {
+      nodes, lines, log, yes, active, contacted, messages,
+      pct: Math.round((yes / 20) * 100),
+      replay: () => this.setState({ step: 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>
