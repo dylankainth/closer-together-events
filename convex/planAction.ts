@@ -22,6 +22,8 @@ export const planEvent = action({
     answers: v.object({ purpose: v.string(), vibe: v.string(), budget: v.union(v.literal(1), v.literal(2), v.literal(3)) }),
     audienceRaw: v.string(),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
+    // The host's own opening line, kept so the title can use their words (convex/plan.ts titleFor).
+    description: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ eventId: string }> => {
     await requireActor(ctx, args.hostId, "write", "planAction.planEvent");
@@ -39,6 +41,7 @@ export const planEvent = action({
         status: "draft",
         answers,
         audienceRaw: args.audienceRaw,
+        ...(args.description?.trim() ? { hostDescription: args.description.trim().slice(0, 200) } : {}),
         // Public events let guests bring a friend (convex/plusOnes.ts); private ones never do.
         allowGuestInvites: visibility === "public",
         // Same answer gates acceptance-driven spread (convex/spread.ts): a public event is one the

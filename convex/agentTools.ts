@@ -52,7 +52,7 @@ const match_audience: Tool = {
         guestCount: `${quota} invites planned.`,
       },
     };
-    const title = titleFor(host.name.split(" ")[0], event.answers, query.topics);
+    const title = titleFor(host.name.split(" ")[0], event.answers, query.topics, event.hostDescription);
 
     return {
       summary: `Read "${event.audienceRaw}" as ${query.tie === "close" ? "close friends" : "an open ask"}${query.topics.length ? `, topics: ${query.topics.join(", ")}` : ""}. ${settings.reasons.friendsOfFriends}`,

@@ -2,6 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireHost } from "./authz";
 import { scrubDeep } from "./discoveryCore";
+import { vendorStepDone } from "./plannerRules";
 
 // The host's "Your agent is on it" checklist, DERIVED from the event doc rather than stored: each step
 // is true when the planner has already produced its output. Keeping it derived means it stays correct
@@ -138,7 +139,9 @@ export const forEvent = query({
             K(blockedDraft ? String(blockedDraft.simulatedReply) : "Drafted enquiries — nothing sent until you approve."),
           ]
         : [T("draft_order(...)"), K("Working out what the event needs from vendors.")],
-      drafts.length > 0 && !blockedDraft && pendingDrafts.length === 0,
+      // Done once drafted: drafts awaiting approval have their own approve cards, and counting them as
+      // unfinished kept this the active step with a "Drafting orders" spinner forever.
+      vendorStepDone(drafts.length, !!blockedDraft),
       !!blockedDraft,
     );
     add(

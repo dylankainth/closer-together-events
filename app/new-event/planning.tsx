@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { agent } from "@/theme/swipeTheme";
+import { sendReady as sendReadyFor } from "@/convex/plannerRules";
 import { Mascot, type MascotHandle } from "@/components/Mascot";
 
 type Msg = { from: "me" | "agent"; text: string; note?: string };
@@ -225,6 +226,7 @@ export default function Planning() {
       answers: { purpose: mapped.purpose, vibe: mapped.vibe, budget: mapped.budget as 1 | 2 | 3 },
       audienceRaw: mapped.audienceRaw,
       visibility: mapped.visibility,
+      description: mapped.description || undefined,
     });
     setEventId(result.eventId);
     setOnboardingComplete(true);
@@ -303,7 +305,9 @@ export default function Planning() {
 
   // Derived straight from the live checklist, not the typewriter playback above — "send" is the
   // one step playback never auto-completes, so its real readiness has to come from the actual data.
-  const sendReady = !!checklist && checklist.items.every((i) => i.key === "send" || i.state === "done");
+  // Date, venue and guests settled is enough to send (same as Manage's Send button); drafts and chat
+  // tasks awaiting approval used to block this, leaving the row an explainer-only dead end.
+  const sendReady = !!checklist && sendReadyFor(checklist.items);
   const alreadySent = checklist?.status === "sent";
   // Only once the matching step has actually produced a shortlist — before that there is nothing
   // for pick-guests to show, and tapping through would land the host on an empty screen.
@@ -434,7 +438,7 @@ export default function Planning() {
               <View style={{ marginTop: 28, gap: 14 }}>
                 {checklist.pendingDrafts.map((d) => (
                   <View key={d.id} style={styles.needs}>
-                    <Text style={styles.needsTitle}>{d.item}, from you in chat</Text>
+                    <Text style={styles.needsTitle}>{d.item}, drafted by your Muse</Text>
                     <Text style={styles.needsBody}>{d.draft}</Text>
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
                       <Pressable style={styles.draftApprove} onPress={() => approveDraft({ eventId: eventId!, draftId: d.id })}>

@@ -78,6 +78,8 @@ export const finishQuestionSession = mutation({
       // Fall back to the host's own opening description before the generic "my friends" — it's
       // a better guess if the round cap or an early "complete" skipped the audience question.
       audienceRaw: typeof answers.audience === "string" ? answers.audience : description || "my friends",
+      // The host's own opening line, passed on to planEvent so the title can use their words.
+      description,
     };
   },
 });
