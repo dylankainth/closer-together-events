@@ -19,6 +19,7 @@ vm.runInNewContext(compiled, {
     if (name === "./_generated/server") return { query: (d) => d, mutation: (d) => d, internalMutation: (d) => d };
     if (name === "./_generated/api") return { internal: {} };
     if (name === "./authz") return {};
+    if (name === "./huddleRuntime") return {};
     throw new Error(`Unexpected import: ${name}`);
   },
 });
