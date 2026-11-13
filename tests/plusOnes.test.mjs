@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { ConvexError, v } from "convex/values";
 import * as policy from "../convex/plusOnePolicy.ts";
+import { loadHuddle } from "../scripts/lib/load-huddle.mjs";
 
 const mod = { exports: {} };
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../convex/plusOnes.ts", import.meta.url), "utf8"), {
@@ -16,6 +17,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../convex/plusOnes.t
     if (name === "./_generated/server") return { query: (d) => d, mutation: (d) => d };
     if (name === "./_generated/api") return { internal: { huddle: { runHuddle: "guarded-huddle" } } };
     if (name === "./plusOnePolicy") return policy;
+    if (name === "./huddleRuntime") return loadHuddle().load("convex/huddleRuntime.ts");
     if (name === "./authz") return {
       requireActor: async (ctx, id) => { if (ctx.caller !== id) throw Error("forbidden"); },
       requireOwner: async (ctx, id) => { if (ctx.caller !== id) throw Error("forbidden"); },
@@ -38,6 +40,7 @@ function world() {
     personas: [person("host"), person("sam", { friends: ["lee", "jo"] }), person("lee", { friends: ["sam"] }), person("jo")],
     venues: [{ _id: "v", venueId: "v1", capacity: 5 }],
     musePersonas: [],
+    huddleRuns: [],
   };
   const scheduled = [];
   const ctx = { caller: "sam", db: {
@@ -51,7 +54,7 @@ function world() {
         async collect() { return rows(); },
       };
     },
-    async insert(table, value) { tables[table].push({ _id: `${table}-${tables[table].length}`, ...value }); },
+    async insert(table, value) { const id = `${table}-${tables[table].length}`; tables[table].push({ _id: id, ...value }); return id; },
     async patch(id, patch) {
       const row = Object.values(tables).flat().find((r) => r._id === id);
       assert.ok(row); Object.assign(row, patch);
@@ -74,7 +77,7 @@ test("eligible offer exposes identity only, then sends one invitation and one gu
   assert.equal(friend.invitedByPersonaId, "sam");
   assert.equal(w.guest.status, "going");
   assert.equal(w.scheduled.length, 1);
-  assert.equal(w.scheduled[0].fn, "guarded-huddle");
+  assert.equal(String(w.scheduled[0].fn), "internal.huddle.runHuddle");
   assert.equal(w.scheduled[0].args.codeCheck, true);
   assert.equal(w.scheduled[0].args.profileMode, "event_safe");
   assert.equal(w.scheduled[0].args.candidateIds.join(), "lee");

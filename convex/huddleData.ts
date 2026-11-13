@@ -1,6 +1,7 @@
 import { query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { allowedAs, getCaller } from "./authz";
+import { assertHuddleAttempt, currentHuddleMessages } from "./huddleRuntime";
 
 /** The client subscription that replaces the old NDJSON stream: each insertMessage commit below
  * automatically re-pushes the updated array to every subscribed client, live. */
@@ -26,14 +27,14 @@ export const messagesForEvent = query({
         .query("huddleMessages")
         .withIndex("by_event_forPersona", (q) => q.eq("eventId", args.eventId).eq("forPersona", args.forPersona!))
         .collect();
-      return rows.sort((a, b) => a.seq - b.seq).map(({ _id, _creationTime, ...rest }) => rest);
+      return (await currentHuddleMessages(ctx, args.eventId, rows)).sort((a, b) => a.seq - b.seq).map(({ _id, _creationTime, ...rest }) => rest);
     }
     const rows = await ctx.db
       .query("huddleMessages")
       .withIndex("by_eventId_seq", (q) => q.eq("eventId", args.eventId))
       .order("asc")
       .collect();
-    return rows
+    return (await currentHuddleMessages(ctx, args.eventId, rows))
       .filter((m) => !hideOtherRealUsers || ![m.forPersona, m.fromPersona, m.toPersona].some(isOtherRealUser))
       .map(({ _id, _creationTime, ...rest }) => rest);
   },
@@ -54,8 +55,11 @@ export const insertMessage = internalMutation({
     // Free-conversation mode only (convex/huddleChat.ts); see schema.ts's huddleMessages comment.
     edgeId: v.optional(v.string()),
     turn: v.optional(v.number()),
+    runId: v.optional(v.id("huddleRuns")),
+    attempt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await assertHuddleAttempt(ctx, args.eventId, args.runId, args.attempt);
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     const seq = (e?.huddleSeq ?? 0) + 1;
     if (e) await ctx.db.patch(e._id, { huddleSeq: seq });

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
+import { HuddleRecovery } from "@/components/events/HuddleRecovery";
 // One shared palette for every Muse-at-work surface (checklist, swarm, room) so they cannot drift.
 import { agent as palette } from "@/theme/swipeTheme";
 
@@ -431,6 +432,7 @@ export default function Swarm() {
         </View>
       </View>
 
+      {viewerId === event.hostId && <HuddleRecovery key={eventId} eventId={eventId} />}
       <View style={styles.headlineStat}>
         <View style={styles.headlineRow}>
           <Text style={styles.headlineNum}>{goingCount}</Text>

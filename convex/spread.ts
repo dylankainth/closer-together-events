@@ -1,4 +1,4 @@
-import { internal } from "./_generated/api";
+import { scheduleHuddle } from "./huddleRuntime";
 import { spreadTargets } from "./spreadPolicy";
 
 // Convex half of acceptance-driven spread. The rules themselves are pure and tested in
@@ -39,11 +39,8 @@ export async function spreadFromAcceptance(ctx: { db: any; scheduler: any }, eve
       spreadFrom: accepterId,
     });
   }
-  // Same guarded huddle every other invitee gets, scoped to just the new recipients.
-  await ctx.scheduler.runAfter(0, internal.huddle.runHuddle, {
-    eventId,
-    candidateIds: targets,
-    profileMode: "event_safe",
-    codeCheck: true,
-  });
+  // Goes through scheduleHuddle, not the scheduler directly, so a spread cohort gets its own run
+  // record and lease like any other — otherwise a spread huddle that stalled would be invisible to
+  // the host's Retry.
+  await scheduleHuddle(ctx, eventId, targets);
 }

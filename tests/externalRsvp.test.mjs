@@ -22,6 +22,7 @@ vm.runInNewContext(compiled, {
     // Spread has its own rule tests (tests/spread.test.mjs); here it's stubbed so these stay
     // focused on the RSVP mutation itself.
     if (name === "./spread") return { spreadFromAcceptance: async () => {} };
+    if (name === "./huddleRuntime") return {};
     throw new Error(`Unexpected import: ${name}`);
   },
 });

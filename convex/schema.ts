@@ -248,6 +248,8 @@ export default defineSchema({
     // structured-mode messages, which are single-shot and need no grouping.
     edgeId: v.optional(v.string()),
     turn: v.optional(v.number()),
+    runId: v.optional(v.id("huddleRuns")),
+    attempt: v.optional(v.number()),
   })
     .index("by_eventId_seq", ["eventId", "seq"])
     .index("by_event_forPersona", ["eventId", "forPersona"]),
@@ -331,6 +333,13 @@ export default defineSchema({
     when: v.number(),
     feedback: v.union(v.string(), v.null()),
   }).index("by_persona", ["personaId"]),
+
+  // Independent cohorts allow a later plus-one huddle to recover without restarting everyone.
+  huddleRuns: defineTable({
+    eventId: v.string(), candidateIds: v.array(v.string()), attempt: v.number(),
+    status: v.union(v.literal("queued"), v.literal("running"), v.literal("completed"), v.literal("failed")),
+    leaseUntil: v.number(), updatedAt: v.number(), createdAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
 
   // ---- app-level bookkeeping ----
   // ---- the host's running chat with their Muse on the checklist page ----

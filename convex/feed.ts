@@ -1,8 +1,10 @@
 import { query, mutation, type QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mayViewEvent, requireActor } from "./authz";
 import { spreadFromAcceptance } from "./spread";
 import { canGoIf } from "./authPolicy";
+import { currentHuddleMessages } from "./huddleRuntime";
+import { conditionalRsvp } from "./conditionalRsvp";
 import { toPickView, type CardPerson } from "./discoveryCore";
 
 // Read layer for the recommended-events swipe stack, the guest event page and the general feed.
@@ -49,7 +51,7 @@ async function loadReplies(ctx: any, eventId: string, viewerId: string) {
     .query("huddleMessages")
     .withIndex("by_event_forPersona", (q: any) => q.eq("eventId", eventId).eq("forPersona", viewerId))
     .collect();
-  return msgs.flatMap((m) =>
+  return (await currentHuddleMessages(ctx, eventId, msgs)).flatMap((m) =>
     m.kind === "reply" && m.reply && m.status !== "blocked" ? [{ fromPersona: m.fromPersona as string, reply: m.reply as any }] : [],
   );
 }
@@ -122,6 +124,7 @@ function buildView(w: World, e: any, viewerId: string) {
   const free: boolean | null = viewer && e.slotId ? (viewer.availability ?? []).includes(e.slotId) : null;
   const hosting = e.hostId === viewerId;
   const snoozed = !!mine?.snoozedUntil && mine.snoozedUntil > Date.now();
+  const conditional = conditionalRsvp(viewerId, viewer?.friends ?? [], evGuests);
 
   let relation: Relation = "discover";
   if (hosting) relation = "hosting";
@@ -149,6 +152,7 @@ function buildView(w: World, e: any, viewerId: string) {
     myStatus: (mine?.status ?? null) as string | null,
     snoozed,
     goIfFriend: (mine?.goIfFriend ?? null) as string | null,
+    conditionalRsvp: conditional ? { ...conditional, friend: conditional.friendId ? person(w, conditional.friendId) : null } : null,
     verdict: (mine?.nudge?.verdict ?? null) as "worth" | "maybe" | "skip" | null,
     reasons: (mine?.nudge?.reasons ?? []) as string[],
     matchPct: mine ? matchPct(mine.nudge?.verdict, free, friendsGoing.length) : null,
@@ -215,8 +219,8 @@ export const forViewer = query({
     // Every invite surfaces: the Muse only annotates with context, it never suppresses an event.
     // (A legacy "skip" verdict on old rows no longer hides the invite.)
     const ranked = views
-      .filter((x) => x.relation === "invited" && !x.snoozed)
-      .sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
+      .filter((x) => (x.relation === "invited" || x.conditionalRsvp?.state === "ready") && !x.snoozed)
+      .sort((a, b) => Number(b.conditionalRsvp?.state === "ready") - Number(a.conditionalRsvp?.state === "ready") || (b.matchPct ?? 0) - (a.matchPct ?? 0));
     const recommended = await Promise.all(
       ranked.map(async (x) => ({ ...x, chips: chipsFrom(await loadReplies(ctx, x.eventId, args.personaId), x.reasons) })),
     );
@@ -316,7 +320,7 @@ export const detail = query({
       twinsCount: new Set(replies.map((m) => m.fromPersona)).size,
       attendees,
       totalGoing: attendees.length,
-      goIfOffer: conditionalOffer,
+      goIfOffer: view.conditionalRsvp ? view.conditionalRsvp.friend : conditionalOffer,
       goIfFriendPerson: goIfFriend,
     };
   },
@@ -330,7 +334,7 @@ export const respond = mutation({
   args: {
     eventId: v.string(),
     personaId: v.string(),
-    action: v.union(v.literal("going"), v.literal("maybe"), v.literal("skip"), v.literal("cant"), v.literal("snooze"), v.literal("goIf")),
+    action: v.union(v.literal("going"), v.literal("maybe"), v.literal("skip"), v.literal("cant"), v.literal("snooze"), v.literal("goIf"), v.literal("confirmGoIf")),
     friendId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -341,7 +345,19 @@ export const respond = mutation({
       .unique();
     if (!g) throw new Error("You're not on this event's guest list");
 
-    if (args.action === "snooze") {
+    if (args.action === "confirmGoIf") {
+      // A duplicate confirmation is harmless, but a stale prompt never turns Maybe into Going.
+      if (g.status === "going" && !g.goIfFriend) return;
+      const [event, viewer, guests] = await Promise.all([
+        ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique(),
+        ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique(),
+        ctx.db.query("guests").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).collect(),
+      ]);
+      if (event?.status !== "sent" || conditionalRsvp(args.personaId, viewer?.friends ?? [], guests)?.state !== "ready") {
+        throw new ConvexError("Your friend's answer has changed. You're still marked Maybe; review the event before confirming.");
+      }
+      await ctx.db.patch(g._id, { status: "going", goIfFriend: undefined, snoozedUntil: undefined });
+    } else if (args.action === "snooze") {
       await ctx.db.patch(g._id, { snoozedUntil: Date.now() + REMIND_LATER_MS });
     } else if (args.action === "goIf") {
       if (!args.friendId) throw new Error("goIf needs friendId");

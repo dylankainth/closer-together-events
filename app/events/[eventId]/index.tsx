@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
 import { GuestInviteCard } from "@/components/events/GuestInviteCard";
+import { ConditionalRsvpNotice } from "@/components/events/ConditionalRsvpNotice";
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +13,7 @@ import { Avatar } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
 const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } as const;
-type RsvpResponse = { action: "going" | "goIf" | "cant"; friendId?: string };
+type RsvpResponse = { action: "going" | "goIf" | "cant" | "confirmGoIf"; friendId?: string };
 
 /** Guest event page: what it is, why Muse picked it for you, who's going, and how to answer. */
 export default function EventPage() {
@@ -59,6 +60,8 @@ function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: stri
   const slot = parseSlot(ev.slotLabel);
   const canAnswer = ev.relation === "invited" || ev.relation === "responded";
   const going = ev.myStatus === "going";
+  const conditionalReady = ev.conditionalRsvp?.state === "ready";
+  const goingAction = conditionalReady ? "confirmGoIf" : "going";
   const spotsText = ev.spotsLeft === null ? null : `${ev.spotsLeft} spot${ev.spotsLeft === 1 ? "" : "s"} left`;
   const priceLine = priceLabel(ev.priceTier);
   const busy = saving !== null;
@@ -90,15 +93,15 @@ function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: stri
             <>
               <Pressable
                 style={[styles.actionTile, styles.actionTileOn, busy && styles.btnDisabled]}
-                onPress={() => void saveResponse({ action: "going" })}
+                onPress={() => void saveResponse({ action: goingAction })}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: busy, busy: saving === "going" }}
+                accessibilityState={{ disabled: busy, busy: saving === goingAction }}
               >
-                {saving === "going" ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name={going ? "checkmark-circle" : "ticket"} size={22} color="#fff" />}
-                <Text style={styles.actionTileTextOn}>{saving === "going" ? "Saving…" : going ? "You're going" : "I'll go"}</Text>
+                {saving === goingAction ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name={going ? "checkmark-circle" : "ticket"} size={22} color="#fff" />}
+                <Text style={styles.actionTileTextOn}>{saving === goingAction ? "Saving…" : going ? "You're going" : conditionalReady ? "Confirm going" : "I'll go"}</Text>
               </Pressable>
-              {ev.goIfOffer ? (
+              {ev.goIfOffer && !ev.conditionalRsvp ? (
                 <Pressable
                   style={[styles.actionTile, ev.goIfFriend && styles.actionTileSel, busy && styles.btnDisabled]}
                   onPress={() => void saveResponse({ action: "goIf", friendId: ev.goIfOffer!.id })}
@@ -146,6 +149,10 @@ function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: stri
               {saving !== null ? "Saving your answer…" : saved ? "Answer saved." : spotsText ?? ""}
             </Text>
           ))}
+
+        {canAnswer && ev.conditionalRsvp && <ConditionalRsvpNotice state={ev.conditionalRsvp.state}
+          friendName={ev.conditionalRsvp.friend?.name} busy={busy} showConfirm={false}
+          onConfirm={() => void saveResponse({ action: "confirmGoIf" })} />}
 
         {ev.chips.length > 0 && (
           <View style={styles.why}>

@@ -2,6 +2,7 @@ import { query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { allowedAs, getCaller } from "./authz";
 import { isSeeded } from "./authPolicy";
+import { assertHuddleAttempt } from "./huddleRuntime";
 
 // Who sees what of an event's guest list:
 // - whoever can act as the host (the host, or a demo operator for a seeded host): everything;
@@ -29,8 +30,9 @@ export const listForEvent = query({
 });
 
 export const setNudge = internalMutation({
-  args: { eventId: v.string(), personaId: v.string(), nudge: v.any() },
+  args: { eventId: v.string(), personaId: v.string(), nudge: v.any(), runId: v.optional(v.id("huddleRuns")), attempt: v.optional(v.number()) },
   handler: async (ctx, args) => {
+    await assertHuddleAttempt(ctx, args.eventId, args.runId, args.attempt, args.personaId);
     const g = await ctx.db.query("guests").withIndex("by_event_persona", (q) => q.eq("eventId", args.eventId).eq("personaId", args.personaId)).unique();
     if (!g) return;
     await ctx.db.patch(g._id, { nudge: args.nudge });

@@ -34,7 +34,11 @@ export function eventSafeProfile(p: Persona): EventSafeProfile {
     socialStyle: p.vibe,
     availability: p.availability, // caller resolves slotId -> label where needed
     ...(p.shareable ? { talkingPoints: p.shareable } : {}),
-  };
+    // Dislikes let a Muse decline honestly instead of faking enthusiasm. `as` below (not the
+    // return type) is what lets this extra field through: EventSafeProfile lives in types.ts,
+    // which this change is not touching, so the field is carried structurally rather than declared.
+    ...(p.dislikes?.length ? { dislikes: p.dislikes } : {}),
+  } as EventSafeProfile;
 }
 
 /**
