@@ -103,9 +103,14 @@ export default function Planning() {
   const [explainStep, setExplainStep] = useState<Step | null>(null);
   // RN 0.88's ScrollView ref type doesn't fit the usual useRef<ScrollView> pattern; only scrollToEnd is called.
   const scroller = useRef<any>(null);
+  // One mascot per page (it scrolls with that page's content), so each has its own handle.
   const mascot = useRef<MascotHandle>(null);
+  const mascotChat = useRef<MascotHandle>(null);
   // The mascot's eyes follow wherever the screen is touched.
-  const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
+  const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => {
+    mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
+    mascotChat.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
+  };
 
   // Live, not a replay. agentLoop.run patches the event as each real tool call lands and
   // checklist.forEvent is a reactive query, so `checklist.items` IS the agent's actual progress:
@@ -345,12 +350,6 @@ export default function Planning() {
           <Animated.View style={[styles.dot, { opacity: page.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }]} />
           <Animated.View style={[styles.dot, { opacity: page.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
         </View>
-        <View style={styles.back} />
-      </View>
-
-      {/* The mascot sits above everything else, in its own fixed-height slot so nothing can overlap it. */}
-      <View style={styles.mascotWrap} pointerEvents="none">
-        <Mascot ref={mascot} size={120} thinking={thinking} />
       </View>
 
       <View
@@ -378,6 +377,9 @@ export default function Planning() {
                   <Pressable style={styles.replayBtn} onPress={replay} hitSlop={8}>
                     <Text style={styles.replayText}>Replay</Text>
                   </Pressable>
+                </View>
+                <View style={styles.mascotWrap} pointerEvents="none">
+                  <Mascot ref={mascot} size={120} thinking={thinking} />
                 </View>
                 <Text style={styles.eventName}>{checklist.title}</Text>
                 <Text style={styles.title}>I'm on it</Text>
@@ -457,6 +459,9 @@ export default function Planning() {
 
         <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: chatX }] }]} pointerEvents={pageIdx === 1 ? "auto" : "none"}>
           <ScrollView ref={scroller} contentContainerStyle={styles.chatContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.mascotWrap} pointerEvents="none">
+              <Mascot ref={mascotChat} size={120} thinking={thinking} />
+            </View>
             {showOpeningPrompt ? (
               <View style={styles.openingWrap}>
                 <Text style={styles.openingPrompt}>What are we making happen?</Text>
@@ -697,7 +702,7 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   dots: { flexDirection: "row", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: agent.text },
-  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start", zIndex: 0 },
+  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start" },
   pager: { flex: 1, overflow: "hidden", zIndex: 1 },
   status: { color: agent.muted, padding: 24 },
   waitingWrap: { flex: 1, justifyContent: "center", padding: 32, gap: 10 },
