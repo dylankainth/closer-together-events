@@ -318,6 +318,18 @@ export default defineSchema({
   }).index("by_persona", ["personaId"]),
 
   // ---- app-level bookkeeping ----
+  // ---- the host's running chat with their Muse on the checklist page ----
+  // Its own table rather than an array on the event doc: feed.ts reads whole `events` rows in
+  // bulk, and an unbounded conversation hanging off each one is exactly the growth that makes
+  // those reads expensive. Separate also means it streams in like huddleMessages does.
+  hostMessages: defineTable({
+    eventId: v.string(),
+    from: v.union(v.literal("me"), v.literal("agent")),
+    text: v.string(),
+    note: v.optional(v.string()),
+    ts: v.number(),
+  }).index("by_eventId", ["eventId"]),
+
   appMeta: defineTable({
     key: v.string(), // "seeded" -> true once seed.run has populated the database
     value: v.any(),

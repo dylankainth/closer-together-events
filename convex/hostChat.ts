@@ -14,8 +14,13 @@ import type { Slot, Venue } from "./types";
 // never got a chance to propose editPoster itself — e.g. "I don't like the colour on the cover
 // art, can you fix it" never reaches the model if museJSON falls back, so without this the host's
 // request silently does nothing (the generic offline reply doesn't act on anything).
-const POSTER_WORDS = /\b(poster|cover art|invite (?:image|art|picture))\b/i;
+// "flyer" is what hosts actually call it — the screen is even named flyer.tsx — so leaving it out
+// meant "change the flyer picture" matched nothing and silently did nothing.
+const POSTER_WORDS = /\b(poster|flyer|cover art|invite (?:image|art|picture))\b/i;
 const LOOK_WORDS = /\b(colou?r|look|style|design|vibe|palette|blue|pink|purple|violet|green|red|orange|gold|dark|moody|black|warm)\b/i;
+// Asking to CHANGE it is a request on its own — "change the flyer picture" names no colour or
+// mood, and requiring one meant that plainest possible phrasing did nothing.
+const CHANGE_WORDS = /\b(chang|replac|redo|regenerat|remake|new|different|another|updat|swap|fix)/i;
 // Same reasoning as POSTER_WORDS/LOOK_WORDS: an offline fallback never reaches the model, so an
 // obvious "send/email/notify the guests" ask needs to be caught here or it silently does nothing.
 const SEND_WORDS = /\b(send|email|notify|message|tell|ping)\b.*\b(guest|everyone|invite|them|all)\b|\bsend (the )?invites?\b/i;
@@ -38,6 +43,15 @@ export const reply = action({
     if (!event) return { reply: "I couldn't find that event." };
     // Only the host (or a demo operator) may spend Muse calls chatting about this event.
     await requireHost(ctx, event, "write", "hostChat.reply");
+
+    // Persist both sides as they happen, so the thread survives closing the app. Every exit from
+    // here goes through `say`, so a reply can't be shown to the host without being stored.
+    await ctx.runMutation(internal.hostChatData.append, { eventId: args.eventId, from: "me", text: message });
+    const say = async (text: string) => {
+      await ctx.runMutation(internal.hostChatData.append, { eventId: args.eventId, from: "agent", text });
+      return { reply: text };
+    };
+
     const checklist: any = await ctx.runQuery(api.checklist.forEvent, { eventId: args.eventId });
     const existingDrafts: any[] = event.drafts ?? [];
 
@@ -82,7 +96,7 @@ export const reply = action({
         "set proposeOrder to {vendor, item, draft} — vendor is a short name, item is what's being ordered, draft is the one-line " +
         "enquiry text (always use the key \"draft\" for that field). Tell them you've added it to their checklist for approval. " +
         "If it's already in existingDrafts, say so instead of proposing it again. " +
-        "If the host wants the poster/cover art's look changed (colour, style, mood), set editPoster to {instruction} " +
+        "If the host wants the poster/flyer/cover art changed in any way (a different picture, colour, style, mood), set editPoster to {instruction} " +
         "describing the change in a few words, and tell them you've updated it. " +
         "If the host asks you to send, email or notify the guests, or to send the invites now, set sendInvites to true " +
         "and tell them you've added it to the checklist and will ask once more before anything actually goes out. " +
@@ -111,7 +125,8 @@ export const reply = action({
     // The model's own editPoster call only fires on a live response — if museJSON fell back
     // offline, the request never reached the model at all, so catch an obvious poster/colour
     // request here too rather than let it silently do nothing.
-    const offlineLooksLikePosterEdit = r.source === "offline" && POSTER_WORDS.test(message) && LOOK_WORDS.test(message);
+    const offlineLooksLikePosterEdit =
+      r.source === "offline" && POSTER_WORDS.test(message) && (LOOK_WORDS.test(message) || CHANGE_WORDS.test(message));
     const posterInstruction = r.data.editPoster?.instruction ?? (offlineLooksLikePosterEdit ? message : null);
     if (posterInstruction) {
       const slots: Slot[] = (await ctx.runQuery(internal.slots.list, {})) as any;
@@ -121,7 +136,7 @@ export const reply = action({
       if (slot && venue) {
         const poster = await editPoster(event.title, slot, venue, event.answers?.vibe ?? "Lively", posterInstruction, budget);
         await ctx.runMutation(internal.events.setPoster, { eventId: args.eventId, poster });
-        if (offlineLooksLikePosterEdit) return { reply: "Done — updated the poster's look." };
+        if (offlineLooksLikePosterEdit) return say("Done — updated the flyer.");
       }
     }
 
@@ -134,7 +149,7 @@ export const reply = action({
         kind: "send_invites",
       });
       await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
-      if (offlineLooksLikeSend) return { reply: "Added to your checklist — I'll ask once more before anything actually goes out." };
+      if (offlineLooksLikeSend) return say("Added to your checklist — I'll ask once more before anything actually goes out.");
     }
     if (r.data.addTask) {
       await ctx.runMutation(internal.events.addTask, {
@@ -146,6 +161,6 @@ export const reply = action({
       await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
     }
 
-    return { reply: r.data.reply };
+    return say(r.data.reply);
   },
 });

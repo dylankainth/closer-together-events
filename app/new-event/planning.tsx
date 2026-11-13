@@ -74,6 +74,9 @@ export default function Planning() {
   const [exampleIdx, setExampleIdx] = useState(0);
 
   const checklist = useQuery(api.checklist.forEvent, eventId ? { eventId } : "skip");
+  // The host's chat is stored server-side (hostChat.reply writes both sides), so reopening the
+  // event brings the conversation back instead of an empty thread.
+  const storedChat = useQuery(api.hostChatData.history, eventId ? { eventId } : "skip");
   // Only queried for its shortlist — manage.tsx's onSend builds candidateIds the same way, from
   // event.shortlist, so the "send" row here needs the event doc too (checklist.ts doesn't expose it).
   const event = useQuery(api.events.getByEventId, eventId ? { eventId } : "skip");
@@ -97,6 +100,16 @@ export default function Planning() {
   const pageRef = useRef<0 | 1>(startPage);
   const [pageIdx, setPageIdx] = useState<0 | 1>(startPage);
   const [messages, setMessages] = useState<Msg[]>([]);
+  // Seed from the stored thread once, the first time it arrives. Seeding once rather than mirroring
+  // the query keeps the optimistic bubble a send puts up from being yanked away and re-added when
+  // the write lands; after this the local list and the stored one stay in step because every reply
+  // goes through hostChat.reply, which writes both sides.
+  const seededChat = useRef(false);
+  useEffect(() => {
+    if (seededChat.current || !storedChat?.length) return;
+    seededChat.current = true;
+    setMessages((m) => (m.length ? m : storedChat.map((r: Msg) => ({ from: r.from, text: r.text, note: r.note }))));
+  }, [storedChat]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
   const [explainStep, setExplainStep] = useState<Step | null>(null);
