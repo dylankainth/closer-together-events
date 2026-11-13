@@ -142,7 +142,12 @@ export default function Swarm() {
     return m;
   }, [allCandidates, guestByPersona, messages]);
 
+  // Two different numbers, deliberately not conflated. `upForIt` is what the Muses concluded,
+  // which is what the swarm is showing while the huddle runs; `rsvpdCount` is how many people
+  // have actually answered Going. Labelling the first "confirmed" overstated it — nobody has
+  // confirmed anything until they tap.
   const goingCount = allCandidates.filter((c) => stateByPersona.get(c.personaId) === "going").length;
+  const rsvpdCount = allCandidates.filter((c) => guestByPersona.get(c.personaId)?.status === "going").length;
   const activeCount = allCandidates.filter((c) => stateByPersona.get(c.personaId) === "talking").length;
   const askedCount = allCandidates.filter((c) => stateByPersona.get(c.personaId) !== "idle").length;
   const totalCount = allCandidates.length;
@@ -430,7 +435,11 @@ export default function Swarm() {
       <View style={styles.headlineStat}>
         <View style={styles.headlineRow}>
           <Text style={styles.headlineNum}>{goingCount}</Text>
-          <Text style={styles.headlineOf}>/ {totalCount} confirmed</Text>
+          <Text style={styles.headlineOf}>/ {totalCount} up for it</Text>
+          <View style={styles.rsvpPill}>
+            <Text style={styles.rsvpNum}>{rsvpdCount}</Text>
+            <Text style={styles.rsvpLabel}>RSVP'd</Text>
+          </View>
         </View>
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${confirmedPct}%` }]} />
@@ -531,6 +540,11 @@ const styles = StyleSheet.create({
 
   headlineStat: { paddingHorizontal: 20, paddingTop: 6, gap: 10 },
   headlineRow: { flexDirection: "row", alignItems: "baseline", gap: 10 },
+  // Sits to the right of the big number, baseline-aligned with it, so the two counts read as one
+  // line: what the Muses think, then what people have actually said.
+  rsvpPill: { marginLeft: "auto", flexDirection: "row", alignItems: "baseline", gap: 5, backgroundColor: palette.card, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  rsvpNum: { color: palette.going, fontSize: 17, fontWeight: "700" },
+  rsvpLabel: { color: palette.muted, fontSize: 11.5, fontWeight: "600", letterSpacing: 0.3 },
   headlineNum: { fontSize: 56, fontWeight: "700", color: palette.text, letterSpacing: -1.5, lineHeight: 56 },
   headlineOf: { fontSize: 15, color: palette.sub },
   barTrack: { height: 8, borderRadius: 999, backgroundColor: palette.panelLine, overflow: "hidden" },
