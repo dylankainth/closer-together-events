@@ -98,8 +98,8 @@ export default function EventPage() {
               </Pressable>
             ) : null}
           </View>
-          {!going && ev.myStatus !== "skip" && (
-            <Pressable onPress={() => respond({ eventId, personaId: viewerId, action: "skip" })} style={{ alignSelf: "center", marginTop: 12 }}>
+          {!going && ev.myStatus !== "cant" && (
+            <Pressable onPress={() => respond({ eventId, personaId: viewerId, action: "cant" })} style={{ alignSelf: "center", marginTop: 12 }}>
               <Text style={styles.skip}>Not for me</Text>
             </Pressable>
           )}

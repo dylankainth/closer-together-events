@@ -73,7 +73,7 @@ export default function Recommended() {
     [pan, flyAway],
   );
 
-  const answer = (action: "going" | "skip" | "snooze") => {
+  const answer = (action: "going" | "cant" | "snooze") => {
     if (!current) return;
     respond({ eventId: current.eventId, personaId: viewerId, action });
   };
@@ -123,7 +123,7 @@ export default function Recommended() {
       </View>
 
       <View style={styles.actions}>
-        <Pressable style={styles.round} onPress={() => answer("skip")} disabled={!current} accessibilityLabel="Not for me">
+        <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current} accessibilityLabel="Not for me">
           <Ionicons name="close" size={26} color="#fff" />
         </Pressable>
         <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current}>
