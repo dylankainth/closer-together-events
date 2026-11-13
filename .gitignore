@@ -43,3 +43,6 @@ convex/_generated/
 # generated native folders
 /ios
 /android
+
+# device-test screenshots (local only)
+.shots/
