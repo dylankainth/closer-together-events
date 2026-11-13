@@ -8,7 +8,7 @@ import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
-const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit" } as const;
+const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } as const;
 
 /** Guest event page: what it is, why Muse picked it for you, who's going, and how to answer. */
 export default function EventPage() {
@@ -33,6 +33,12 @@ export default function EventPage() {
       <Pressable onPress={() => router.back()} style={styles.back} hitSlop={10}>
         <Ionicons name="chevron-back" size={24} color={swipe.ink} />
       </Pressable>
+      {ev.relation === "hosting" && (
+        <Pressable onPress={() => router.push(`/events/${eventId}/manage`)} style={styles.manageBtn} hitSlop={8}>
+          <Ionicons name="options-outline" size={16} color="#fff" />
+          <Text style={styles.manageText}>Manage</Text>
+        </Pressable>
+      )}
 
       <View style={styles.banner}>
         {ev.poster ? (
@@ -179,6 +185,8 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingTop: 56, paddingBottom: 60 },
   loading: { padding: 32, paddingTop: 100, color: discover.textDim },
   back: { position: "absolute", top: 16, left: 4, zIndex: 2, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  manageBtn: { position: "absolute", top: 20, right: 12, zIndex: 2, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
+  manageText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   banner: { aspectRatio: 1, borderRadius: 28, overflow: "hidden", backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 34, lineHeight: 38, fontWeight: "800", color: swipe.ink, marginTop: 20 },
   hostRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },

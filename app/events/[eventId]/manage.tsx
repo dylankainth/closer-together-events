@@ -1,44 +1,53 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Avatar, Card, Pill, Skeleton } from "@/components/ui";
-import { colors, radius, spacing } from "@/theme/tokens";
+import { Avatar, Skeleton } from "@/components/ui";
+import { discover, swipe } from "@/theme/swipeTheme";
 
-// Layout reference per the sketch: "(copy Luma page)" -- details box, chat-with-muse box, guest
-// list box, hosts box.
+type Tab = "overview" | "guests" | "details";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "guests", label: "Guests" },
+  { key: "details", label: "Details" },
+];
+const VIBES = ["Chill", "Lively", "Fancy"];
+const FILTERS = ["All", "Going", "Maybe", "Invited", "Not going"] as const;
+type Filter = (typeof FILTERS)[number];
+
+const STATUS_TEXT: Record<string, { title: string; body: string }> = {
+  draft: { title: "Still a draft", body: "Nothing has gone out. Review the details, then send when you're ready." },
+  approved: { title: "Ready to send", body: "You've approved the plan. Send it and your friends' Muses will start deciding." },
+  sent: { title: "Invites are out", body: "Friends' Muses are working out who it's worth it for." },
+};
+
+/**
+ * Host's manage page: overview, guest list and a manual edit form. Layout follows Luma's manage screen,
+ * in the app's light palette. The Muse button leads back to the planning checklist.
+ */
 export default function Manage() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const event = useQuery(api.events.getByEventId, { eventId });
   const guests = useQuery(api.guests.listForEvent, { eventId });
   const personas = useQuery(api.personas.listAll, {});
+  const slots = useQuery(api.slots.listPublic, {});
+  const venues = useQuery(api.venues.listPublic, {});
   const sendEvent = useMutation(api.events.sendEvent);
-  const askAboutEvent = useAction(api.askAction.askAboutEvent);
-
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
   const [sending, setSending] = useState(false);
 
-  if (event === undefined || guests === undefined || personas === undefined) {
-    return <View style={{ padding: spacing.lg, gap: spacing.md }}><Skeleton height={100} /><Skeleton height={100} /></View>;
+  if (event === undefined || guests === undefined || personas === undefined || slots === undefined || venues === undefined) {
+    return <View style={{ padding: 20, paddingTop: 70, gap: 14 }}><Skeleton height={60} /><Skeleton height={120} /><Skeleton height={120} /></View>;
   }
-  if (!event) return <Text style={{ padding: spacing.lg }}>Event not found.</Text>;
+  if (!event) return <Text style={{ padding: 20, paddingTop: 70, color: discover.muted }}>Event not found.</Text>;
 
-  const host = personas.find((p) => p.id === event.hostId);
+  const slot = slots.find((s) => s.slotId === event.slotId);
+  const venue = venues.find((x) => x.venueId === event.venueId);
   const byId = new Map(personas.map((p) => [p.id, p]));
-
-  const onAsk = async () => {
-    if (!question.trim()) return;
-    setAsking(true);
-    try {
-      const r = await askAboutEvent({ eventId, question: question.trim() });
-      setAnswer(r.answer);
-    } finally {
-      setAsking(false);
-    }
-  };
+  const capacity = event.capacity ?? venue?.capacity ?? null;
+  const going = guests.filter((g) => g.status === "going").length;
 
   const onSend = async () => {
     setSending(true);
@@ -52,67 +61,360 @@ export default function Manage() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
-      <Card>
-        <Text style={styles.sectionTitle}>Event details</Text>
-        <Text style={styles.detail}>{event.title}</Text>
-        <Text style={styles.detailSub}>{event.slotId} · {event.venueId}</Text>
-        <Pill label={event.status} tone={event.status === "sent" ? "green" : "amber"} />
-      </Card>
-
-      <Card>
-        <Text style={styles.sectionTitle}>Chat with muse</Text>
-        <View style={styles.chatRow}>
-          <TextInput style={styles.chatInput} placeholder="Ask about this event..." value={question} onChangeText={setQuestion} onSubmitEditing={onAsk} />
-          <Pressable onPress={onAsk} disabled={asking}><Text style={{ color: colors.museAccent, fontWeight: "700" }}>{asking ? "…" : "Ask"}</Text></Pressable>
-        </View>
-        {answer && <Text style={styles.answer}>{answer}</Text>}
-      </Card>
-
-      <Card>
-        <Text style={styles.sectionTitle}>Guest list ({guests.length})</Text>
-        {guests.map((g) => (
-          <View key={g.personaId ?? g.name} style={styles.guestRow}>
-            <Avatar initials={byId.get(g.personaId ?? "")?.initials ?? g.name[0]} color={byId.get(g.personaId ?? "")?.color ?? colors.textMuted} size={32} />
-            <Text style={styles.guestName}>{g.name}</Text>
-            <Pill label={g.status} tone={g.status === "going" ? "green" : g.status === "skip" || g.status === "cant" ? "red" : "gray"} />
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events"))} style={{ flexDirection: "row", alignItems: "center", gap: 2 }} hitSlop={8}>
+            <Ionicons name="chevron-back" size={16} color={discover.muted} />
+            <Text style={styles.crumb}>Events</Text>
+          </Pressable>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>{event.title}</Text>
+            <Pressable style={styles.iconBtn} onPress={() => router.push(`/events/${eventId}`)} accessibilityLabel="Open event page">
+              <Ionicons name="arrow-up-outline" size={18} color={discover.text} style={{ transform: [{ rotate: "45deg" }] }} />
+            </Pressable>
           </View>
-        ))}
-      </Card>
+          <Pressable style={styles.museBtn} onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)}>
+            <Ionicons name="sparkles" size={16} color="#fff" />
+            <Text style={styles.museBtnText}>Muse</Text>
+            <Text style={styles.museBtnSub}>See what your agent is doing</Text>
+          </Pressable>
+          <View style={styles.tabs}>
+            {TABS.map((t) => (
+              <Pressable key={t.key} onPress={() => setTab(t.key)} style={[styles.tab, tab === t.key && styles.tabOn]}>
+                <Text style={[styles.tabText, tab === t.key && { color: discover.text }]}>{t.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-      <Card>
-        <Text style={styles.sectionTitle}>Host</Text>
-        {host && (
-          <View style={styles.guestRow}>
-            <Avatar initials={host.initials} color={host.color} size={32} />
-            <Text style={styles.guestName}>{host.name}</Text>
+        {tab === "overview" && (
+          <Overview event={event} guests={guests} slotLabel={slot?.label} venue={venue} going={going} sending={sending} onSend={onSend} onEdit={() => setTab("details")} onTranscript={() => router.push(`/events/${eventId}/transcript`)} />
+        )}
+        {tab === "guests" && (
+          <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
+        )}
+        {tab === "details" && <Details event={event} slots={slots} venues={venues} />}
+      </ScrollView>
+    </View>
+  );
+}
+
+function Overview({ event, guests, slotLabel, venue, going, sending, onSend, onEdit, onTranscript }: any) {
+  const status = STATUS_TEXT[event.status] ?? STATUS_TEXT.draft;
+  const fb = { fun: 0, meh: 0, skip: 0 } as Record<string, number>;
+  guests.forEach((g: any) => { if (g.feedback) fb[g.feedback] += 1; });
+  const fbTotal = fb.fun + fb.meh + fb.skip;
+  const sent = event.status === "sent";
+
+  return (
+    <View style={styles.body}>
+      <View style={styles.statusRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.h2}>{status.title}</Text>
+          <Text style={styles.muted}>{status.body}</Text>
+        </View>
+      </View>
+      <Pressable style={styles.primary} onPress={sent ? onTranscript : onSend} disabled={sending}>
+        <Text style={styles.primaryText}>{sent ? "View live transcript" : sending ? "Sending…" : "Send invites"}</Text>
+      </Pressable>
+
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <Text style={styles.cardLabel}>EVENT RECAP</Text>
+          <Pressable onPress={onEdit} hitSlop={10} accessibilityLabel="Edit details"><Ionicons name="pencil-outline" size={16} color={discover.muted} /></Pressable>
+        </View>
+        <RecapRow icon="calendar-outline" text={slotLabel ?? "Date to be confirmed"} />
+        <RecapRow icon="location-outline" text={venue ? `${venue.name}, ${venue.area}` : "Venue to be confirmed"} />
+        <RecapRow icon="person-outline" text={`${going} going · ${guests.length} invited`} />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>FEEDBACK</Text>
+        {fbTotal === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="chatbubble-ellipses-outline" size={34} color={discover.muted} />
+            <Text style={styles.emptyTitle}>No feedback yet</Text>
+            <Text style={styles.muted}>Guests can say how it went once the event is over.</Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", gap: 24, marginTop: 14 }}>
+            {(["fun", "meh", "skip"] as const).map((k) => (
+              <View key={k}><Text style={styles.stat}>{fb[k]}</Text><Text style={styles.muted}>{k}</Text></View>
+            ))}
           </View>
         )}
-      </Card>
+      </View>
 
-      {event.status !== "sent" ? (
-        <Pressable style={styles.sendBtn} onPress={onSend} disabled={sending}>
-          <Text style={styles.sendBtnText}>{sending ? "Sending…" : "Send"}</Text>
-        </Pressable>
-      ) : (
-        <Pressable style={styles.sendBtn} onPress={() => router.push(`/events/${eventId}/transcript`)}>
-          <Text style={styles.sendBtnText}>View live transcript</Text>
-        </Pressable>
-      )}
-    </ScrollView>
+      <Text style={[styles.h2, { marginTop: 8 }]}>Invites</Text>
+      <View style={styles.card}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <Ionicons name="mail-outline" size={30} color={discover.muted} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.emptyTitle}>{guests.length ? `${guests.length} guests invited` : "No invites sent"}</Text>
+            <Text style={styles.muted}>{guests.length ? "Each one has a personal reason why Muse picked them." : "Send the event to start inviting."}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function RecapRow({ icon, text }: { icon: React.ComponentProps<typeof Ionicons>["name"]; text: string }) {
+  return (
+    <View style={styles.recapRow}>
+      <Ionicons name={icon} size={18} color={discover.muted} />
+      <Text style={styles.recapText}>{text}</Text>
+    </View>
+  );
+}
+
+function Guests({ guests, byId, going, capacity, eventId }: any) {
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<Filter>("All");
+  const maybe = guests.filter((g: any) => g.status === "maybe").length;
+  const invited = guests.filter((g: any) => g.status === "invited").length;
+  const declined = guests.filter((g: any) => g.status === "cant" || g.status === "skip").length;
+  const denom = Math.max(capacity ?? 0, guests.length, 1);
+
+  const shown = useMemo(
+    () =>
+      guests.filter((g: any) => {
+        if (q && !g.name.toLowerCase().includes(q.toLowerCase())) return false;
+        if (filter === "Going") return g.status === "going";
+        if (filter === "Maybe") return g.status === "maybe";
+        if (filter === "Invited") return g.status === "invited";
+        if (filter === "Not going") return g.status === "cant" || g.status === "skip";
+        return true;
+      }),
+    [guests, q, filter],
+  );
+
+  return (
+    <View style={styles.body}>
+      <Text style={styles.h2}>At a glance</Text>
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+        <Text style={styles.big}><Text style={{ color: "#2F9E44" }}>{going}</Text> <Text style={styles.bigSub}>Going</Text></Text>
+        {capacity ? <Text style={styles.muted}>cap <Text style={styles.capNum}>{capacity}</Text></Text> : null}
+      </View>
+      <View style={styles.bar}>
+        <View style={{ flex: going, backgroundColor: "#2F9E44" }} />
+        <View style={{ flex: maybe, backgroundColor: "#F0A202" }} />
+        <View style={{ flex: invited, backgroundColor: "#B7B2A8" }} />
+        <View style={{ flex: Math.max(denom - going - maybe - invited, 0), backgroundColor: discover.pill }} />
+      </View>
+      <Text style={styles.muted}>{maybe} maybe · {invited} waiting to answer · {declined} not going</Text>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 16 }}>
+        <Tile icon="document-text-outline" label="Event page" onPress={() => router.push(`/events/${eventId}`)} />
+        <Tile icon="chatbubbles-outline" label="Live transcript" onPress={() => router.push(`/events/${eventId}/transcript`)} />
+        <Tile icon="sparkles-outline" label="Muse" onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)} />
+      </ScrollView>
+
+      <Text style={styles.h2}>Guest list</Text>
+      <View style={styles.search}>
+        <Ionicons name="search" size={18} color={discover.muted} />
+        <TextInput style={styles.searchInput} placeholder="Search" placeholderTextColor={discover.muted} value={q} onChangeText={setQ} />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 12 }}>
+        {FILTERS.map((f) => (
+          <Pressable key={f} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]}>
+            <Text style={[styles.chipText, filter === f && { color: "#fff" }]}>{f}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <View style={styles.listCard}>
+        {shown.length === 0 ? (
+          <Text style={[styles.muted, { padding: 16 }]}>No guests match.</Text>
+        ) : (
+          shown.map((g: any, i: number) => {
+            const p = byId.get(g.personaId ?? "");
+            return (
+              <View key={`${g.personaId ?? g.name}-${i}`} style={[styles.guestRow, i > 0 && styles.guestDivider]}>
+                <Avatar initials={p?.initials ?? g.name[0]} color={p?.color ?? "#9AA0A6"} size={38} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guestName}>{g.name}</Text>
+                  {p?.job ? <Text style={styles.muted} numberOfLines={1}>{p.job}</Text> : null}
+                </View>
+                <StatusPill status={g.status} />
+              </View>
+            );
+          })
+        )}
+      </View>
+    </View>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const map: Record<string, [string, string, string]> = {
+    going: ["Going", "#DCFCE7", "#1F7A3A"],
+    maybe: ["Maybe", "#FEF3C7", "#8A5A00"],
+    invited: ["Invited", discover.pill, discover.muted],
+    cant: ["Not going", "#FDE2E2", "#B4233F"],
+    skip: ["Not going", "#FDE2E2", "#B4233F"],
+  };
+  const [label, bg, fg] = map[status] ?? map.invited;
+  return <View style={[styles.pill, { backgroundColor: bg }]}><Text style={{ color: fg, fontSize: 12, fontWeight: "700" }}>{label}</Text></View>;
+}
+
+function Tile({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.tile} onPress={onPress}>
+      <View style={styles.tileIcon}><Ionicons name={icon} size={20} color={swipe.blue} /></View>
+      <Text style={styles.tileText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function Details({ event, slots, venues }: any) {
+  const update = useMutation(api.manage.updateDetails);
+  const initial = useMemo(
+    () => ({
+      title: event.title as string,
+      slotId: (event.slotId ?? "") as string,
+      venueId: (event.venueId ?? "") as string,
+      vibe: (event.answers?.vibe ?? "") as string,
+      capacity: event.capacity != null ? String(event.capacity) : "",
+      description: (event.description ?? "") as string,
+    }),
+    [event.title, event.slotId, event.venueId, event.answers?.vibe, event.capacity, event.description],
+  );
+  const [form, setForm] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Pick up changes made elsewhere (e.g. after a save) unless the host is mid-edit.
+  useEffect(() => setForm(initial), [initial]);
+
+  const dirty = (Object.keys(initial) as (keyof typeof initial)[]).filter((k) => form[k] !== initial[k]);
+  const set = (k: keyof typeof initial, v: string) => { setNote(null); setForm((f) => ({ ...f, [k]: v })); };
+
+  const save = async () => {
+    const patch: Record<string, unknown> = {};
+    dirty.forEach((k) => {
+      if (k === "capacity") patch.capacity = Number(form.capacity);
+      else patch[k] = form[k];
+    });
+    if ("capacity" in patch && (form.capacity.trim() === "" || Number.isNaN(patch.capacity))) {
+      setNote({ ok: false, text: "Capacity needs to be a whole number." });
+      return;
+    }
+    setSaving(true);
+    try {
+      await update({ eventId: event.eventId, patch: patch as any });
+      setNote({ ok: true, text: "Saved." });
+    } catch (e: any) {
+      const msg = String(e?.message ?? "").split("\n")[0].replace(/^.*Uncaught Error:\s*/, "");
+      setNote({ ok: false, text: msg || "Couldn't save. Try again." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={styles.body}>
+      <Text style={styles.h2}>Event details</Text>
+      <Text style={[styles.muted, { marginBottom: 14 }]}>Edit anything by hand. Your guests see changes straight away.</Text>
+
+      <Text style={styles.fieldLabel}>Title</Text>
+      <TextInput style={styles.field} value={form.title} onChangeText={(v) => set("title", v)} placeholder="Event title" placeholderTextColor={discover.muted} />
+
+      <Text style={styles.fieldLabel}>Date</Text>
+      <View style={styles.wrap}>
+        {slots.map((s: any) => (
+          <Pressable key={s.slotId} onPress={() => set("slotId", s.slotId)} style={[styles.chip, form.slotId === s.slotId && styles.chipOn]}>
+            <Text style={[styles.chipText, form.slotId === s.slotId && { color: "#fff" }]}>{s.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.fieldLabel}>Venue</Text>
+      <View style={{ gap: 8 }}>
+        {venues.map((x: any) => (
+          <Pressable key={x.venueId} onPress={() => set("venueId", x.venueId)} style={[styles.venue, form.venueId === x.venueId && styles.venueOn]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.venueName}>{x.name}</Text>
+              <Text style={styles.muted}>{x.area} · fits {x.capacity} · {x.note}</Text>
+            </View>
+            {form.venueId === x.venueId && <Ionicons name="checkmark-circle" size={20} color={discover.text} />}
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.fieldLabel}>Vibe</Text>
+      <View style={styles.wrap}>
+        {[...new Set([...VIBES, form.vibe].filter(Boolean))].map((vb) => (
+          <Pressable key={vb} onPress={() => set("vibe", vb)} style={[styles.chip, form.vibe === vb && styles.chipOn]}>
+            <Text style={[styles.chipText, form.vibe === vb && { color: "#fff" }]}>{vb}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.fieldLabel}>Capacity</Text>
+      <TextInput style={styles.field} value={form.capacity} onChangeText={(v) => set("capacity", v.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="Defaults to the venue's capacity" placeholderTextColor={discover.muted} />
+
+      <Text style={styles.fieldLabel}>Description</Text>
+      <TextInput style={[styles.field, { minHeight: 110, textAlignVertical: "top" }]} multiline value={form.description} onChangeText={(v) => set("description", v)} placeholder="What should guests know?" placeholderTextColor={discover.muted} />
+
+      {note && <Text style={{ color: note.ok ? "#1F7A3A" : "#B4233F", marginTop: 12 }}>{note.text}</Text>}
+      <Pressable style={[styles.primary, (dirty.length === 0 || saving) && { opacity: 0.4 }]} onPress={save} disabled={dirty.length === 0 || saving}>
+        <Text style={styles.primaryText}>{saving ? "Saving…" : dirty.length ? `Save ${dirty.length} change${dirty.length === 1 ? "" : "s"}` : "No changes"}</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  sectionTitle: { fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
-  detail: { fontSize: 16, fontWeight: "600", color: colors.text },
-  detailSub: { color: colors.textMuted, marginTop: 2, marginBottom: spacing.sm },
-  chatRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  chatInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, color: colors.text },
-  answer: { marginTop: spacing.sm, color: colors.text },
-  guestRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
-  guestName: { flex: 1, color: colors.text },
-  sendBtn: { backgroundColor: colors.museAccent, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center" },
-  sendBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+  screen: { flex: 1, backgroundColor: discover.bg },
+  header: { paddingTop: 52, paddingHorizontal: 20, backgroundColor: discover.bg, borderBottomWidth: 1, borderBottomColor: discover.line },
+  crumb: { color: discover.muted, fontSize: 14 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
+  title: { flex: 1, color: discover.text, fontSize: 28, lineHeight: 33, fontWeight: "800" },
+  iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: discover.pill, alignItems: "center", justifyContent: "center" },
+  museBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: swipe.blue, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginTop: 14 },
+  museBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  museBtnSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, flex: 1 },
+  tabs: { flexDirection: "row", gap: 6, marginTop: 14 },
+  tab: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabOn: { borderBottomColor: discover.text },
+  tabText: { color: discover.muted, fontWeight: "700", fontSize: 15 },
+  body: { padding: 20, gap: 14 },
+  statusRow: { flexDirection: "row", alignItems: "center" },
+  h2: { color: discover.text, fontSize: 20, fontWeight: "800" },
+  muted: { color: discover.muted, fontSize: 14, lineHeight: 19 },
+  primary: { backgroundColor: discover.text, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
+  primaryText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  card: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, padding: 16 },
+  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  cardLabel: { color: discover.muted, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  recapRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 },
+  recapText: { color: discover.text, fontSize: 16 },
+  empty: { alignItems: "center", gap: 6, paddingVertical: 14 },
+  emptyTitle: { color: discover.text, fontSize: 16, fontWeight: "700" },
+  stat: { color: discover.text, fontSize: 28, fontWeight: "800" },
+  big: { fontSize: 40, fontWeight: "800" },
+  bigSub: { color: discover.text, fontSize: 22, fontWeight: "600" },
+  capNum: { color: discover.text, fontSize: 24, fontWeight: "700" },
+  bar: { flexDirection: "row", height: 8, borderRadius: 4, overflow: "hidden", backgroundColor: discover.pill, marginVertical: 8 },
+  tile: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: discover.card, borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 14, paddingVertical: 12 },
+  tileIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: "#E6E9FF", alignItems: "center", justifyContent: "center" },
+  tileText: { color: discover.text, fontWeight: "700", fontSize: 15 },
+  search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: discover.card, borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 14 },
+  searchInput: { flex: 1, paddingVertical: 12, color: discover.text, fontSize: 16 },
+  chip: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+  chipOn: { backgroundColor: discover.text, borderColor: discover.text },
+  chipText: { color: discover.text, fontWeight: "600", fontSize: 14 },
+  listCard: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, overflow: "hidden" },
+  guestRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  guestDivider: { borderTopWidth: 1, borderTopColor: discover.line },
+  guestName: { color: discover.text, fontSize: 16, fontWeight: "700" },
+  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  fieldLabel: { color: discover.muted, fontWeight: "800", fontSize: 12, letterSpacing: 1, marginTop: 14, marginBottom: 8, textTransform: "uppercase" },
+  field: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: discover.text, fontSize: 16 },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  venue: { flexDirection: "row", alignItems: "center", backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 14, padding: 14 },
+  venueOn: { borderColor: discover.text, borderWidth: 2 },
+  venueName: { color: discover.text, fontWeight: "700", fontSize: 16 },
 });
