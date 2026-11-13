@@ -118,12 +118,19 @@ export default function Manage() {
         )}
         {tab === "guests" && (
           <>
-            {viewerId === event.hostId && canActAsViewer && <>
-              <GuestInviteControl key={eventId} eventId={eventId}
+            {/* Both host permissions show for the host whether or not there's a real session;
+                without one they render inert (canEdit) rather than vanishing. Hiding them
+                withheld nothing — allowSpread and allowGuestInvites are already on the event
+                this screen is reading — while making the grants invisible, which is the exact
+                problem the spread control was added to fix. Writing still needs a session, and
+                the server refuses regardless. */}
+            {viewerId === event.hostId && <>
+              <GuestInviteControl key={eventId} eventId={eventId} canEdit={canActAsViewer} hostName={byId.get(event.hostId)?.name}
                 enabled={event.allowGuestInvites ?? false} limit={event.settings?.quota || Math.max(12, guests.length)} />
               {/* The other way the event reaches someone the host didn't pick. Both grants live
                   here together so the host can see and change what they agreed to at plan time. */}
-              <SpreadControl key={`spread-${eventId}`} eventId={eventId} enabled={event.allowSpread ?? false} />
+              <SpreadControl key={`spread-${eventId}`} eventId={eventId} canEdit={canActAsViewer}
+                hostName={byId.get(event.hostId)?.name} enabled={event.allowSpread ?? false} />
             </>}
             <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
           </>

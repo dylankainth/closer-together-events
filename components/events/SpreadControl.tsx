@@ -17,7 +17,7 @@ import { discover } from "@/theme/swipeTheme";
  * Saves on toggle rather than behind a button: there is one value and no way to get it wrong, so
  * a Save step would only be a way to think you'd turned it off when you hadn't.
  */
-export function SpreadControl({ eventId, enabled }: { eventId: string; enabled: boolean }) {
+export function SpreadControl({ eventId, enabled, canEdit = true, hostName }: { eventId: string; enabled: boolean; canEdit?: boolean; hostName?: string }) {
   const setSpread = useMutation(api.spread.setSpread);
   const [allow, setAllow] = useState(enabled);
   const [message, setMessage] = useState("");
@@ -25,7 +25,7 @@ export function SpreadControl({ eventId, enabled }: { eventId: string; enabled: 
   useEffect(() => { setAllow(enabled); }, [enabled]);
 
   const toggle = async (next: boolean) => {
-    if (lock.current) return;
+    if (!canEdit || lock.current) return;
     lock.current = true;
     setAllow(next); // optimistic: the switch should move under the thumb, not after a round trip
     setMessage("");
@@ -44,7 +44,7 @@ export function SpreadControl({ eventId, enabled }: { eventId: string; enabled: 
     <View style={styles.card}>
       <View style={styles.row}>
         <Text style={styles.title}>Let a yes reach their friends</Text>
-        <Switch value={allow} onValueChange={(v) => void toggle(v)} accessibilityLabel="Let a yes reach their friends" />
+        <Switch value={allow} onValueChange={(v) => void toggle(v)} disabled={!canEdit} accessibilityLabel="Let a yes reach their friends" />
       </View>
       <Text style={styles.body}>
         When a guest says yes, close friends of theirs who aren't invited can be shown the event — at most three per
@@ -52,6 +52,13 @@ export function SpreadControl({ eventId, enabled }: { eventId: string; enabled: 
         People invited this way can't spread it onward.
       </Text>
       <Text style={styles.body}>Turning this off stops future invites spreading. Anyone already invited keeps theirs.</Text>
+      {/* Shown, not hidden, without a session — and last, after the explanation, so the card
+          still reads as "here is what this does" rather than leading with a refusal. A host who
+          cannot see whether this is on cannot reason about it, and the value is already on the
+          event this screen is reading, so hiding the card withheld nothing while making the
+          grant invisible again — the exact problem this control exists to fix. Changing it needs
+          a real sign-in; a dead switch is a clearer "not yours" than a write that fails. */}
+      {!canEdit && <Text style={styles.body}>Sign in as {hostName ?? "the host"} to change this.</Text>}
       {!!message && <Text style={styles.body} accessibilityLiveRegion="polite">{message}</Text>}
     </View>
   );

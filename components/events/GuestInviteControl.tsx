@@ -5,7 +5,7 @@ import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { discover, swipe } from "@/theme/swipeTheme";
 
-export function GuestInviteControl({ eventId, enabled, limit }: { eventId: string; enabled: boolean; limit: number }) {
+export function GuestInviteControl({ eventId, enabled, limit, canEdit = true, hostName }: { eventId: string; enabled: boolean; limit: number; canEdit?: boolean; hostName?: string }) {
   const configure = useMutation(api.plusOnes.configure);
   const [allow, setAllow] = useState(enabled);
   const [count, setCount] = useState(String(limit));
@@ -14,7 +14,7 @@ export function GuestInviteControl({ eventId, enabled, limit }: { eventId: strin
   const lock = useRef(false);
   useEffect(() => { setAllow(enabled); setCount(String(limit)); }, [enabled, limit]);
   const save = async () => {
-    if (lock.current) return;
+    if (!canEdit || lock.current) return;
     const value = Number(count);
     if (allow && (!Number.isInteger(value) || value < 1 || value > 500)) {
       setMessage("Enter a whole number from 1 to 500.");
@@ -37,18 +37,21 @@ export function GuestInviteControl({ eventId, enabled, limit }: { eventId: strin
     <View style={styles.card}>
       <View style={styles.row}>
         <Text style={styles.title}>Let guests bring a friend</Text>
-        <Switch value={allow} onValueChange={(v) => { setAllow(v); setMessage(""); }} disabled={busy} accessibilityLabel="Let guests bring a friend" />
+        <Switch value={allow} onValueChange={(v) => { setAllow(v); setMessage(""); }} disabled={busy || !canEdit} accessibilityLabel="Let guests bring a friend" />
       </View>
       <Text style={styles.body}>Each original guest who says yes can invite one eligible friend. Those friends can't invite more people.</Text>
-      {allow && <>
+      {/* Visible but inert without a session, same as SpreadControl: the two host permissions
+          have to read as one pair, and a host who cannot see the setting cannot reason about it. */}
+      {!canEdit && <Text style={styles.body}>Sign in as {hostName ?? "the host"} to change this.</Text>}
+      {allow && canEdit && <>
         <Text style={styles.label}>Total invite limit</Text>
         <TextInput value={count} onChangeText={(v) => { setCount(v); setMessage(""); }} editable={!busy} keyboardType="number-pad"
           accessibilityLabel="Total invite limit" style={styles.input} />
         <Text style={styles.body}>Includes everyone already invited and must fit the event's capacity. Raise it to leave room for friends.</Text>
       </>}
-      <Pressable onPress={() => void save()} disabled={busy} style={[styles.button, busy && { opacity: 0.6 }]} accessibilityRole="button">
+      {canEdit && <Pressable onPress={() => void save()} disabled={busy} style={[styles.button, busy && { opacity: 0.6 }]} accessibilityRole="button">
         <Text style={styles.buttonText}>{busy ? "Saving…" : "Save guest permissions"}</Text>
-      </Pressable>
+      </Pressable>}
       {!!message && <Text style={styles.body} accessibilityLiveRegion="polite">{message}</Text>}
     </View>
   );
