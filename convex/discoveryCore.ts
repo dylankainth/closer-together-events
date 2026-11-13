@@ -169,15 +169,30 @@ export function qualifies(e: DiscoveredInput, now: number): boolean {
 
 // ---- reasons and the fallback ranker ----
 
+/**
+ * Drop a trailing HIGH SURROGATE left behind by slicing through an emoji.
+ *
+ * JavaScript slices by UTF-16 code unit, so cutting a model-written reason mid-emoji leaves half a
+ * surrogate pair. That lone surrogate is not valid text: Convex serialises the query's return
+ * value and the client then fails the WHOLE response with "Could not parse return value as json:
+ * unexpected end of hex escape" — so one emoji in one reason took out the entire picks screen for
+ * that viewer, with an error naming neither the field nor the event.
+ */
+const dropLoneSurrogate = (s: string) => {
+  const last = s.charCodeAt(s.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? s.slice(0, -1) : s;
+};
+
 /** Keeps whole sentences up to MAX_REASON characters; one over-long sentence is cut at a word. */
 export function clampReason(text: string): string {
   const t = text.trim().replace(/\s+/g, " ");
   if (t.length <= MAX_REASON) return t;
-  const cut = t.slice(0, MAX_REASON);
+  const cut = dropLoneSurrogate(t.slice(0, MAX_REASON));
   const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
   if (end >= 60) return cut.slice(0, end + 1);
   const atSpace = cut.lastIndexOf(" ");
-  return `${(atSpace > 40 ? cut.slice(0, atSpace) : cut.slice(0, MAX_REASON - 1)).replace(/[,;:\s]+$/, "")}.`;
+  const body = atSpace > 40 ? cut.slice(0, atSpace) : dropLoneSurrogate(cut.slice(0, MAX_REASON - 1));
+  return `${body.replace(/[,;:\s]+$/, "")}.`;
 }
 
 function terms(profile: RankProfile): string[] {

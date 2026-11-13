@@ -13,6 +13,17 @@ import type { CallBudget, MuseReply, Nudge, Persona } from "./types";
 
 const first = (p: Persona) => p.name.split(" ")[0];
 
+// Slicing by UTF-16 code unit can cut an emoji in half, and the lone surrogate left behind
+// makes the whole Convex response unserialisable — the client then fails the entire query with
+// "unexpected end of hex escape", naming neither the field nor the event. One emoji in one
+// free-conversation turn would otherwise take out a screen. (Same hazard, same fix, as
+// discoveryCore.clampReason.)
+function safeTrim(text: string, max: number): string {
+  const cut = text.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 // Human-facing event context, resolved once per huddle from slotId/venueId (convex/slots.ts,
 // convex/venues.ts) so every Muse call gets a real date/venue instead of a raw id ("fri20") or
 // nothing at all. The raw slotId stays code-side (availability checks below) and never joins
@@ -156,7 +167,7 @@ async function decideFromTranscript(
         interest_match: Math.min(3, shared.length),
         attending_likelihood: likelihood,
         reason_tag: !available ? "busy" : shared.length ? "shared_interest" : "free_time",
-        why: theirWords.slice(0, 140),
+        why: safeTrim(theirWords, 140),
         approved_fields_only: true,
       },
     };
