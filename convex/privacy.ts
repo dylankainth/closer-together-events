@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { museJSON } from "./muse";
-import type { CallBudget, EventSafeProfile, MsgStatus, MuseReply, Persona } from "./types";
+import type { CallBudget, EventSafeProfile, MsgStatus, MuseReply, Nudge, Persona } from "./types";
 
 /** Fixed reply schema: structured fields plus ONE short free-text line. */
 export const ReplySchema = z
@@ -45,16 +45,13 @@ export interface CheckResult {
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Layer 3a: deterministic code check against the never-share list.
- * hard = structural failure (schema / patterns) => message blocked.
+ * Never-share/injection regex scan, shared by `codeCheck` (structured mode, scans the reply
+ * schema's `why` field) and `guardText` (free mode, scans a bare line) — one scan, two callers.
+ * hard = structural failure (pattern / injection-like) => message blocked.
  * soft = topic match in the free text => message rewritten without the line.
  */
-export function codeCheck(msg: unknown, owner: Persona): CheckResult {
+function scanTopics(text: string, owner: Persona): { reasons: string[]; hard: boolean } {
   const reasons: string[] = [];
-  const parsed = ReplySchema.safeParse(msg);
-  if (!parsed.success) return { ok: false, hard: true, reasons: ["schema"] };
-  const m = parsed.data;
-  const text = m.why;
   let hard = false;
   if (PHONE_RE.test(text)) { reasons.push("phone number pattern"); hard = true; }
   if (ADDRESS_RE.test(text)) { reasons.push("address pattern"); hard = true; }
@@ -64,6 +61,14 @@ export function codeCheck(msg: unknown, owner: Persona): CheckResult {
     if (new RegExp(`\\b${esc(t.toLowerCase())}`, "i").test(text)) reasons.push(`never-share: ${t}`);
   }
   if (looksLikeInjection(text)) { reasons.push("instruction-like text"); hard = true; }
+  return { reasons, hard };
+}
+
+/** Layer 3a: deterministic code check against the never-share list, for a structured reply. */
+export function codeCheck(msg: unknown, owner: Persona): CheckResult {
+  const parsed = ReplySchema.safeParse(msg);
+  if (!parsed.success) return { ok: false, hard: true, reasons: ["schema"] };
+  const { reasons, hard } = scanTopics(parsed.data.why, owner);
   return { ok: reasons.length === 0, hard, reasons };
 }
 
@@ -118,6 +123,55 @@ export async function guardOutgoing(
   const s = await sparkCheck(reply.why, owner, budget);
   if (!s.ok) return { status: "rewritten", reply: { ...reply, why: NEUTRAL_WHY }, checks: ["spark pass: private detail"] };
   return { status: "sent", reply, checks: [] };
+}
+
+export interface GuardTextOutcome {
+  status: MsgStatus;
+  text: string;
+  checks: string[];
+}
+
+/**
+ * Free mode's counterpart to `guardOutgoing` (convex/huddleChat.ts): same layers 2-3, run over a
+ * bare line instead of the fixed reply schema's `why` field. `enabled=false` is the same no-guard
+ * baseline used by the leak test.
+ *
+ * `withSparkPass` defaults true (every structured reply gets it). Free mode calls this once per
+ * turn for the free regex scan but passes `withSparkPass: false` on all but an exchange's closing
+ * turn — a Muse call on every turn would blow the per-event budget long before a multi-turn
+ * exchange finishes (see the call site in huddleChat.ts for the arithmetic).
+ */
+export async function guardText(
+  text: string,
+  owner: Persona,
+  enabled: boolean,
+  budget: CallBudget,
+  withSparkPass = true,
+): Promise<GuardTextOutcome> {
+  if (!enabled) return { status: "sent", text, checks: [] };
+  const { reasons, hard } = scanTopics(text, owner);
+  if (hard) return { status: "blocked", text: "[message blocked before sending]", checks: reasons };
+  if (reasons.length) return { status: "rewritten", text: NEUTRAL_WHY, checks: reasons };
+  if (!withSparkPass) return { status: "sent", text, checks: [] };
+  const s = await sparkCheck(text, owner, budget);
+  if (!s.ok) return { status: "rewritten", text: NEUTRAL_WHY, checks: ["spark pass: private detail"] };
+  return { status: "sent", text, checks: [] };
+}
+
+/** A fresh recommendation is model output too. Check both display text and stored reasons
+ * (skip verdicts can have reasons that aren't present in their short display text).
+ */
+export async function guardNudge(nudge: Nudge, owner: Persona, enabled: boolean, budget: CallBudget) {
+  const guard = await guardText([nudge.text, ...nudge.reasons].join("\n"), owner, enabled, budget);
+  return {
+    status: guard.status,
+    checks: guard.checks,
+    nudge: guard.status === "sent" ? nudge : {
+      ...nudge,
+      text: guard.text,
+      reasons: guard.status === "blocked" ? [] : [guard.text],
+    },
+  };
 }
 
 /** Leak detector for the eval: counts planted canaries or patterns in what was actually delivered. */

@@ -6,7 +6,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
-import { eventSafeProfile, guardOutgoing, looksLikeInjection } from "./privacy";
+import { eventSafeProfile, guardNudge, guardOutgoing, looksLikeInjection } from "./privacy";
 import type { CallBudget, MuseReply, Nudge, Persona } from "./types";
 
 const first = (p: Persona) => p.name.split(" ")[0];
@@ -167,9 +167,9 @@ export const runHuddle = internalAction({
         return guard.reply ? { p, r: guard.reply } : null;
       }));
       const replies = collected.filter((x): x is { p: Persona; r: MuseReply } => !!x);
-      const nudge = await decide(c, event.slotId, topics, replies, budget);
-      await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: nudge.text, status: "sent", checks: [], source: "offline" });
-      await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge });
+      const guarded = await guardNudge(await decide(c, event.slotId, topics, replies, budget), c, args.codeCheck, budget);
+      await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
+      await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge });
     }));
 
     await ctx.runMutation(internal.events.bumpCalls, { eventId: args.eventId, by: budget.used - event.museCalls });
