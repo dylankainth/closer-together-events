@@ -2,6 +2,7 @@
 // can be imported by both the seeding mutation and (later) the eval harness without restriction.
 
 import type { Persona } from "./types";
+import { RICH_CONTEXT } from "./personaContextData";
 
 export const HOST_ID = "maya";
 
@@ -80,7 +81,7 @@ function named(): Persona[] {
     settings: { talkToMuses: true, nudgesOn: true, askBeforeRsvp: true, askBeforeLocation: true, profileApproved: true },
     ...extra,
   });
-  return [
+  const people = [
     base(HOST_ID, "Maya Chen", "Product designer", ["boxing", "design", "food"], "Lively"),
     base("sam", "Sam Rivera", "Tech sales", ["boxing", "tech"], "Chill", { memory: ["Loves bowling"], lastSeen: { [HOST_ID]: "August" } }),
     base("priya", "Priya Nair", "Software engineer", ["tech", "gaming"], "Chill"),
@@ -94,6 +95,20 @@ function named(): Persona[] {
     base("kai", "Kai Diaz", "Photographer", ["design", "outdoors"], "Lively"),
     base("ruby", "Ruby Clark", "Teacher", ["food", "boxing"], "Chill"),
   ];
+  // Layer the rich context on top. The planted secrets/neverShare each persona already had stay; new ones are added.
+  return people.map((p) => {
+    const c = RICH_CONTEXT[p.id];
+    if (!c) return p;
+    return {
+      ...p,
+      memory: c.memory,
+      curious: c.curious,
+      shareable: c.shareable,
+      ties: c.ties,
+      secrets: Array.from(new Set([...p.secrets, ...(c.secrets ?? [])])),
+      neverShare: Array.from(new Set([...p.neverShare, ...(c.neverShare ?? [])])),
+    };
+  });
 }
 
 function generated(): Persona[] {

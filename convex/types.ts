@@ -33,6 +33,10 @@ export interface Persona {
   memory: string[];
   secrets: string[];
   neverShare: string[];
+  // Rich demo context (convex/personaContextData.ts), only on the named personas. `shareable` = talking points the person
+  // approved for events; `ties` = their private read on specific friends (friend id -> note).
+  shareable?: string[];
+  ties?: Record<string, string>;
   hasMuse: boolean;
   settings: MuseSettings;
 }
@@ -41,6 +45,8 @@ export interface EventSafeProfile {
   interests: string[];
   socialStyle: string;
   availability: string[];
+  /** Approved things this person's Muse may actually say (only when the persona has them). */
+  talkingPoints?: string[];
 }
 
 export type Tie = "close" | "any";
