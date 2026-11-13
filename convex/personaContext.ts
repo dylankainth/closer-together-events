@@ -37,6 +37,10 @@ export const apply = internalMutation({
           shareable: c.shareable,
           ties: c.ties,
           recentChats: c.recentChats,
+          // Without this line the dislikes added to personaContextData only reach personas seeded
+          // from scratch — the live rows were seeded long ago, so the feature would exist in the
+          // code and be absent from every persona in the demo.
+          dislikes: c.dislikes,
           secrets: Array.from(new Set([...row.secrets, ...(c.secrets ?? [])])),
           neverShare: Array.from(new Set([...row.neverShare, ...(c.neverShare ?? [])])),
         });
