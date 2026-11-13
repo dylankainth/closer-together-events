@@ -67,7 +67,10 @@ export const seedOne = internalMutation({
 
 export const run = internalAction({
   args: { keepFree: v.array(v.string()), dryRun: v.optional(v.boolean()) },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{
+    dryRun: boolean; events: number;
+    results: ({ eventId: string; skipped: string } | { eventId: string; target: number; goingNow: number; flipped: string[]; added: string[] })[];
+  }> => {
     const ids: string[] = [];
     let cursor: string | null = null;
     for (;;) {
