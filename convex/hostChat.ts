@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
+import { requireHost } from "./authz";
 
 /**
  * The host's ongoing chat with their Muse about getting the event done (checklist page > chat).
@@ -23,6 +24,8 @@ export const reply = action({
     const message = args.message.trim().slice(0, 600);
     const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
     if (!event) return { reply: "I couldn't find that event." };
+    // Only the host (or a demo operator) may spend Muse calls chatting about this event.
+    await requireHost(ctx, event, "write", "hostChat.reply");
     const checklist: any = await ctx.runQuery(api.checklist.forEvent, { eventId: args.eventId });
 
     const stuck = checklist?.items?.find((i: any) => i.state === "blocked");

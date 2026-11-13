@@ -5,6 +5,7 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
+import { requireSignedIn } from "./authz";
 
 /**
  * Screen 4 -> 5: turns the host's single free-text box ("What are we making happen?") into a
@@ -14,6 +15,7 @@ import { CONFIG } from "./museConfig";
 export const extractDraft = action({
   args: { raw: v.string() },
   handler: async (ctx, args) => {
+    await requireSignedIn(ctx, "extractAction.extractDraft"); // spends Muse budget
     const budget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const r = await museJSON({
       model: "spark",

@@ -1,6 +1,7 @@
 import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireActor } from "./authz";
 
 export const createSession = internalMutation({
   args: { hostId: v.string(), description: v.optional(v.string()) },
@@ -58,7 +59,9 @@ export const finishQuestionSession = mutation({
   args: { sessionId: v.string() },
   handler: async (ctx, args) => {
     const session = await ctx.db.get(args.sessionId as Id<"questionSessions">);
-    if (!session || session.status !== "complete") return null;
+    if (!session) return null;
+    await requireActor(ctx, session.hostId, "write", "questionSessionData.finishQuestionSession");
+    if (session.status !== "complete") return null;
 
     const answers = session.answers as Record<string, unknown>;
     const description = typeof answers.description === "string" ? answers.description : "";

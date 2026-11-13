@@ -8,6 +8,7 @@ import { CONFIG } from "./museConfig";
 import { z } from "zod";
 import type { CallBudget } from "./types";
 import type { Id } from "./_generated/dataModel";
+import { requireActor } from "./authz";
 
 // Core fields planEvent actually needs; "other" is for anything else Muse asks (constraints,
 // date, etc.) that gets recorded but doesn't feed the mapping in questionSessionData.ts.
@@ -55,6 +56,7 @@ function missingCoreFields(answers: Record<string, unknown>): (typeof CORE_FIELD
 export const startQuestionSession = action({
   args: { hostId: v.string(), initialDescription: v.string() },
   handler: async (ctx, args): Promise<{ sessionId: string; field?: string; question: string; note?: string; options?: string[]; defaultOption?: string; inputType: "chips" | "text" }> => {
+    await requireActor(ctx, args.hostId, "write", "questionSession.startQuestionSession");
     const sessionId: Id<"questionSessions"> = await ctx.runMutation(internal.questionSessionData.createSession, {
       hostId: args.hostId,
       description: args.initialDescription,
@@ -84,6 +86,10 @@ export const submitAnswer = action({
   args: { sessionId: v.string(), field: v.string(), answer: v.any() },
   handler: async (ctx, args): Promise<{ field?: string; question?: string; note?: string; options?: string[]; defaultOption?: string; inputType?: "chips" | "text"; complete: boolean }> => {
     const sessionId = args.sessionId as Id<"questionSessions">;
+    // Check who owns the session BEFORE writing the answer into it.
+    const owner = await ctx.runQuery(internal.questionSessionData.getSession, { sessionId });
+    if (!owner) throw new Error("Session not found");
+    await requireActor(ctx, owner.hostId, "write", "questionSession.submitAnswer");
     await ctx.runMutation(internal.questionSessionData.appendAnswer, { sessionId, field: args.field, answer: args.answer });
 
     const session = await ctx.runQuery(internal.questionSessionData.getSession, { sessionId });
@@ -129,6 +135,10 @@ export const skipRest = action({
   args: { sessionId: v.string(), field: v.optional(v.string()), defaultAnswer: v.optional(v.string()) },
   handler: async (ctx, args): Promise<{ complete: true }> => {
     const sessionId = args.sessionId as Id<"questionSessions">;
+    // Only the session's host may finish it (checked before any write).
+    const owner = await ctx.runQuery(internal.questionSessionData.getSession, { sessionId });
+    if (!owner) throw new Error("Session not found");
+    await requireActor(ctx, owner.hostId, "write", "questionSession.skipRest");
     if (args.field && args.defaultAnswer) {
       await ctx.runMutation(internal.questionSessionData.appendAnswer, { sessionId, field: args.field, answer: args.defaultAnswer });
     }
