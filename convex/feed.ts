@@ -184,7 +184,7 @@ async function loadPicks(ctx: QueryCtx, w: World, viewerId: string) {
       .map((o) => person(w, o.personaId))
       .filter(Boolean) as CardPerson[];
     const { _id, _creationTime, fetchedAt, ...event } = ev;
-    cards.push(toPickView(event, { ...p, status: "new" }, now, going));
+    cards.push(toPickView(event, { ...p, status: "new" }, now, going, others.filter((o) => o.status === "going").length));
   }
   return cards;
 }

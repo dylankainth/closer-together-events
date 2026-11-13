@@ -5,7 +5,8 @@ import { v } from "convex/values";
 // One-off maintenance: make the "friends going" pill on Muse's picks real for the demo. Picks are real nearby events,
 // and the pill shows which of YOUR friends said they are going to the same one (their own pick row with status
 // "going"). Nobody has tapped anything, so it is empty. This marks 2-4 friends of the demo viewers as going to each
-// upcoming event, preferring friends whose interests fit the event. Internal-only (scripts/seed-pick-going.mjs).
+// upcoming event, preferring friends whose interests fit the event, plus 4-5 other people picked at random (they
+// count towards "N others going" but are not the viewers' friends). Internal-only (scripts/seed-pick-going.mjs).
 // The demo viewers themselves are never marked, so their own cards stay open. Safe to re-run.
 
 const hash = (s: string) => {
@@ -38,12 +39,17 @@ export const run = internalAction({
     const free = new Set(args.keepFree);
     const friendIds = new Set(personas.filter((p) => free.has(p.id)).flatMap((p) => p.friends));
     const pool = personas.filter((p) => friendIds.has(p.id) && !free.has(p.id) && p.hasMuse && p.hop === 1 && !p.id.startsWith("fb_"));
+    const strangers = personas.filter((p) => !free.has(p.id) && p.hasMuse && !p.id.startsWith("fb_"));
     let marked = 0;
     for (const e of events) {
       const text = `${e.title} ${e.category ?? ""} ${e.description}`.toLowerCase();
       const fit = (p: { id: string; interests: string[] }) => p.interests.filter((i) => text.includes(i.toLowerCase())).length;
       const count = 2 + (hash(e.key) % 3);
       const goers = [...pool].sort((a, b) => fit(b) - fit(a) || hash(e.key + a.id) - hash(e.key + b.id)).slice(0, count).map((p) => p.id);
+      // 4-5 more at random, in a stable order per event, not already chosen.
+      const taken = new Set(goers);
+      const extra = 4 + (hash(e.key + "x") % 2);
+      goers.push(...strangers.filter((p) => !taken.has(p.id)).sort((a, b) => hash(e.key + "r" + a.id) - hash(e.key + "r" + b.id)).slice(0, extra).map((p) => p.id));
       marked += await ctx.runMutation(internal.seedPickGoing.markGoing, { key: e.key, personaIds: goers, dryRun: args.dryRun });
     }
     return { dryRun: !!args.dryRun, events: events.length, pool: pool.length, marked };

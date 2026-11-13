@@ -59,7 +59,7 @@ export default function PickPage() {
   const long = about.length > ABOUT_MAX;
   const shownAbout = long && !more ? `${about.slice(0, ABOUT_MAX).trimEnd()}…` : about;
   const friends = ev.friendsGoing ?? [];
-  const goingText = friends.length === 0 ? "" : `${friends.map((f) => f.name).join(", ")}${ev.goingCount > friends.length ? `, and ${ev.goingCount - friends.length} more` : ""}`;
+  const goingText = friends.length === 0 ? `${ev.goingCount} people, none you know yet` : `${friends.map((f) => f.name).join(", ")}${ev.goingCount > friends.length ? `, and ${ev.goingCount - friends.length} more` : ""}`;
 
   return (
     <View style={styles.screen}>
@@ -126,9 +126,9 @@ export default function PickPage() {
           <Text style={styles.hostName}>{ev.host.name}</Text>
         </View>
 
-        {friends.length > 0 && (
+        {ev.goingCount > 0 && (
           <>
-            <View style={styles.sectionHead}><Text style={styles.sectionLabel}>{ev.goingCount} friend{ev.goingCount === 1 ? "" : "s"} going</Text></View>
+            <View style={styles.sectionHead}><Text style={styles.sectionLabel}>{ev.goingCount} going{friends.length > 0 ? ` · ${friends.length} friend${friends.length === 1 ? "" : "s"}` : ""}</Text></View>
             <View style={styles.faces}>
               {friends.map((f, i) => (
                 <View key={f.id} style={[styles.face, i > 0 && { marginLeft: -10 }]}>

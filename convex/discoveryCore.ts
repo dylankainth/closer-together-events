@@ -241,7 +241,7 @@ function placeOf(e: DiscoveredInput): string | null {
   return e.venueName ?? city;
 }
 
-export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: CardPerson[] = []) {
+export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: CardPerson[] = [], totalGoing: number = friendsGoing.length) {
   const snoozed = p.status === "snoozed" && typeof p.snoozedUntil === "number" && p.snoozedUntil > now;
   return {
     eventId: `pick:${e.key}`,
@@ -255,7 +255,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     vibe: null as string | null,
     purpose: null as string | null,
     tags: e.category ? [e.category] : [],
-    goingCount: friendsGoing.length,
+    goingCount: Math.max(totalGoing, friendsGoing.length), // everyone going; friendsGoing is just the viewer's friends
     capacity: null as number | null,
     spotsLeft: null as number | null,
     relation: "pick" as const,

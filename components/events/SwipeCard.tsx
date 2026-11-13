@@ -33,10 +33,13 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
   const chips = ev.chips ?? [];
   const headline = ev.reasons[0] ?? chips[0]?.text ?? `${ev.host?.name ?? "Someone"} is hosting.`;
   const rows = chips.filter((c) => c.text !== headline).slice(0, 3);
+  const others = Math.max((ev.goingCount ?? 0) - ev.friendsGoing.length, 0);
   const goingText =
     ev.friendsGoing.length > 0
-      ? ev.friendsGoing.map((f) => `${first(f.name)}'s in`).join(" · ")
-      : "No friends you know are going yet";
+      ? ev.friendsGoing.map((f) => `${first(f.name)}'s in`).join(" · ") + (others > 0 ? ` · +${others} more` : "")
+      : others > 0
+        ? `${others} people going, none you know yet`
+        : "No friends you know are going yet";
 
   return (
     <Pressable style={styles.card} onPress={onOpen}>

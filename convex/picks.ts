@@ -45,7 +45,7 @@ export const detail = query({
       if (p) going.push({ id: p.personaId, name: p.name, initials: p.initials, color: p.color });
     }
     const { _id, _creationTime, fetchedAt, ...event } = ev;
-    return toPickView(event, pick, Date.now(), going);
+    return toPickView(event, pick, Date.now(), going, others.filter((o) => o.status === "going").length);
   },
 });
 
