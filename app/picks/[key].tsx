@@ -1,6 +1,6 @@
 import React from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,10 +19,14 @@ export default function PickPage() {
   const ev = useQuery(api.picks.detail, { personaId: viewerId, key });
   const respond = useMutation(api.picks.respond);
 
+  // The page draws its own back button, like the other event pages; no native header.
   const back = (
-    <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events/recommended"))} style={[styles.back, { top: insets.top + 12 }]} hitSlop={10}>
-      <Ionicons name="chevron-back" size={24} color={swipe.ink} />
-    </Pressable>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events/recommended"))} style={[styles.back, { top: insets.top + 12 }]} hitSlop={10}>
+        <Ionicons name="chevron-back" size={24} color={swipe.ink} />
+      </Pressable>
+    </>
   );
   if (ev === undefined) {
     return <View style={styles.screen}>{back}<View style={[styles.banner, styles.skeleton]} /><View style={[styles.skelLine, { width: "70%" }]} /><View style={[styles.skelLine, { width: "45%" }]} /></View>;
@@ -112,7 +116,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: swipe.cream },
   content: { padding: 16, paddingTop: 56, paddingBottom: 60 },
   loading: { padding: 32, paddingTop: 100, color: discover.textDim },
-  back: { position: "absolute", top: 16, left: 4, zIndex: 2, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  back: { position: "absolute", top: 16, left: 8, zIndex: 2, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.85)", alignItems: "center", justifyContent: "center" },
   banner: { aspectRatio: 1, borderRadius: 28, overflow: "hidden", backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
   skeleton: { margin: 16, marginTop: 100, backgroundColor: discover.pill },
   skelLine: { height: 18, borderRadius: 9, backgroundColor: discover.pill, marginHorizontal: 16, marginTop: 12 },
