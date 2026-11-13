@@ -210,8 +210,10 @@ export const forViewer = query({
     const visible = w.events.filter((e) => e.status === "sent" || e.hostId === args.personaId);
     const views = visible.map((e) => buildView(w, e, args.personaId));
 
+    // Every invite surfaces: the Muse only annotates with context, it never suppresses an event.
+    // (A legacy "skip" verdict on old rows no longer hides the invite.)
     const ranked = views
-      .filter((x) => x.relation === "invited" && !x.snoozed && x.verdict !== "skip")
+      .filter((x) => x.relation === "invited" && !x.snoozed)
       .sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
     const recommended = await Promise.all(
       ranked.map(async (x) => ({ ...x, chips: chipsFrom(await loadReplies(ctx, x.eventId, args.personaId), x.reasons) })),

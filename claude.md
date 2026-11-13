@@ -52,7 +52,7 @@ Two mechanisms.
 1. The host types an audience description: "closest friends", "my tech network", "the people I go boxing with".
 2. A retrieval step narrows the host's friends (about 500) to a shortlist (about 50).
 3. Muse-to-Muse conversation runs on the shortlist. Each friend's Muse decides whether the event is worth it for its own person and why.
-4. Output is a nudge with a reason: "Sam will be there and you haven't seen him since August. He does tech sales, which you asked about. You're free after 6." The verdict can be skip.
+4. Output is a nudge with a reason: "Sam will be there and you haven't seen him since August. He does tech sales, which you asked about. You're free after 6." The Muse only adds context — the event still reaches every invited person; it never suppresses an invite.
 
 For a small private event (say 10 specific friends): add them to the guest list and deselect friends of friends. Nothing spreads and no funnel selection runs. Muse still writes personalised nudges to those guests.
 
@@ -83,7 +83,7 @@ Chosen design **[Proposed]**: B on the surface, C underneath (see 5.3).
 Why per-user Muses [Doc]:
 - Muse is built as one private agent per person, with its own memory. There is no shared brain, so any feature that spans friends naturally becomes Muses talking to each other.
 - Nobody's memory is pooled. Each Muse reads only its own person's memory, and only chat messages cross between agents.
-- Each Muse argues for its own person, which is why it can honestly say "skip".
+- Each Muse argues for its own person, so its recommendation genuinely represents them rather than just hyping attendance.
 - Consent is per person.
 - Real Muse memories are rich data, which matters because research found agents built from thin bios were no better than demographics.
 
@@ -157,7 +157,7 @@ A person without a Muse can receive a plain invite link and RSVP in seconds. Imm
 
 ### 7.2 Guest flow
 1. Receive a Messenger nudge with a "why you" reason.
-2. Tap Going, Maybe or Skip. Skip sends nothing.
+2. Tap Going, Maybe or Can't. Your Muse's reasoning is there as context; the invite reaches you either way.
 3. Optionally tap "see what my Muse said" for the transcript and receipt.
 
 ### 7.3 Non-user flow
@@ -168,7 +168,7 @@ Plain link, RSVP, then "set up your Muse" with Login with Facebook.
 2. Each friend's Muse, running on that friend's event-safe profile, exchanges structured replies with the Muses of friends who are going.
 3. Every outgoing message passes the never-share check.
 4. Each Muse waits for all replies, then decides for its own person.
-5. Only "worth it" becomes a nudge. At most one nudge per event. Only friends who turned Muse nudges on are included.
+5. Every invited friend gets the event with their Muse's reason attached — the Muse never withholds it. At most one nudge per event. Only friends who turned Muse nudges on are included.
 
 ## 8. Scope
 
