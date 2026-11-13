@@ -170,7 +170,9 @@ export const runHuddle = internalAction({
     const host = byId.get(event.hostId)!;
     const topics: string[] = event.query?.topics ?? [];
     const budget: CallBudget = { used: event.museCalls, max: CONFIG.maxCallsPerEvent };
-    const mode = event.conversationMode ?? "structured";
+    // Free conversation is the default: a real multi-turn exchange is the thing worth showing, and
+    // the agent room has something to render. An event can still opt out with "structured".
+    const mode = event.conversationMode ?? "free";
 
     const insert = (m: {
       kind: "ask" | "reply"; fromPersona: string; toPersona: string; forPersona: string; text: string;

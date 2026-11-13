@@ -23,7 +23,12 @@ export const CONFIG = {
   // would need ~300 and would silently exhaust the budget mid-huddle, leaving the back half of
   // the "real conversation" demo running on offline fallbacks.
   maxPeersFree: 2,
-  maxCallsPerEvent: 160,
+  // Headroom for free conversation, which is now the default (convex/huddle.ts). A full huddle at
+  // displaySize 12 costs roughly: 12 candidates x 2 (the opening reply + its guard) + 12 x 2 edges
+  // x ~5 (4 turns + one closing Spark pass) + 12 deciders = ~156. The old 160 left so little slack
+  // that one retry would push a huddle past it — and museJSON degrades to offline fallbacks rather
+  // than failing, so the back half would quietly stop being real while still looking real.
+  maxCallsPerEvent: 240,
   // Measured low-effort spark calls average ~8.5s, wonder ~4.2s; every museJSON call site uses
   // "low" effort (no medium/high), so 10s gives headroom above the slowest normal case while
   // still cutting a genuine hang far short of the old 25s dead-air wait.
