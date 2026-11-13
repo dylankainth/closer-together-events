@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -39,17 +39,31 @@ export default function Recommended() {
   const live = useRef({ n, idx });
   live.current = { n, idx };
 
+  // Everything except the bottom bar fades out when a swipe takes you to the feed, so the picks screen
+  // isn't left showing underneath while the feed slides in.
+  const fade = useRef(new Animated.Value(1)).current;
+
   const reset = useCallback(() => pan.setValue({ x: 0, y: 0 }), [pan]);
   useEffect(reset, [viewerId, reset]);
 
+  // Coming back to this screen (from the feed, for example): put the card and the rest of the UI back.
+  useFocusEffect(
+    useCallback(() => {
+      reset();
+      fade.setValue(1);
+    }, [reset, fade]),
+  );
+
   const flyAway = useCallback(
-    (toX: number, toY: number, then: () => void) => {
+    (toX: number, toY: number, then: () => void, leaving = false) => {
+      if (leaving) Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: false }).start();
       Animated.timing(pan, { toValue: { x: toX, y: toY }, duration: 180, useNativeDriver: false }).start(() => {
         then();
-        reset();
+        // Leaving the screen: keep the card gone (it's put back on focus). Staying: snap back for the next card.
+        if (!leaving) reset();
       });
     },
-    [pan, reset],
+    [pan, reset, fade],
   );
 
   const responder = useMemo(
@@ -63,11 +77,11 @@ export default function Recommended() {
           if (count === 0) {
             Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
           } else if (vertical && g.dy < -COMMIT) {
-            flyAway(0, -SCREEN_H, () => router.navigate("/events/feed"));
+            flyAway(0, -SCREEN_H, () => router.navigate("/events/feed"), true);
           } else if (!vertical && g.dx > COMMIT) {
             // Right = next. Past the last card there is nothing left, so carry on to the general feed.
             if (at < count - 1) flyAway(SCREEN_W, 0, () => setCursor(at + 1));
-            else flyAway(SCREEN_W, 0, () => router.navigate("/events/feed"));
+            else flyAway(SCREEN_W, 0, () => router.navigate("/events/feed"), true);
           } else if (!vertical && g.dx < -COMMIT && at > 0) {
             // Left = previous. On the first card this falls through and just springs back.
             flyAway(-SCREEN_W, 0, () => setCursor(at - 1));
@@ -89,6 +103,7 @@ export default function Recommended() {
 
   return (
     <View style={styles.screen}>
+      <Animated.View style={{ flex: 1, opacity: fade }}>
       <View style={styles.segments}>
         {Array.from({ length: Math.min(Math.max(n, 1), 8) }).map((_, i) => (
           <View key={i} style={[styles.segment, n > 0 && i <= Math.min(idx, 7) && styles.segmentOn]} />
@@ -143,6 +158,7 @@ export default function Recommended() {
         <Ionicons name="chevron-up" size={16} color="#8A8A94" />
         <Text style={styles.hintText}>Swipe up for all events</Text>
       </Pressable>
+      </Animated.View>
 
       <EventsNavBar active="picks" picks={n} />
     </View>
