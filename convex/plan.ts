@@ -183,8 +183,14 @@ export function posterSvg(title: string, slot: Slot, venue: Venue, vibe: string,
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+// An image model renders text it was never given: on device the generated art read
+// "FRIDAY, OCT 25 - 7PM" for an event happening Sat 21 Nov, sitting directly above the correct
+// date in the UI. Generated pictures must not carry facts — the app already shows them, and the
+// poster only has to look good.
+const POSTER_GUARD = "Do NOT draw any date, day, time, address or price anywhere in the image — the app shows those beside it and invented text would contradict them. Decorative art and the title only. No real people.";
+
 export async function makePoster(title: string, slot: Slot, venue: Venue, vibe: string, budget: CallBudget) {
-  const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. No real people.`, budget);
+  const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. ${POSTER_GUARD}`, budget);
   if (img.url) return { url: img.url, source: img.source };
   return { url: posterSvg(title, slot, venue, vibe), source: "offline" as const };
 }
@@ -193,7 +199,7 @@ export async function makePoster(title: string, slot: Slot, venue: Venue, vibe: 
  * same generation path as makePoster, with the instruction folded into the live prompt and
  * matched against a handful of named palettes for the offline fallback. */
 export async function editPoster(title: string, slot: Slot, venue: Venue, vibe: string, instruction: string, budget: CallBudget) {
-  const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. Revision requested: ${instruction}. No real people.`, budget);
+  const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. Revision requested: ${instruction}. ${POSTER_GUARD}`, budget);
   if (img.url) return { url: img.url, source: img.source };
   return { url: posterSvg(title, slot, venue, vibe, instruction), source: "offline" as const };
 }
