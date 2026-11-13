@@ -1,0 +1,105 @@
+# CI for the Expo app + Convex backend.
+#   Every PR:            test (required), typecheck (advisory).
+#   Every push to main:  test, then deploy convex/ to the shared self-hosted deployment.
+# CI is the only thing that deploys Convex. Do not run `npx convex deploy` / `npx convex dev`
+# against the shared deployment from a laptop: the next CI deploy replaces it with main.
+# Deployment env vars (Facebook, Muse, auth keys) live on the deployment; CI never touches them.
+# tests/workflow.test.mjs checks the structure of this file; update both together.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: # Actions tab > CI > Run workflow (branch main) redeploys the latest main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CONVEX_SELF_HOSTED_URL: https://convex-api.keanuc.net
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+
+  # Advisory until it has been green on main: convex/_generated is gitignored, and
+  # regenerating it needs the deployment (read-only; codegen never changes deployed code).
+  # Note: pull_request runs the PR's own copy of this file, so anyone with write access can
+  # reach the repo secret from a branch. Accepted for a trusted team; harden later by moving
+  # the secret to a `main`-only environment (then this job skips on PRs).
+  typecheck:
+    name: typecheck (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Regenerate convex/_generated and type-check
+        env:
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+        run: |
+          if [ -z "$CONVEX_SELF_HOSTED_ADMIN_KEY" ]; then
+            echo "::notice::typecheck skipped: CONVEX_SELF_HOSTED_ADMIN_KEY secret not available"
+            exit 0
+          fi
+          curl -fsS --max-time 15 "$CONVEX_SELF_HOSTED_URL/version" > /dev/null
+          npx convex codegen --typecheck disable
+          npx tsc --noEmit -p .
+
+  deploy:
+    name: deploy convex
+    needs: test
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # One deploy at a time; a newer pending run replaces an older pending one.
+    concurrency:
+      group: convex-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Check the deploy secret is set
+        env:
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+        run: |
+          if [ -z "$CONVEX_SELF_HOSTED_ADMIN_KEY" ]; then
+            echo "::error::Repo secret CONVEX_SELF_HOSTED_ADMIN_KEY is missing. The repo owner adds it with: gh secret set CONVEX_SELF_HOSTED_ADMIN_KEY"
+            exit 1
+          fi
+      - name: Deploy convex/
+        env:
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+        run: npx convex deploy --yes
+      - name: Smoke check
+        env:
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 --max-time 10 "$CONVEX_SELF_HOSTED_URL/version" > /dev/null
+          npx convex function-spec > "$RUNNER_TEMP/spec.json"
+          node -e 'const n = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).functions.length; if (!n) { console.error("::error::deployment reports 0 functions"); process.exit(1); } console.log(n + " functions live")' "$RUNNER_TEMP/spec.json"
+          echo "Deployed $GITHUB_SHA to $CONVEX_SELF_HOSTED_URL"
