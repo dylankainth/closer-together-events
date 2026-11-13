@@ -154,7 +154,7 @@ export default function Recommended() {
         <View style={styles.badge}>
           <Ionicons name="star" size={13} color="#fff" />
         </View>
-        <Text style={styles.heading}>Muse's picks</Text>
+        <Text style={styles.heading}>Your picks</Text>
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
         <Pressable onPress={runRefresh} disabled={refreshing} hitSlop={10} accessibilityLabel="Ask Muse for fresh picks" style={styles.refresh}>
           {refreshing ? <ActivityIndicator size="small" color={swipe.ink} /> : <Ionicons name="refresh" size={20} color={swipe.ink} />}
