@@ -11,7 +11,7 @@ import { CONFIG, museLive } from "./museConfig";
 import type { CallBudget, MuseResult } from "./types";
 
 interface MuseJsonOpts<T> {
-  model: "spark" | "wonder";
+  model: "spark" | "wonder" | "ember";
   system: string;
   user: unknown;
   schema: z.ZodType<T>;

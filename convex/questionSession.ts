@@ -61,8 +61,11 @@ export const startQuestionSession = action({
     });
 
     const budget: CallBudget = { used: 0, max: CONFIG.maxCallsPerEvent };
+    // ember measured ~4-5x faster than spark for this exact prompt (~1.7s vs ~9.5s), same
+    // quality/schema-conformance — worth the deviation from the spark="structured output"
+    // convention for a call on the host's critical path.
     const r = await museJSON({
-      model: "spark",
+      model: "ember",
       budget,
       effort: "low",
       system:
@@ -101,7 +104,7 @@ export const submitAnswer = action({
     const nextFallback = FIELD_FALLBACKS[stillMissing[0]];
     const budget: CallBudget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const r = await museJSON({
-      model: "spark",
+      model: "ember",
       budget,
       effort: "low",
       system:
