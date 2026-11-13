@@ -1,8 +1,30 @@
+import { mutation } from "./_generated/server";
+import { v } from "convex/values";
+import { requireHost } from "./authz";
 import { scheduleHuddle } from "./huddleRuntime";
 import { spreadTargets } from "./spreadPolicy";
 
 // Convex half of acceptance-driven spread. The rules themselves are pure and tested in
 // spreadPolicy.ts — same split as plusOnePolicy.ts / plusOnes.ts.
+
+/**
+ * Turn acceptance-driven spread on or off for one event.
+ *
+ * Spread was set once, at planning time, from the host's public/private answer, and after that
+ * there was no way to see it or take it back. That is a consent grant with no off switch, which is
+ * not what claude.md §5.3 asks for — and the host could not even tell it was on. Nothing here is
+ * retroactive: turning it off stops future acceptances spreading, and people already invited keep
+ * their invite, because withdrawing an invitation somebody has already been shown would be a
+ * worse surprise than the one this fixes.
+ */
+export const setSpread = mutation({
+  args: { eventId: v.string(), enabled: v.boolean() },
+  handler: async (ctx, { eventId, enabled }) => {
+    const event = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", eventId)).unique();
+    await requireHost(ctx, event, "write", "spread.setSpread");
+    await ctx.db.patch(event!._id, { allowSpread: enabled });
+  },
+});
 
 /**
  * Called from the RSVP mutations when someone becomes "going". Inserts the invites and hands the

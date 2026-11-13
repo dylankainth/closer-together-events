@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Avatar, Skeleton } from "@/components/ui";
 import { Mascot } from "@/components/Mascot";
 import { GuestInviteControl } from "@/components/events/GuestInviteControl";
+import { SpreadControl } from "@/components/events/SpreadControl";
 import { HuddleRecovery } from "@/components/events/HuddleRecovery";
 import { useViewer } from "@/hooks/useViewer";
 import { discover, swipe } from "@/theme/swipeTheme";
@@ -117,8 +118,13 @@ export default function Manage() {
         )}
         {tab === "guests" && (
           <>
-            {viewerId === event.hostId && canActAsViewer && <GuestInviteControl key={eventId} eventId={eventId}
-              enabled={event.allowGuestInvites ?? false} limit={event.settings?.quota || Math.max(12, guests.length)} />}
+            {viewerId === event.hostId && canActAsViewer && <>
+              <GuestInviteControl key={eventId} eventId={eventId}
+                enabled={event.allowGuestInvites ?? false} limit={event.settings?.quota || Math.max(12, guests.length)} />
+              {/* The other way the event reaches someone the host didn't pick. Both grants live
+                  here together so the host can see and change what they agreed to at plan time. */}
+              <SpreadControl key={`spread-${eventId}`} eventId={eventId} enabled={event.allowSpread ?? false} />
+            </>}
             <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
           </>
         )}

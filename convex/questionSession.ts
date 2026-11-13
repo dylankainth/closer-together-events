@@ -46,7 +46,12 @@ const FIELD_FALLBACKS: Record<(typeof CORE_FIELDS)[number], QuestionResult> = {
   purpose: FALLBACK_OPENING,
   vibe: { kind: "question", field: "vibe", question: "What's the vibe?", options: ["Chill", "Lively", "Fancy"], defaultOption: "Lively", inputType: "chips" },
   audience: { kind: "question", field: "audience", question: "Who is it for?", options: ["My closest friends", "Friends who'd get along", "Anyone I know"], defaultOption: "My closest friends", inputType: "chips" },
-  visibility: { kind: "question", field: "visibility", question: "Is this public or private?", note: "Public means guests can bring a friend. Private means no plus-ones.", options: ["Private (no plus-ones)", "Public (plus-ones welcome)"], defaultOption: "Private (no plus-ones)", inputType: "chips" },
+  // This answer is the host's consent for BOTH ways an event reaches someone they didn't pick:
+  // allowGuestInvites (a guest spends their one plus-one) and allowSpread (a yes automatically
+  // surfaces it to that guest's close friends) — see planAction. The note has to describe both,
+  // or the host approves plus-ones and silently gets the spread loop too, which is the §5.3
+  // Marketplace lesson exactly: one button covering two different grants.
+  visibility: { kind: "question", field: "visibility", question: "Is this public or private?", note: "Public lets guests bring a friend, and when someone says yes their close friends can be shown it too — each still decides for themselves. Private means neither: only the people you invite.", options: ["Private (only who I invite)", "Public (can reach friends of guests)"], defaultOption: "Private (only who I invite)", inputType: "chips" },
   budget: { kind: "question", field: "budget", question: "Budget per head?", options: ["Under £25", "£25-35", "£35+", "I'm paying"], defaultOption: "£25-35", inputType: "chips" },
 };
 
@@ -72,7 +77,7 @@ export const startQuestionSession = action({
       budget,
       effort: "low",
       system:
-        'You are Muse helping a host plan an event. They just described it in one line. Ask ONE friendly follow-up question to learn more — skip anything the description already answers. Always propose your own best-guess default so the host can just accept it. Keep the question under 200 characters, and any "note" under 140. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"visibility"|"other", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget/visibility this question is collecting — use "other" only if it fits none of those. "visibility" is whether the event is public (guests may bring a friend) or private (no plus-ones): always ask it, with the two options "Private (no plus-ones)" and "Public (plus-ones welcome)".',
+        'You are Muse helping a host plan an event. They just described it in one line. Ask ONE friendly follow-up question to learn more — skip anything the description already answers. Always propose your own best-guess default so the host can just accept it. Keep the question under 200 characters, and any "note" under 140. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"visibility"|"other", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget/visibility this question is collecting — use "other" only if it fits none of those. "visibility" is whether the event is public or private, and it is the host\'s consent for BOTH ways the event can reach someone they did not pick: a guest bringing one friend, AND a guest saying yes causing it to be shown to that guest\'s close friends (who each still decide for themselves). Always ask it, say what public grants rather than only mentioning plus-ones, and use the two options "Private (only who I invite)" and "Public (can reach friends of guests)".',
       user: { description: args.initialDescription },
       schema: QuestionSchema,
       fallback: (): QuestionResult => FALLBACK_OPENING,
