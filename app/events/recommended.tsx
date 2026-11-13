@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConditionalRsvpNotice } from "@/components/events/ConditionalRsvpNotice";
 import { ActivityIndicator, Animated, Dimensions, Image, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,6 +51,22 @@ export default function Recommended() {
   // so the cursor already points at the next one (and is clamped if the last card was answered).
   const idx = n === 0 ? 0 : Math.min(Math.max(cursor, 0), n - 1);
   const current = list[idx];
+  const readyCondition = current && "conditionalRsvp" in current && current.conditionalRsvp?.state === "ready" ? current.conditionalRsvp : null;
+  const confirmLock = useRef(false);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmationError, setConfirmationError] = useState("");
+  useEffect(() => setConfirmationError(""), [viewerId, current?.eventId]);
+
+  const confirmConditional = async () => {
+    if (!current || !readyCondition || confirmLock.current) return;
+    confirmLock.current = true; setConfirming(true); setConfirmationError("");
+    try {
+      await respond({ eventId: current.eventId, personaId: viewerId, action: "confirmGoIf" });
+      setCelebrating(true);
+    } catch {
+      setConfirmationError("Couldn't confirm. Your friend's answer may have changed. Open the event to review or try again.");
+    } finally { confirmLock.current = false; setConfirming(false); }
+  };
 
   // The responder is built once, so it reads live state through this ref.
   const live = useRef({ n, idx });
@@ -120,7 +137,8 @@ export default function Recommended() {
 
   const [celebrating, setCelebrating] = useState(false);
   const answer = (action: "going" | "cant" | "snooze") => {
-    if (!current || celebrating) return;
+    if (!current || celebrating || confirming) return;
+    if (action === "going" && readyCondition) { void confirmConditional(); return; }
     if (action === "going") {
       // Celebrate first, then save: the card only drops out of the stack once the burst is under way.
       setCelebrating(true);
@@ -183,6 +201,11 @@ export default function Recommended() {
       )}
       <AccountSheet visible={accountOpen} onClose={() => setAccountOpen(false)} />
 
+      {readyCondition && <View style={{ paddingHorizontal: 20 }}><ConditionalRsvpNotice state="ready"
+        friendName={readyCondition.friend?.name} busy={confirming} compact showConfirm={false}
+        onConfirm={() => void confirmConditional()} /></View>}
+      {!!confirmationError && <Text style={styles.confirmError} accessibilityRole="alert">{confirmationError}</Text>}
+
       <View style={styles.stage}>
         {data === undefined ? (
           <View style={[styles.empty, { opacity: 0.6 }]}><Text style={styles.emptyTitle}>Loading…</Text></View>
@@ -205,13 +228,13 @@ export default function Recommended() {
       </View>
 
       <View style={styles.actions}>
-        <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current} accessibilityLabel="Not for me">
+        <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current || confirming} accessibilityLabel="Not for me">
           <Ionicons name="close" size={26} color={swipe.ink} />
         </Pressable>
-        <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current}>
-          <Text style={styles.goingText}>I'll go</Text>
+        <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current || confirming}>
+          <Text style={styles.goingText}>{confirming ? "Saving…" : readyCondition ? "Confirm going" : "I'll go"}</Text>
         </Pressable>
-        <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current} accessibilityLabel="Remind me later">
+        <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current || confirming} accessibilityLabel="Remind me later">
           <Ionicons name="time-outline" size={26} color={swipe.ink} />
         </Pressable>
       </View>
@@ -222,6 +245,7 @@ export default function Recommended() {
 }
 
 const styles = StyleSheet.create({
+  confirmError: { color: "#9B2929", fontSize: 13, lineHeight: 18, marginHorizontal: 20, marginTop: 8 },
   screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52, paddingBottom: 18 },
   segments: { flexDirection: "row", gap: 6, paddingHorizontal: 20 },
   segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "#E4E4EA" },
