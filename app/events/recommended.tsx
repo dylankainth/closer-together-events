@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   count: { color: "#65676B", fontWeight: "600", fontSize: 13 },
   refresh: { width: 32, height: 32, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   looking: { color: "#65676B", fontSize: 13, fontWeight: "600", marginHorizontal: 20, marginBottom: 6 },
-  museBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#EEF0FF" },
+  museBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginTop: 14, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#EEF0FF" },
   museBannerText: { flex: 1, color: swipe.ink, fontWeight: "600", fontSize: 14 },
   // overflow hidden: a tall card (big picture + long reason + who's going) must never spill over the buttons.
   stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10, overflow: "hidden" },
