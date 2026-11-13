@@ -11,9 +11,14 @@ import { CONFIG } from "./museConfig";
  * Drives the event's `tasks` queue (chat-added checklist items, see events.addTask) one item at a
  * time: picks the first "todo" task, marks it active, and either settles it from data already on
  * the event ("done") or stops and surfaces a permission ask ("blocked") — same "ask before
- * committing anything" rule as the rest of the plan (claude.md §5.3). A "blocked" task halts the
- * queue; approveTask/rejectTask re-schedule this to pick up wherever it left off, so later tasks
- * never jump ahead of one still waiting on the host.
+ * committing anything" rule as the rest of the plan (claude.md §5.3).
+ *
+ * A blocked task does NOT halt the queue: it is no longer "todo", so a later task can be picked up
+ * while it waits, and the host can end up with more than one pending ask. That is deliberate —
+ * each ask carries its own exact text and is approved on its own, and the alternative is worse: a
+ * host who says "also tell everyone we moved to 8" while an earlier ask sits unanswered would see
+ * nothing happen at all. approveTask/rejectTask re-schedule this so an approved task's successors
+ * still get picked up.
  */
 export const runNext = internalAction({
   args: { eventId: v.string() },
