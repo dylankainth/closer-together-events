@@ -1,5 +1,6 @@
 import React from "react";
 import { EventBanner } from "@/components/events/EventBanner";
+import { shortPlace } from "@/components/events/place";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -67,7 +68,7 @@ export default function PickPage() {
       <View style={styles.infoRow}>
         <View style={styles.tile}><Ionicons name="location-outline" size={22} color={swipe.ink} /></View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.infoTitle}>{ev.placeLabel ?? "Location to be confirmed"}</Text>
+          <Text style={styles.infoTitle}>{shortPlace(ev.placeLabel) ?? "Location to be confirmed"}</Text>
         </View>
       </View>
 

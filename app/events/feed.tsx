@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
+import { shortPlace } from "@/components/events/place";
 import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -281,7 +282,7 @@ function pillFor(ev: EventView) {
  */
 function Row({ ev, onPress, last = false }: { ev: EventView; onPress: () => void; last?: boolean }) {
   const when = ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed";
-  const place = ev.placeLabel ?? ev.venue?.name ?? null;
+  const place = shortPlace(ev.placeLabel) ?? ev.venue?.name ?? null;
   const pill = pillFor(ev);
   return (
     <Pressable style={[styles.row, !last && styles.rowDivider]} onPress={onPress}>

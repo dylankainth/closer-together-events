@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,6 +60,15 @@ export default function Recommended() {
 
   const reset = useCallback(() => pan.setValue({ x: 0, y: 0 }), [pan]);
   useEffect(reset, [viewerId, reset]);
+
+  // Warm the pictures of the cards either side of this one, so swiping to them shows the picture straight away
+  // instead of a gap while it downloads. (Pictures stored inside the event are already on the phone.)
+  useEffect(() => {
+    [list[idx + 1], list[idx + 2], list[idx - 1]].forEach((e) => {
+      const url = e?.poster?.url;
+      if (url && url.startsWith("http")) Image.prefetch(url).catch(() => {});
+    });
+  }, [idx, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Coming back to this screen (from the feed, for example): put the card and the rest of the UI back.
   useFocusEffect(
@@ -178,7 +187,7 @@ export default function Recommended() {
             {...responder.panHandlers}
             style={[styles.front, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
           >
-            <SwipeCard ev={current} onOpen={open} />
+            <SwipeCard key={current.eventId} ev={current} onOpen={open} />
           </Animated.View>
         )}
       </View>
