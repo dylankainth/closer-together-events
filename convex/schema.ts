@@ -169,6 +169,8 @@ export default defineSchema({
     // Host-edited details (Manage > Details). Optional so events made before these existed still validate.
     description: v.optional(v.string()),
     capacity: v.optional(v.number()),
+    // Explicit host opt-in for one friend per original guest; absent means disabled.
+    allowGuestInvites: v.optional(v.boolean()),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
     // How this event's huddle runs (claude.md §5.1). "free" = real multi-turn agent-to-agent
@@ -203,6 +205,8 @@ export default defineSchema({
     snoozedUntil: v.optional(v.number()),
     // "Go if <friend> goes": a conditional RSVP, stored as status "maybe" + that friend's personaId.
     goIfFriend: v.optional(v.string()),
+    // Guest-initiated invitations cannot themselves expand the guest list.
+    invitedByPersonaId: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
     .index("by_event_persona", ["eventId", "personaId"]),

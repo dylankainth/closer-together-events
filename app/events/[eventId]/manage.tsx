@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Avatar, Skeleton } from "@/components/ui";
+import { GuestInviteControl } from "@/components/events/GuestInviteControl";
+import { useViewer } from "@/hooks/useViewer";
 import { discover, swipe } from "@/theme/swipeTheme";
 
 type Tab = "overview" | "guests" | "details";
@@ -28,6 +30,7 @@ const STATUS_TEXT: Record<string, { title: string; body: string }> = {
  * in the app's light palette. The Muse button leads back to the planning checklist.
  */
 export default function Manage() {
+  const { viewerId, canActAsViewer } = useViewer();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const event = useQuery(api.events.getByEventId, { eventId });
   const guests = useQuery(api.guests.listForEvent, { eventId });
@@ -92,7 +95,11 @@ export default function Manage() {
           <Overview event={event} guests={guests} slotLabel={slot?.label} venue={venue} going={going} sending={sending} onSend={onSend} onEdit={() => setTab("details")} onTranscript={() => router.push(`/events/${eventId}/swarm`)} />
         )}
         {tab === "guests" && (
-          <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
+          <>
+            {viewerId === event.hostId && canActAsViewer && <GuestInviteControl key={eventId} eventId={eventId}
+              enabled={event.allowGuestInvites ?? false} limit={event.settings?.quota || Math.max(12, guests.length)} />}
+            <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
+          </>
         )}
         {tab === "details" && <Details event={event} slots={slots} venues={venues} />}
       </ScrollView>

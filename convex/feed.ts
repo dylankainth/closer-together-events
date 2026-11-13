@@ -283,19 +283,6 @@ export const detail = query({
       })
       .sort((a, b) => Number(b.tag === "Friend") - Number(a.tag === "Friend"));
 
-    // "Bring a friend": one of my friends with a Muse who isn't on the list and is free that slot.
-    const onList = new Set(evGuests.map((g) => g.personaId).filter(Boolean));
-    const plusOne = viewer
-      ? [...w.personas.values()].find(
-          (p) =>
-            viewer.friends.includes(p.personaId) &&
-            p.hasMuse &&
-            !onList.has(p.personaId) &&
-            p.personaId !== e.hostId &&
-            (!e.slotId || (p.availability ?? []).includes(e.slotId)),
-        )
-      : undefined;
-
     const guestsGoIf = evGuests.find((g) => g.personaId === args.personaId)?.goIfFriend;
     const goIfFriend = guestsGoIf ? person(w, guestsGoIf) : null;
     // Offer "Go if <friend> goes" for the first friend who's going, else any invited friend.
@@ -327,7 +314,6 @@ export const detail = query({
       totalGoing: attendees.length,
       goIfOffer: conditionalOffer,
       goIfFriendPerson: goIfFriend,
-      plusOne: plusOne ? { personaId: plusOne.personaId as string, name: plusOne.name as string, why: `Free ${view.slotLabel ?? "then"}.` } : null,
     };
   },
 });
