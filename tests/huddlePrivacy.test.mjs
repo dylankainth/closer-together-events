@@ -81,6 +81,20 @@ test("an early done signal still requires one complete round-trip", async () => 
   assert.deepEqual(rows.map((m) => m.kind), ["ask", "reply"]);
 });
 
+for (const mode of ["structured", "free"]) {
+  // TASK 4: a dislike is sensitive precisely because it can name a person. It must go through
+  // the exact same guardText/scanTopics/codeCheck path as every other never-share item, never a
+  // separate, weaker one — so Sam's "not keen if Dave shows up" is treated like any other
+  // never-share disclosure and must never reach a delivered message, to Dave or to anyone else.
+  test(`${mode}: a dislike naming a person is blocked like any other never-share text`, async () => {
+    const result = await runPrivacyFixture({ mode, scenario: "dislike-named" });
+    const delivered = result.messages.map((m) => m.text).join(" \n ");
+    assert.equal(/dave/i.test(delivered), false, delivered);
+    assert.equal(result.report.leakingRows, 0);
+    assert.ok(result.report.blocked + result.report.rewritten > 0);
+  });
+}
+
 test("clean controls deliver no canaries in every arm", async () => {
   for (const arm of PRIVACY_ARMS) {
     const result = await runPrivacyFixture({ ...arm, scenario: "clean" });
