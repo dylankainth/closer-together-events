@@ -79,7 +79,6 @@ export default function Planning() {
   const event = useQuery(api.events.getByEventId, eventId ? { eventId } : "skip");
   const sendEvent = useMutation(api.events.sendEvent);
   const [sendingInvites, setSendingInvites] = useState(false);
-  const approve = useMutation(api.events.approve);
   const approveDraft = useMutation(api.events.approveDraft);
   const rejectDraft = useMutation(api.events.rejectDraft);
   const approveTask = useMutation(api.events.approveTask);
@@ -279,8 +278,12 @@ export default function Planning() {
     }
   };
 
-  const review = async () => {
-    if (checklist && checklist.status === "draft") await approve({ eventId: eventId! });
+  // Navigation only. This used to also call events.approve, which flipped the event out of
+  // "draft" — and agentLoop.run returns early on any non-draft status, so opening the details
+  // mid-plan quietly killed the planning agent (and left approveDraft unable to resume it, since
+  // that only reschedules while the event is still a draft). Looking at something must not
+  // change it; sending is what commits, and that is the send row's job.
+  const viewDetails = () => {
     if (from === "manage") router.back();
     else router.replace(`/events/${eventId}/manage`);
   };
@@ -441,8 +444,8 @@ export default function Planning() {
                     </View>
                   </View>
                 )}
-                <Pressable onPress={review} style={{ alignSelf: "center", marginTop: 8 }} hitSlop={10}>
-                  <Text style={styles.link}>Review & edit before sending →</Text>
+                <Pressable onPress={viewDetails} style={{ alignSelf: "center", marginTop: 8 }} hitSlop={10}>
+                  <Text style={styles.link}>View event details →</Text>
                 </Pressable>
               </View>
             </ScrollView>
