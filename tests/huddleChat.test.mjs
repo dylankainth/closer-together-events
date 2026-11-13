@@ -110,3 +110,30 @@ test("guardText with enabled=false is the no-guard baseline", async () => {
   assert.equal(r.status, "sent");
   assert.equal(r.text, "my phone is 415-555-1234, call anytime");
 });
+
+// A fifth of a live event's transcript (18 of 86 rows) was bare "Muse (Maya):" with nothing after
+// it. museJSON's fallback for this call is { text: "" }, and the loop inserted it anyway — so the
+// receipt screen showed empty bubbles and the swarm's "Messages" counter was padded with turns
+// that never happened.
+test("a turn whose model call came back empty is not written to the transcript", async () => {
+  const candidate = persona({ id: "cand", name: "Cam" });
+  const peer = persona({ id: "peer", name: "Pat" });
+  let n = 0;
+  // A real first turn, then the shape museJSON falls back to when a call fails.
+  const callText = async () => (++n === 1
+    ? { data: { text: "Happy to come along, I like bowling.", done: false }, source: "muse" }
+    : { data: { text: "", done: true }, source: "offline" });
+  const insert = fakeInsert();
+  await runExchange(candidate, peer, event, 4, budget(), insert, true, callText);
+  assert.equal(insert.rows.length, 1, "only the turn that actually said something is written");
+  assert.ok(insert.rows.every((r) => /: \S/.test(r.text)), "every row has content after the speaker label");
+});
+
+test("an exchange that is empty from the very first turn writes nothing at all", async () => {
+  const candidate = persona({ id: "cand", name: "Cam" });
+  const peer = persona({ id: "peer", name: "Pat" });
+  const insert = fakeInsert();
+  const callText = async () => ({ data: { text: "   ", done: false }, source: "offline" });
+  await runExchange(candidate, peer, event, 4, budget(), insert, true, callText);
+  assert.deepEqual(insert.rows, []);
+});

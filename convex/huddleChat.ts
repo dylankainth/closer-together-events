@@ -118,6 +118,14 @@ export async function runExchange(
     const text = injected ? REDACTED : guard.text;
     const status: MsgStatus = injected ? "blocked" : guard.status;
 
+    // An empty turn is not a turn. museJSON's fallback for this call is { text: "" }, and inserting
+    // that wrote a bare "Muse (Maya):" into the transcript — 18 of 86 rows on a live event, which
+    // looked broken on the receipt screen AND padded the "Messages" count with turns that never
+    // happened. End the exchange instead: a short real conversation is worth more than a long one
+    // padded with blanks, and the swarm already shows what did happen. Checked AFTER the guard, so
+    // a message the guard redacted (REDACTED is non-empty) still lands as the blocked row it is.
+    if (!text.trim()) break;
+
     await insert({
       kind: turn % 2 === 1 ? "ask" : "reply",
       fromPersona: speaker.id,
