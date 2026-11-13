@@ -94,6 +94,12 @@ export function titleFor(hostFirst: string, answers: HostAnswers, topics: string
   }
 }
 
+// The food order that can become a REAL vendor email — the one "commit" that leaves the app on the
+// host's OK (cake for a birthday, pizza for a watch/game night, snacks for a housewarming). Every
+// other draft stays simulated. Shared by agentTools (queues the task) and emailAction (composes the
+// mail) so the two can never drift on which draft is the real one.
+export const ORDERABLE_VENDOR_IDS = ["cake", "pizza", "snacks"] as const;
+
 export function vendorDrafts(answers: HostAnswers, title: string, slot: Slot, venue: Venue, headcount: number) {
   // "pending" so these flow through the same approve/reject UI as drafts proposed later in chat,
   // per claude.md §3.1: the host approves before anything is sent or committed.

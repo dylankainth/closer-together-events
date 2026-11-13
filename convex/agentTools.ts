@@ -10,7 +10,7 @@
 
 import { internal } from "./_generated/api";
 import { parseAudience, retrieve, rerank } from "./funnel";
-import { pickDate, venueOptions, titleFor, vendorDrafts, makePoster } from "./plan";
+import { pickDate, venueOptions, titleFor, vendorDrafts, makePoster, ORDERABLE_VENDOR_IDS } from "./plan";
 import { applyPins } from "./shortlistPolicy";
 import { CONFIG } from "./museConfig";
 import type { CallBudget, Persona } from "./types";
@@ -157,20 +157,21 @@ const draft_vendor_orders: Tool = {
     const venue = venues.find((v) => v.id === event.venueId);
     const headcount = Math.max((event.shortlist ?? []).filter((s: any) => s.selected).length, event.settings?.quota ?? 6);
     const drafts = vendorDrafts(event.answers, event.title, slot, venue, headcount);
-    // If there's a cake to order, queue a real vendor-email task for the host to approve (dedup'd
-    // in events.addTask). This is the one draft that leaves the app for real, on the host's OK.
-    const cake = drafts.find((d: any) => d.id === "cake");
-    if (cake) {
+    // If there's a food order to place, queue a real vendor-email task for the host to approve
+    // (dedup'd in events.addTask). This is the one draft that leaves the app for real, on the host's
+    // OK — a cake for a birthday, pizza for a watch/game night, snacks for a housewarming.
+    const order = drafts.find((d: any) => (ORDERABLE_VENDOR_IDS as readonly string[]).includes(d.id));
+    if (order) {
       await ctx.runMutation(internal.events.addTask, {
         eventId: event.eventId,
-        label: "Order the cake",
-        detail: `Email a cake order to ${cake.vendor}.`,
+        label: `Order the ${order.item}`,
+        detail: `Email a ${order.item} order to ${order.vendor}.`,
         kind: "order_cake",
       });
       // Surface the approval prompt now rather than waiting on a later task to drive the queue.
       await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: event.eventId });
     }
-    const suffix = cake ? " The cake order is a real email, queued for your OK." : "";
+    const suffix = order ? ` The ${order.item} order is a real email, queued for your OK.` : "";
     return { summary: `Drafted ${drafts.length} vendor enquiries (others simulated).${suffix}`, patch: { drafts } };
   },
 };
