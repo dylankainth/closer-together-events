@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
@@ -43,7 +43,7 @@ function categoriesOf(ev: EventView): string[] {
  */
 export default function Feed() {
   const { viewerId } = useViewer();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
   const [tab, setTab] = useState<Tab>("discover");
   const [category, setCategory] = useState<string | null>(null);
@@ -75,12 +75,37 @@ export default function Feed() {
 
   const pageW = Math.min(width - 56, 460);
   const open = (ev: EventView) => router.push(`/events/${ev.eventId}`);
-  const backToPicks = () => (router.canGoBack() ? router.back() : router.replace("/events/recommended"));
+  const backToPicks = goToPicks;
+
+  // Pull the feed down while it's scrolled to the top to go back to the recommended-events stack (the
+  // reverse of the swipe up that opened it). At the top, a downward drag can't scroll anything, so it
+  // is safe to claim; anywhere else the feed scrolls as normal.
+  const scrollY = useRef(0);
+  const ty = useRef(new Animated.Value(0)).current;
+  const pullDown = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_, g) => scrollY.current <= 0 && g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+        onPanResponderMove: (_, g) => ty.setValue(Math.max(0, g.dy)),
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > 110 || g.vy > 0.9) {
+            Animated.timing(ty, { toValue: height, duration: 200, useNativeDriver: false }).start(() => {
+              goToPicks();
+              ty.setValue(0);
+            });
+          } else {
+            Animated.spring(ty, { toValue: 0, useNativeDriver: false, friction: 8 }).start();
+          }
+        },
+        onPanResponderTerminate: () => Animated.spring(ty, { toValue: 0, useNativeDriver: false, friction: 8 }).start(),
+      }),
+    [ty, height],
+  );
 
   const tabEvents = tab === "going" ? all.filter((e) => e.myStatus === "going") : tab === "hosting" ? all.filter((e) => e.relation === "hosting") : [];
 
   return (
-    <View style={styles.screen}>
+    <Animated.View style={[styles.screen, { transform: [{ translateY: ty }] }]} {...pullDown.panHandlers}>
       <View style={styles.header}>
         <Pressable onPress={backToPicks} hitSlop={8} accessibilityLabel="Your picks" style={styles.navIcon}>
           <Ionicons name="sparkles" size={24} color={discover.muted} />
@@ -101,7 +126,11 @@ export default function Feed() {
         <ViewerSwitcher />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 60 }}
+        scrollEventThrottle={16}
+        onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
+      >
         {data === undefined ? (
           <View style={{ padding: 20, gap: 16 }}>
             {[0, 1, 2].map((i) => <View key={i} style={styles.skeleton} />)}
@@ -201,8 +230,14 @@ export default function Feed() {
           </>
         )}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
+}
+
+/** Back to the recommended-events stack: pop the feed if it was pushed from there, else open the stack. */
+function goToPicks() {
+  if (router.canGoBack()) router.back();
+  else router.replace("/events/recommended");
 }
 
 function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
