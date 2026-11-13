@@ -112,8 +112,7 @@ export default function Swarm() {
   }, [guests]);
 
   // idle -> no "ask" message mentions this persona yet; talking -> asked but unresolved; otherwise
-  // the resolved verdict, preferring the Muse nudge over the raw RSVP status (a nudge is the
-  // considered verdict; status can lag it or be the only signal for a guest who replied directly).
+  // the resolved state, real RSVP first and the Muse's verdict only as a stand-in (see below).
   const stateByPersona = useMemo(() => {
     const m = new Map<string, NodeState>();
     for (const c of allCandidates) {

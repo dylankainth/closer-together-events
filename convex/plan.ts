@@ -101,10 +101,14 @@ export function vendorDrafts(answers: HostAnswers, title: string, slot: Slot, ve
   const add = (id: string, vendor: string, item: string, draft: string, simulatedReply: string) =>
     drafts.push({ id, vendor, item, draft, simulatedReply, simulated: true, status: "pending" });
 
-  if (answers.purpose === "Birthday") {
+  // Match the word, not the exact chip. Muse writes its own purpose answers ("Birthday
+  // celebration", "Sam's birthday"), so an equality check meant the cake step almost never fired
+  // on a real run — only when the host happened to tap the literal "Birthday" chip.
+  const purpose = answers.purpose ?? "";
+  if (/birthday/i.test(purpose)) {
     add("cake", "Noe Valley Bakery", "cake", `Hi! Could we get a cake for "${title}" (${headcount} people) on ${slot.label}?`, "Sure thing, £30, ready for pickup that morning.");
     add("candles", "Party Parlour", "candles & balloons", `Hi, candles + balloons for ${headcount} guests please.`, "Got it, £12, bundled with pickup.");
-  } else if (answers.purpose === "Housewarming") {
+  } else if (/housewarming/i.test(purpose)) {
     add("snacks", "Tartine Catering", "snack platters", `Snack platters for ${headcount} at a housewarming, ${slot.label}?`, "Yes — £8/head, delivered an hour before.");
     add("favours", "Leaf & Co", "plant favours", `Small plant favours for up to ${Math.min(headcount, 12)} guests?`, "Can do, £6 each, ready by then.");
   } else {
