@@ -82,6 +82,9 @@ function buildView(w: World, e: any, viewerId: string) {
     venue: venue ? { name: venue.name as string, area: venue.area as string } : null,
     priceTier: (e.answers?.budget ?? null) as 1 | 2 | 3 | null,
     vibe: (e.answers?.vibe ?? null) as string | null,
+    // Used by the feed's Browse by Category chips.
+    purpose: (e.answers?.purpose ?? null) as string | null,
+    tags: (venue?.tags ?? []) as string[],
     goingCount: going.length,
     capacity,
     spotsLeft: capacity === null ? null : Math.max(0, capacity - going.length),

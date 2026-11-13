@@ -1,118 +1,245 @@
-import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { ViewerSwitcher } from "@/components/ViewerSwitcher";
-import { Avatar, AvatarStack, Skeleton } from "@/components/ui";
 import type { EventView } from "@/components/events/SwipeCard";
-import { priceLabel, swipe } from "@/theme/swipeTheme";
+import { discover } from "@/theme/swipeTheme";
 
-const SECTIONS: { key: EventView["relation"][]; title: string; empty: string }[] = [
-  { key: ["hosting"], title: "You're hosting", empty: "" },
-  { key: ["responded"], title: "You've answered", empty: "" },
-  { key: ["invited"], title: "Still waiting on you", empty: "" },
-  { key: ["discover"], title: "More happening", empty: "Nothing else yet." },
-];
+type Tab = "discover" | "going" | "hosting";
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
-const STATUS_LABEL: Record<string, string> = { going: "You're going", maybe: "Maybe", skip: "Passed", cant: "Can't make it" };
+const CATEGORY_ICONS: Record<string, IconName> = {
+  bowling: "radio-button-on-outline",
+  games: "game-controller-outline",
+  gaming: "game-controller-outline",
+  climbing: "trending-up-outline",
+  fitness: "barbell-outline",
+  boxing: "fitness-outline",
+  design: "color-palette-outline",
+  music: "musical-notes-outline",
+  outdoors: "leaf-outline",
+  food: "restaurant-outline",
+  birthday: "gift-outline",
+  housewarming: "home-outline",
+};
 
-/** General feed: everything visible to the viewer that isn't in the recommended swipe stack. */
+const ROWS_PER_PAGE = 3;
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Categories an event belongs to: its venue's tags plus its purpose (unless it's the generic "Other"). */
+function categoriesOf(ev: EventView): string[] {
+  const out = new Set<string>((ev.tags ?? []).map((t) => t.toLowerCase()));
+  if (ev.purpose && ev.purpose !== "Other") out.add(ev.purpose.toLowerCase());
+  return [...out];
+}
+
+/**
+ * Discover feed, shown when you swipe up from the recommended stack.
+ * Sections follow the reference: Popular events (pages of rows) and Browse by category.
+ */
 export default function Feed() {
   const { viewerId } = useViewer();
+  const { width } = useWindowDimensions();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
-  const me = useQuery(api.personas.getByPersonaId, { personaId: viewerId });
-  const waiting = data?.recommended.length ?? 0;
+  const [tab, setTab] = useState<Tab>("discover");
+  const [category, setCategory] = useState<string | null>(null);
+  const [viewAll, setViewAll] = useState(false);
+
+  const picks = data?.recommended.length ?? 0;
+  const all = useMemo(() => [...(data?.recommended ?? []), ...(data?.feed ?? [])], [data]);
+
+  const popular = useMemo(() => {
+    const pool = category ? all.filter((e) => categoriesOf(e).includes(category)) : all;
+    return [...pool].sort((a, b) => b.goingCount + b.friendsGoing.length * 2 - (a.goingCount + a.friendsGoing.length * 2));
+  }, [all, category]);
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    all.forEach((e) => categoriesOf(e).forEach((c) => counts.set(c, (counts.get(c) ?? 0) + 1)));
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [all]);
+
+  const pages = useMemo(() => {
+    const out: EventView[][] = [];
+    for (let i = 0; i < popular.length; i += ROWS_PER_PAGE) out.push(popular.slice(i, i + ROWS_PER_PAGE));
+    return out;
+  }, [popular]);
+
+  const pageW = Math.min(width - 56, 460);
+  const open = (ev: EventView) => router.push(`/events/${ev.eventId}`);
+  const backToPicks = () => (router.canGoBack() ? router.back() : router.replace("/events/recommended"));
+
+  const tabEvents = tab === "going" ? all.filter((e) => e.myStatus === "going") : tab === "hosting" ? all.filter((e) => e.relation === "hosting") : [];
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={10}>
-            <Ionicons name="chevron-down" size={26} color={swipe.ink} />
-          </Pressable>
-          <Text style={styles.heading}>Hi {me?.name.split(" ")[0] ?? "there"}</Text>
-          <ViewerSwitcher />
-        </View>
+      <View style={styles.header}>
+        <Pressable onPress={backToPicks} hitSlop={8} accessibilityLabel="Your picks" style={styles.navIcon}>
+          <Ionicons name="sparkles" size={24} color={discover.muted} />
+          {picks > 0 && <View style={styles.dot} />}
+        </Pressable>
+        <Pressable onPress={() => setTab("going")} hitSlop={8} accessibilityLabel="Going" style={styles.navIcon}>
+          <Ionicons name="ticket-outline" size={24} color={tab === "going" ? discover.text : discover.muted} />
+        </Pressable>
+        <Pressable onPress={() => setTab("hosting")} hitSlop={8} accessibilityLabel="Hosting" style={styles.navIcon}>
+          <Ionicons name="calendar-outline" size={24} color={tab === "hosting" ? discover.text : discover.muted} />
+        </Pressable>
+        <Pressable onPress={() => setTab("discover")} hitSlop={8} accessibilityLabel="Discover" style={styles.navIcon}>
+          <Ionicons name={tab === "discover" ? "compass" : "compass-outline"} size={24} color={tab === "discover" ? discover.text : discover.muted} />
+        </Pressable>
+        <Pressable style={styles.create} onPress={() => router.push("/new-event")}>
+          <Text style={styles.createText}>Create Event</Text>
+        </Pressable>
+        <ViewerSwitcher />
+      </View>
 
-        {waiting > 0 && (
-          <Pressable style={styles.banner} onPress={() => router.push("/events/recommended")}>
-            <Ionicons name="sparkles" size={18} color="#fff" />
-            <Text style={styles.bannerText}>{waiting} pick{waiting === 1 ? "" : "s"} for you, by your agent</Text>
-            <Ionicons name="chevron-forward" size={18} color="#fff" />
-          </Pressable>
-        )}
-
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
         {data === undefined ? (
-          <View style={{ gap: 12, marginTop: 20 }}>
-            <Skeleton height={180} />
-            <Skeleton height={180} />
+          <View style={{ padding: 20, gap: 16 }}>
+            {[0, 1, 2].map((i) => <View key={i} style={styles.skeleton} />)}
+          </View>
+        ) : tab !== "discover" ? (
+          <View style={styles.section}>
+            <Text style={styles.h1}>{tab === "going" ? "You're going" : "You're hosting"}</Text>
+            {tabEvents.length === 0 ? (
+              <Text style={styles.empty}>{tab === "going" ? "No plans yet. Say yes to something from your picks." : "You haven't hosted anything yet."}</Text>
+            ) : (
+              tabEvents.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)
+            )}
           </View>
         ) : (
-          SECTIONS.map((s) => {
-            const items = data.feed.filter((e) => s.key.includes(e.relation));
-            if (items.length === 0) return s.empty && s.key.includes("discover") && data.feed.length === 0 ? <Text key={s.title} style={styles.empty}>{s.empty}</Text> : null;
-            return (
-              <View key={s.title}>
-                <Text style={styles.section}>{s.title}</Text>
-                {items.map((e) => <FeedCard key={e.eventId} ev={e} />)}
+          <>
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.h1}>Popular Events</Text>
+                  <Text style={styles.h1Sub}>{category ? `${titleCase(category)}` : "From your circle"}</Text>
+                </View>
+                {category ? (
+                  <Pressable style={styles.viewAll} onPress={() => setCategory(null)}>
+                    <Text style={styles.viewAllText}>Clear</Text>
+                    <Ionicons name="close" size={16} color={discover.text} />
+                  </Pressable>
+                ) : popular.length > ROWS_PER_PAGE ? (
+                  <Pressable style={styles.viewAll} onPress={() => setViewAll((v) => !v)}>
+                    <Text style={styles.viewAllText}>{viewAll ? "Show less" : "View All"}</Text>
+                    <Ionicons name={viewAll ? "chevron-up" : "arrow-forward"} size={16} color={discover.text} />
+                  </Pressable>
+                ) : null}
               </View>
-            );
-          })
+
+              {popular.length === 0 ? (
+                <Text style={styles.empty}>Nothing here yet.</Text>
+              ) : viewAll ? (
+                <View style={{ paddingHorizontal: 20 }}>
+                  {popular.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                </View>
+              ) : (
+                <FlatList
+                  horizontal
+                  data={pages}
+                  keyExtractor={(_, i) => `page-${i}`}
+                  showsHorizontalScrollIndicator={false}
+                  snapToInterval={pageW + 14}
+                  decelerationRate="fast"
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
+                  renderItem={({ item }) => (
+                    <View style={{ width: pageW }}>
+                      {item.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                    </View>
+                  )}
+                />
+              )}
+            </View>
+
+            {categories.length > 0 && (
+              <View style={[styles.section, styles.divided]}>
+                <Text style={[styles.h2, { paddingHorizontal: 20 }]}>Browse by Category</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                  <View style={{ gap: 12 }}>
+                    {[0, 1].map((r) => (
+                      <View key={r} style={{ flexDirection: "row", gap: 10 }}>
+                        {categories.filter((_, i) => i % 2 === r).map(([name, count]) => {
+                          const idx = categories.findIndex(([n]) => n === name);
+                          const color = discover.categoryColors[idx % discover.categoryColors.length];
+                          const active = category === name;
+                          return (
+                            <Pressable key={name} style={[styles.chip, active && { borderColor: color }]} onPress={() => { setCategory(active ? null : name); setViewAll(false); }}>
+                              <Ionicons name={CATEGORY_ICONS[name] ?? "pricetag-outline"} size={26} color={color} />
+                              <View>
+                                <Text style={styles.chipName}>{titleCase(name)}</Text>
+                                <Text style={styles.chipCount}>{count} Event{count === 1 ? "" : "s"}</Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
-
-      <Pressable style={styles.fab} onPress={() => router.push("/new-event")}>
-        <Ionicons name="add" size={22} color="#fff" />
-        <Text style={styles.fabText}>Make an event</Text>
-      </Pressable>
     </View>
   );
 }
 
-function FeedCard({ ev }: { ev: EventView }) {
-  const meta = [ev.slotLabel, ev.venue?.area, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
-  const status = ev.relation === "responded" && ev.myStatus ? STATUS_LABEL[ev.myStatus] : ev.relation === "hosting" ? "Hosting" : null;
+function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
+  const sub = ev.venue?.name ?? (ev.host ? `Hosted by ${ev.host.name}` : "");
   return (
-    <Pressable style={styles.card} onPress={() => router.push(`/events/${ev.eventId}`)}>
-      <View style={styles.cardBanner}>
-        {ev.poster ? <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Ionicons name="image-outline" size={30} color="rgba(255,255,255,0.45)" />}
-        {status && <View style={styles.status}><Text style={styles.statusText}>{status}</Text></View>}
+    <Pressable style={styles.row} onPress={onPress}>
+      <View style={styles.thumb}>
+        {ev.poster ? (
+          <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <Text style={styles.thumbText}>{ev.title.trim().slice(0, 1).toUpperCase()}</Text>
+        )}
       </View>
-      <View style={{ padding: 14 }}>
-        <Text style={styles.meta}>{meta}</Text>
-        <Text style={styles.cardTitle}>{ev.title}</Text>
-        <View style={styles.cardFoot}>
-          {ev.friendsGoing.length > 0 ? <AvatarStack people={ev.friendsGoing} max={3} /> : ev.host ? <Avatar initials={ev.host.initials} color={ev.host.color} size={28} /> : null}
-          <Text style={styles.footText} numberOfLines={1}>
-            {ev.friendsGoing.length > 0 ? `${ev.friendsGoing[0].name.split(" ")[0]}${ev.friendsGoing.length > 1 ? ` +${ev.friendsGoing.length - 1}` : ""} going` : `Hosted by ${ev.host?.name ?? "someone"}`}
-            {ev.spotsLeft !== null ? ` · ${ev.spotsLeft} left` : ""}
+      <View style={{ flex: 1 }}>
+        <Text style={styles.time} numberOfLines={1}>{ev.slotLabel ?? "Date to be confirmed"}</Text>
+        <Text style={styles.title} numberOfLines={2}>{ev.title}</Text>
+        {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
+        {ev.friendsGoing.length > 0 && (
+          <Text style={styles.friends} numberOfLines={1}>
+            {ev.friendsGoing[0].name.split(" ")[0]}{ev.friendsGoing.length > 1 ? ` +${ev.friendsGoing.length - 1}` : ""} going
           </Text>
-        </View>
+        )}
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: swipe.cream },
-  content: { padding: 16, paddingTop: 52, paddingBottom: 120 },
-  header: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heading: { flex: 1, fontSize: 26, fontWeight: "800", color: swipe.ink },
-  banner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: swipe.blue, borderRadius: 16, padding: 14, marginTop: 16 },
-  bannerText: { flex: 1, color: "#fff", fontWeight: "700", fontSize: 15 },
-  section: { fontSize: 12, fontWeight: "800", letterSpacing: 1, color: "#6B6B76", marginTop: 24, marginBottom: 10, textTransform: "uppercase" },
-  empty: { color: "#6B6B76", marginTop: 24 },
-  card: { backgroundColor: "#fff", borderRadius: 22, overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: "#ECE8E0" },
-  cardBanner: { aspectRatio: 2.1, backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
-  status: { position: "absolute", top: 10, left: 10, backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  statusText: { fontWeight: "800", fontSize: 12, color: swipe.ink },
-  meta: { color: "#6B6B76", fontSize: 13 },
-  cardTitle: { color: swipe.ink, fontWeight: "800", fontSize: 19, marginTop: 3 },
-  cardFoot: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
-  footText: { flex: 1, color: "#6B6B76", fontSize: 13 },
-  fab: { position: "absolute", right: 16, bottom: 24, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 14 },
-  fabText: { color: "#fff", fontWeight: "800" },
+  screen: { flex: 1, backgroundColor: discover.bg },
+  header: { flexDirection: "row", alignItems: "center", gap: 18, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 14, backgroundColor: discover.headerTint, borderBottomWidth: 1, borderBottomColor: discover.line },
+  navIcon: { padding: 2 },
+  dot: { position: "absolute", top: 0, right: 0, width: 9, height: 9, borderRadius: 5, backgroundColor: "#EF4444" },
+  create: { marginLeft: "auto" },
+  createText: { color: discover.text, fontWeight: "700", fontSize: 16 },
+  section: { paddingTop: 22 },
+  divided: { marginTop: 26, borderTopWidth: 1, borderTopColor: discover.line },
+  sectionHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 16 },
+  h1: { color: discover.text, fontSize: 26, fontWeight: "800", paddingHorizontal: 0 },
+  h1Sub: { color: discover.muted, fontSize: 24, fontWeight: "600", marginTop: 2 },
+  h2: { color: discover.text, fontSize: 22, fontWeight: "800", marginBottom: 14 },
+  viewAll: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: discover.pill, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  viewAllText: { color: discover.text, fontWeight: "700", fontSize: 15 },
+  empty: { color: discover.muted, paddingHorizontal: 20, fontSize: 15 },
+  skeleton: { height: 96, borderRadius: 14, backgroundColor: discover.card },
+  row: { flexDirection: "row", gap: 16, alignItems: "flex-start", paddingVertical: 12 },
+  thumb: { width: 96, height: 96, borderRadius: 14, overflow: "hidden", backgroundColor: discover.card, alignItems: "center", justifyContent: "center" },
+  thumbText: { color: discover.muted, fontSize: 34, fontWeight: "800" },
+  time: { color: discover.muted, fontSize: 15, flexShrink: 1 },
+  title: { color: discover.text, fontSize: 18, fontWeight: "700", lineHeight: 23, marginTop: 4 },
+  sub: { color: discover.muted, fontSize: 15, marginTop: 4 },
+  friends: { color: discover.muted, fontSize: 13, marginTop: 3 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: discover.card, borderRadius: 16, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 18, paddingVertical: 16 },
+  chipName: { color: discover.text, fontSize: 18, fontWeight: "700" },
+  chipCount: { color: discover.muted, fontSize: 15, marginTop: 2 },
 });
