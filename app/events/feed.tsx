@@ -6,7 +6,6 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { ViewerSwitcher } from "@/components/ViewerSwitcher";
-import { Avatar } from "@/components/ui";
 import type { EventView } from "@/components/events/SwipeCard";
 import { discover } from "@/theme/swipeTheme";
 
@@ -38,19 +37,9 @@ function categoriesOf(ev: EventView): string[] {
   return [...out];
 }
 
-/** Right-hand badge on a row, in place of the reference's LIVE marker: where *you* stand with it. */
-function badgeOf(ev: EventView): string | null {
-  if (ev.relation === "hosting") return "HOSTING";
-  if (ev.myStatus === "going") return "GOING";
-  if (ev.myStatus === "maybe") return "MAYBE";
-  if (ev.myStatus === "cant") return "CAN'T GO";
-  if (ev.relation === "invited") return "INVITED";
-  return null;
-}
-
 /**
  * Discover feed, shown when you swipe up from the recommended stack.
- * Sections follow the reference: Popular events (pages of rows), Browse by category, and hosts.
+ * Sections follow the reference: Popular events (pages of rows) and Browse by category.
  */
 export default function Feed() {
   const { viewerId } = useViewer();
@@ -72,17 +61,6 @@ export default function Feed() {
     const counts = new Map<string, number>();
     all.forEach((e) => categoriesOf(e).forEach((c) => counts.set(c, (counts.get(c) ?? 0) + 1)));
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [all]);
-
-  const hosts = useMemo(() => {
-    const byHost = new Map<string, { host: NonNullable<EventView["host"]>; job: string | null; area: string | null; count: number }>();
-    all.forEach((e) => {
-      if (!e.host) return;
-      const cur = byHost.get(e.host.id);
-      if (cur) cur.count += 1;
-      else byHost.set(e.host.id, { host: e.host, job: e.hostJob ?? null, area: e.venue?.area ?? null, count: 1 });
-    });
-    return [...byHost.values()].sort((a, b) => b.count - a.count);
   }, [all]);
 
   const pages = useMemo(() => {
@@ -181,8 +159,8 @@ export default function Feed() {
             {categories.length > 0 && (
               <View style={[styles.section, styles.divided]}>
                 <Text style={[styles.h2, { paddingHorizontal: 20 }]}>Browse by Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-                  <View style={{ gap: 10 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                  <View style={{ gap: 12 }}>
                     {[0, 1].map((r) => (
                       <View key={r} style={{ flexDirection: "row", gap: 10 }}>
                         {categories.filter((_, i) => i % 2 === r).map(([name, count]) => {
@@ -205,26 +183,6 @@ export default function Feed() {
                 </ScrollView>
               </View>
             )}
-
-            {hosts.length > 0 && (
-              <View style={[styles.section, styles.divided]}>
-                <Text style={[styles.h2, { paddingHorizontal: 20 }]}>Hosts in your circle</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}>
-                  {hosts.map(({ host, job, area, count }) => (
-                    <View key={host.id} style={styles.hostCard}>
-                      <Avatar initials={host.initials} color={host.color} size={48} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.hostName} numberOfLines={1}>{host.name}</Text>
-                        <Text style={styles.hostMeta} numberOfLines={1}>
-                          {area ? `${area} · ` : ""}{count} event{count === 1 ? "" : "s"}
-                        </Text>
-                        {job ? <Text style={styles.hostMeta} numberOfLines={1}>{job}</Text> : null}
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
           </>
         )}
       </ScrollView>
@@ -233,7 +191,6 @@ export default function Feed() {
 }
 
 function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
-  const badge = badgeOf(ev);
   const sub = ev.venue?.name ?? (ev.host ? `Hosted by ${ev.host.name}` : "");
   return (
     <Pressable style={styles.row} onPress={onPress}>
@@ -245,10 +202,7 @@ function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={styles.time} numberOfLines={1}>{ev.slotLabel ?? "Date to be confirmed"}</Text>
-          {badge && <Text style={styles.badge}>{badge}</Text>}
-        </View>
+        <Text style={styles.time} numberOfLines={1}>{ev.slotLabel ?? "Date to be confirmed"}</Text>
         <Text style={styles.title} numberOfLines={2}>{ev.title}</Text>
         {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
         {ev.friendsGoing.length > 0 && (
@@ -282,14 +236,10 @@ const styles = StyleSheet.create({
   thumb: { width: 96, height: 96, borderRadius: 14, overflow: "hidden", backgroundColor: discover.card, alignItems: "center", justifyContent: "center" },
   thumbText: { color: discover.muted, fontSize: 34, fontWeight: "800" },
   time: { color: discover.muted, fontSize: 15, flexShrink: 1 },
-  badge: { color: discover.badge, fontWeight: "800", fontSize: 13, marginLeft: "auto" },
   title: { color: discover.text, fontSize: 18, fontWeight: "700", lineHeight: 23, marginTop: 4 },
   sub: { color: discover.muted, fontSize: 15, marginTop: 4 },
   friends: { color: discover.muted, fontSize: 13, marginTop: 3 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: discover.card, borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 16, paddingVertical: 14, minWidth: 150 },
-  chipName: { color: discover.text, fontSize: 17, fontWeight: "700" },
-  chipCount: { color: discover.muted, fontSize: 14, marginTop: 2 },
-  hostCard: { flexDirection: "row", alignItems: "center", gap: 14, width: 250, paddingVertical: 4 },
-  hostName: { color: discover.text, fontSize: 17, fontWeight: "700" },
-  hostMeta: { color: discover.muted, fontSize: 14, marginTop: 2 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: discover.card, borderRadius: 16, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 18, paddingVertical: 16 },
+  chipName: { color: discover.text, fontSize: 18, fontWeight: "700" },
+  chipCount: { color: discover.muted, fontSize: 15, marginTop: 2 },
 });

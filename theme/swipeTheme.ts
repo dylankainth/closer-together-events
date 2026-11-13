@@ -12,17 +12,16 @@ export const swipe = {
   cream: "#F6F3EE",
 };
 
-// Dark palette for the Discover feed (app/events/feed.tsx). Swap these to re-skin the whole screen.
+// Palette for the Discover feed (app/events/feed.tsx): the original cream look. Swap these to re-skin the screen.
 export const discover = {
-  bg: "#161618",
-  headerTint: "#2A1F3D",
-  card: "#222226",
-  line: "#2E2E34",
-  text: "#FFFFFF",
-  muted: "#9A9AA4",
-  badge: "#E8793B", // status badge on a row (Hosting / Going / Invited)
-  pill: "#2B2B30",
-  categoryColors: ["#A855F7", "#D69E2E", "#F5A524", "#E0B000", "#4F7CFF", "#EC5FA0", "#2DD4BF", "#F97316"],
+  bg: "#F6F3EE",
+  headerTint: "#F6F3EE",
+  card: "#FFFFFF",
+  line: "#E5E1DA",
+  text: "#14141C",
+  muted: "#6B6B76",
+  pill: "#ECE8E0",
+  categoryColors: ["#A855F7", "#D69E2E", "#E08A00", "#C79A00", "#4F7CFF", "#EC5FA0", "#14B8A6", "#F97316"],
 };
 
 /** "Sat 21 Nov, 7pm" -> { month: "NOV", day: "21", weekday: "Sat", time: "7pm" } (null if it doesn't parse). */
