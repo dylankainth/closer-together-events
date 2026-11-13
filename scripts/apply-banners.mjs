@@ -6,10 +6,13 @@
 //
 //   node scripts/apply-banners.mjs --local    # no network: just list the banners that would be sent
 //   node scripts/apply-banners.mjs            # dry run on the deployment: counts events, writes nothing
-//   node scripts/apply-banners.mjs --apply    # really replaces every event's poster
+//   node scripts/apply-banners.mjs --apply    # really replaces the posters
+//   add --replace-muse to ALSO replace posters that are Muse Image generations (by default those are kept)
 //
-// Each event gets one banner chosen independently at random. Re-running re-rolls them. The banners are
-// stored as data URIs inside the event, the same way Muse Image posters are, so the app never reads these files.
+// Each event gets one banner chosen independently at random. Re-running re-rolls them. Events whose poster is a
+// Muse Image are left alone unless --replace-muse is given: a Muse-generated poster is part of the demo that Muse
+// powers the core AI. The banners are stored as data URIs inside the event, the same way Muse Image posters are,
+// so the app never reads these files.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +23,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const flags = new Set(process.argv.slice(2));
 const apply = flags.has("--apply");
 const localOnly = flags.has("--local");
+const replaceMuse = flags.has("--replace-muse");
 
 function env(name) {
   if (process.env[name]) return process.env[name];
@@ -57,8 +61,9 @@ const client = new ConvexHttpClient(url);
 client.setAdminAuth(key);
 console.log(`\n${apply ? "APPLYING to" : "Dry run on"} ${new URL(url).host} ...`);
 try {
-  const r = await client.action(anyApi.banners.assignRandom, { banners, dryRun: !apply });
+  const r = await client.action(anyApi.banners.assignRandom, { banners, dryRun: !apply, replaceMuse });
   console.log(`${r.dryRun ? "would update" : "updated"} ${r.updated} of ${r.events} events`);
+  if (r.keptMuse !== undefined) console.log(`${r.keptMuse} kept as they are (their poster is a Muse Image)${replaceMuse ? "" : "; add --replace-muse to replace those too"}`);
   console.log("banner index -> events:", JSON.stringify(r.picks));
   if (r.failed.length) {
     console.log(`${r.failed.length} could not be written:`);
