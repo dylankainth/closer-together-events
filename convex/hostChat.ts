@@ -5,8 +5,17 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { museJSON } from "./muse";
+import { editPoster } from "./plan";
 import { CONFIG } from "./museConfig";
 import { requireHost } from "./authz";
+import type { Slot, Venue } from "./types";
+
+// Catches "change the poster colour/look/style" even when the live call is offline and the model
+// never got a chance to propose editPoster itself — e.g. "I don't like the colour on the cover
+// art, can you fix it" never reaches the model if museJSON falls back, so without this the host's
+// request silently does nothing (the generic offline reply doesn't act on anything).
+const POSTER_WORDS = /\b(poster|cover art|invite (?:image|art|picture))\b/i;
+const LOOK_WORDS = /\b(colou?r|look|style|design|vibe|palette|blue|pink|purple|violet|green|red|orange|gold|dark|moody|black|warm)\b/i;
 
 /**
  * The host's ongoing chat with their Muse about getting the event done (checklist page > chat).
@@ -51,6 +60,7 @@ export const reply = action({
           message: z.string().max(300).optional(),
         })
         .optional(),
+      editPoster: z.object({ instruction: z.string().max(200) }).optional(),
     });
     type ReplyResult = z.infer<typeof ReplySchema>;
 
@@ -66,7 +76,9 @@ export const reply = action({
         "If the host asks you to get, order or arrange something (e.g. \"order pizza\") that isn't already in existingDrafts, " +
         "set proposeOrder to {vendor, item, draft} — vendor is a short name, item is what's being ordered, draft is the one-line " +
         "enquiry text (always use the key \"draft\" for that field). Tell them you've added it to their checklist for approval. " +
-        "If it's already in existingDrafts, say so instead of proposing it again.",
+        "If it's already in existingDrafts, say so instead of proposing it again. " +
+        "If the host wants the poster/cover art's look changed (colour, style, mood), set editPoster to {instruction} " +
+        "describing the change in a few words, and tell them you've updated it.",
       user: {
         message,
         recent: args.history.slice(-8).map((m) => ({ from: m.from, text: m.text.slice(0, 400) })),
@@ -84,6 +96,24 @@ export const reply = action({
     if (proposal && draftText && !duplicate) {
       await ctx.runMutation(internal.events.proposeDraft, { eventId: args.eventId, vendor: proposal.vendor, item: proposal.item, draft: draftText });
     }
+
+    // The model's own editPoster call only fires on a live response — if museJSON fell back
+    // offline, the request never reached the model at all, so catch an obvious poster/colour
+    // request here too rather than let it silently do nothing.
+    const offlineLooksLikePosterEdit = r.source === "offline" && POSTER_WORDS.test(message) && LOOK_WORDS.test(message);
+    const posterInstruction = r.data.editPoster?.instruction ?? (offlineLooksLikePosterEdit ? message : null);
+    if (posterInstruction) {
+      const slots: Slot[] = (await ctx.runQuery(internal.slots.list, {})) as any;
+      const venues: Venue[] = (await ctx.runQuery(internal.venues.list, {})) as any;
+      const slot = slots.find((s) => s.id === event.slotId);
+      const venue = venues.find((v2) => v2.id === event.venueId);
+      if (slot && venue) {
+        const poster = await editPoster(event.title, slot, venue, event.answers?.vibe ?? "Lively", posterInstruction, budget);
+        await ctx.runMutation(internal.events.setPoster, { eventId: args.eventId, poster });
+        if (offlineLooksLikePosterEdit) return { reply: "Done — updated the poster's look." };
+      }
+    }
+
     return { reply: r.data.reply };
   },
 });

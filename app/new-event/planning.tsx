@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated, Easing, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,7 @@ import { agent } from "@/theme/swipeTheme";
 import { Mascot, type MascotHandle } from "@/components/Mascot";
 
 type Msg = { from: "me" | "agent"; text: string; note?: string };
-type Step = { key: string; label: string; detail: string; state: "done" | "active" | "todo" | "blocked" };
+type Step = { key: string; label: string; detail: string; explain: string; state: "done" | "active" | "todo" | "blocked" };
 type PendingQuestion = { field?: string; options?: string[]; defaultOption?: string; inputType?: "chips" | "text" };
 
 // Two pages side by side: 0 = the checklist, 1 = the chat with the Muse agent. Sending a message slides
@@ -65,11 +65,22 @@ export default function Planning() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [explainStep, setExplainStep] = useState<Step | null>(null);
   // RN 0.88's ScrollView ref type doesn't fit the usual useRef<ScrollView> pattern; only scrollToEnd is called.
   const scroller = useRef<any>(null);
   const mascot = useRef<MascotHandle>(null);
   // The mascot's eyes follow wherever the screen is touched.
   const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
+
+  // The first time the checklist page comes into view, its rows tick in one after another instead
+  // of all appearing at once — makes it feel like you're watching the agent work rather than just
+  // reading a static list. Later visits (swiping back and forth) show everything already settled.
+  const checklistIntroPlayed = useRef(false);
+  const rowAnimRef = useRef<Record<string, Animated.Value>>({});
+  const getRowAnim = useCallback((key: string) => {
+    if (!rowAnimRef.current[key]) rowAnimRef.current[key] = new Animated.Value(checklistIntroPlayed.current ? 1 : 0);
+    return rowAnimRef.current[key];
+  }, []);
 
   useEffect(() => {
     if (draft || onboardingComplete) return;
@@ -110,6 +121,15 @@ export default function Planning() {
   useEffect(() => {
     scroller.current?.scrollToEnd({ animated: true });
   }, [messages.length, thinking, pendingQuestion]);
+
+  useEffect(() => {
+    if (pageIdx !== 0 || !checklist || checklistIntroPlayed.current) return;
+    checklistIntroPlayed.current = true;
+    Animated.stagger(
+      90,
+      checklist.items.map((s) => Animated.timing(getRowAnim(s.key), { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
+    ).start();
+  }, [pageIdx, checklist, getRowAnim]);
 
   const completeOnboarding = async (sid: string) => {
     const mapped = await finishQuestionSession({ sessionId: sid });
@@ -197,7 +217,7 @@ export default function Planning() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       onTouchStart={lookAtTouch}
       onTouchMove={lookAtTouch}
     >
@@ -241,7 +261,7 @@ export default function Planning() {
                 <Text style={styles.eventName}>{checklist.title}</Text>
                 <Text style={styles.title}>I'm on it</Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
-                  {checklist.items.map((s) => <StepRow key={s.key} s={s} />)}
+                  {checklist.items.map((s) => <StepRow key={s.key} s={s} anim={getRowAnim(s.key)} onPress={() => setExplainStep(s)} />)}
                 </View>
               </View>
 
@@ -342,31 +362,55 @@ export default function Planning() {
           <Text style={styles.skipText}>Skip the rest, use my judgement →</Text>
         </Pressable>
       )}
+
+      <Modal visible={!!explainStep} transparent animationType="fade" onRequestClose={() => setExplainStep(null)}>
+        <Pressable style={styles.explainBackdrop} onPress={() => setExplainStep(null)}>
+          <Pressable style={styles.explainCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.explainTitle}>{explainStep?.label}</Text>
+            <Text style={styles.explainBody}>{explainStep?.explain}</Text>
+            <Pressable style={styles.explainClose} onPress={() => setExplainStep(null)}>
+              <Text style={styles.explainCloseText}>Got it</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-function StepRow({ s }: { s: Step }) {
+function StepRow({ s, anim, onPress }: { s: Step; anim: Animated.Value; onPress: () => void }) {
   const todo = s.state === "todo";
   return (
-    <View style={styles.step}>
-      <View
-        style={[
-          styles.circle,
-          s.state === "done" && styles.circleDone,
-          s.state === "active" && styles.circleActive,
-          s.state === "blocked" && styles.circleBlocked,
-          todo && styles.circleTodo,
-        ]}
-      >
-        {s.state === "done" && <Ionicons name="checkmark" size={16} color="#fff" />}
-        {s.state === "blocked" && <Text style={styles.bang}>!</Text>}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.stepLabel, todo && { color: agent.dim }]}>{s.label}</Text>
-        {!todo && <Text style={[styles.stepDetail, s.state === "blocked" && { color: agent.warn }]}>{s.detail}</Text>}
-      </View>
-    </View>
+    <Animated.View
+      style={[
+        styles.step,
+        { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] },
+      ]}
+    >
+      <Pressable style={styles.stepPress} onPress={onPress} hitSlop={6}>
+        <View
+          style={[
+            styles.circle,
+            s.state === "done" && styles.circleDone,
+            s.state === "active" && styles.circleActive,
+            s.state === "blocked" && styles.circleBlocked,
+            todo && styles.circleTodo,
+          ]}
+        >
+          {s.state === "done" && (
+            // Pops in during the back half of the row's own reveal, so the tick lands right as the row settles.
+            <Animated.View style={{ transform: [{ scale: anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0, 1] }) }] }}>
+              <Ionicons name="checkmark" size={16} color="#fff" />
+            </Animated.View>
+          )}
+          {s.state === "blocked" && <Text style={styles.bang}>!</Text>}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.stepLabel, todo && { color: agent.dim }]}>{s.label}</Text>
+          {!todo && <Text style={[styles.stepDetail, s.state === "blocked" && { color: agent.warn }]}>{s.detail}</Text>}
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -386,7 +430,8 @@ const styles = StyleSheet.create({
   // The event's name, centred and big; "I'm on it" sits under it.
   eventName: { color: agent.text, fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -0.5, textAlign: "center" },
   title: { color: agent.text, fontSize: 20, lineHeight: 26, fontWeight: "700", textAlign: "center", marginTop: 6 },
-  step: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  step: {},
+  stepPress: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   circle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 1 },
   circleDone: { backgroundColor: agent.blue },
   circleActive: { borderWidth: 2.5, borderColor: agent.ring },
@@ -425,4 +470,10 @@ const styles = StyleSheet.create({
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: agent.blue, alignItems: "center", justifyContent: "center" },
   skipRow: { alignItems: "center", paddingBottom: 22 },
   skipText: { color: agent.link, fontWeight: "600", fontSize: 13 },
+  explainBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  explainCard: { backgroundColor: agent.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, gap: 14 },
+  explainTitle: { color: agent.text, fontSize: 20, fontWeight: "800" },
+  explainBody: { color: agent.muted, fontSize: 15, lineHeight: 22 },
+  explainClose: { alignSelf: "flex-start", marginTop: 4 },
+  explainCloseText: { color: agent.link, fontWeight: "700", fontSize: 15 },
 });
