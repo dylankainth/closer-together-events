@@ -11,6 +11,7 @@
 import { internal } from "./_generated/api";
 import { parseAudience, retrieve, rerank } from "./funnel";
 import { pickDate, venueOptions, titleFor, vendorDrafts, makePoster } from "./plan";
+import { applyPins } from "./shortlistPolicy";
 import { CONFIG } from "./museConfig";
 import type { CallBudget, Persona } from "./types";
 
@@ -86,10 +87,17 @@ const rank_guests: Tool = {
     const host = personas.find((p) => p.id === event.hostId)!;
     const pool = retrieve(event.query, personas, event.settings, host.id);
     const reranked = await rerank(pool, event.query, event.slotId, event.settings, personas, budget);
-    const picked = reranked.data.filter((s) => s.selected).length;
+    // Pins outrank rank: a host who picked "my 10 best friends" before this rerank ran must still
+    // see them selected afterwards, even though rerank() just rebuilt selected purely by rank.
+    const quota = event.settings?.quota ?? CONFIG.displaySize;
+    const pinnedIds: string[] = event.pinnedGuestIds ?? [];
+    const shortlist = applyPins(reranked.data, pinnedIds, quota);
+    const picked = shortlist.filter((s) => s.selected).length;
+    const pinnedPresent = shortlist.filter((s) => pinnedIds.includes(s.personaId)).length;
+    const pinNote = pinnedPresent ? ` ${pinnedPresent} pinned guest${pinnedPresent === 1 ? "" : "s"} kept regardless of rank.` : "";
     return {
-      summary: `Ranked ${reranked.data.length} candidates — ${picked} selected to invite.`,
-      patch: { shortlist: reranked.data },
+      summary: `Ranked ${shortlist.length} candidates — ${picked} selected to invite.${pinNote}`,
+      patch: { shortlist },
     };
   },
 };

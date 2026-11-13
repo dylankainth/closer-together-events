@@ -137,6 +137,12 @@ export default function Manage() {
                   here together so the host can see and change what they agreed to at plan time. */}
               <SpreadControl key={`spread-${eventId}`} eventId={eventId} canEdit={canEditHostSettings}
                 hostName={byId.get(event.hostId)?.name} enabled={event.allowSpread ?? false} />
+              {/* Only before sending: the pinned shortlist drives who actually gets invited, and once
+                  sendEvent has gone out, re-picking it here wouldn't reach or un-invite anyone —
+                  this button would just lie about what it does. */}
+              {event.status !== "sent" && (
+                <Tile icon="people-outline" label="Edit who's invited" onPress={() => router.push(`/events/${eventId}/pick-guests`)} />
+              )}
             </>}
             <Guests guests={guests} byId={byId} going={going} capacity={capacity} eventId={eventId} />
           </>

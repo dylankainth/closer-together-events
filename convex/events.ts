@@ -4,6 +4,8 @@ import { internal } from "./_generated/api";
 import { allowedAs, requireActor, requireHost } from "./authz";
 import { spreadFromAcceptance } from "./spread";
 import { scheduleHuddle } from "./huddleRuntime";
+import { applyPins } from "./shortlistPolicy";
+import { CONFIG } from "./museConfig";
 
 function publicEvent(e: any) {
   const { _id, _creationTime, ...rest } = e;
@@ -103,6 +105,28 @@ export const updateSettings = mutation({
     // (settings land via its own tool call, not necessarily at creation) — fall back to a default
     // shape so the spread below always produces a complete EventSettings, not a partial one.
     await ctx.db.patch(e!._id, { settings: { ...(e!.settings ?? DEFAULT_SETTINGS), ...cleanSettingsPatch(args.settings) } });
+  },
+});
+
+/** Host pins a fixed set of guests ("my 10 best friends") that a later rank_guests re-run must
+ * not clobber (convex/shortlistPolicy.ts). Re-applies pins to the CURRENT shortlist immediately,
+ * rather than waiting for the next rerank, so the host sees the effect of their tap right away —
+ * mirrors why updateSettings patches in place instead of only writing to agent-loop state. */
+export const setPinnedGuests = mutation({
+  args: { eventId: v.string(), personaIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    await requireHost(ctx, e, "write", "events.setPinnedGuests");
+    // Nothing to reconcile against before a shortlist exists — the pins would have no effect and
+    // rank_guests reads pinnedGuestIds fresh off the event doc once it does run.
+    if (!e!.shortlist) return;
+    const shortlistIds = new Set((e!.shortlist as any[]).map((s) => s.personaId));
+    // Cap and de-dupe: a pin only means anything if it names someone actually on the shortlist,
+    // and an unbounded array from the client is otherwise free storage for an attacker.
+    const pinnedGuestIds = [...new Set(args.personaIds)].filter((id) => shortlistIds.has(id)).slice(0, 100);
+    const quota = e!.settings?.quota ?? CONFIG.displaySize;
+    const shortlist = applyPins(e!.shortlist as any[], pinnedGuestIds, quota);
+    await ctx.db.patch(e!._id, { pinnedGuestIds, shortlist });
   },
 });
 
