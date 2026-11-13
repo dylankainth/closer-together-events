@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
@@ -27,6 +27,32 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const syncMuse = useAction(api.museSync.syncMuseContext);
   const setApproved = useMutation(api.musePersonas.setApproved);
   const [syncing, setSyncing] = useState(false);
+
+  // "Muse and events" section — the per-event Muse permissions, never-share list and event-safe
+  // profile from claude.md §16/§5.3. getUserSettings is owner-only server-side and returns null for
+  // anyone else, so skip it entirely when this session cannot act as the viewed persona.
+  const userSettings = useQuery(api.settings.getUserSettings, canActAsViewer ? { personaId: viewerId } : "skip");
+  const eventSafeProfile = useQuery(api.personas.eventSafeProfile, canActAsViewer ? { personaId: viewerId } : "skip");
+  const updateUserSettings = useMutation(api.settings.updateUserSettings);
+  const updateNeverShare = useMutation(api.settings.updateNeverShare);
+  const approveProfile = useMutation(api.settings.approveProfile);
+  const [newNeverShareTopic, setNewNeverShareTopic] = useState("");
+
+  const addNeverShareTopic = () => {
+    const topic = newNeverShareTopic.trim();
+    if (!topic || !userSettings) return;
+    if (userSettings.neverShare.some((t: string) => t.toLowerCase() === topic.toLowerCase())) {
+      setNewNeverShareTopic("");
+      return;
+    }
+    updateNeverShare({ personaId: viewerId, topics: [...userSettings.neverShare, topic] });
+    setNewNeverShareTopic("");
+  };
+
+  const removeNeverShareTopic = (topic: string) => {
+    if (!userSettings) return;
+    updateNeverShare({ personaId: viewerId, topics: userSettings.neverShare.filter((t: string) => t !== topic) });
+  };
 
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,6 +95,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.meRow}>
           {viewingSelf && profile?.pictureUrl ? (
             <Image source={{ uri: profile.pictureUrl }} style={styles.mePhoto} />
@@ -136,22 +163,108 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
         ) : null}
 
         <View style={styles.divider} />
+        <Text style={styles.sectionTitle}>Muse and events</Text>
+        {!canActAsViewer ? (
+          <Text style={styles.meSub}>
+            Sign in as {me?.name ?? "this persona"} to see and control what their Muse shares for events.
+          </Text>
+        ) : userSettings === undefined ? (
+          <ActivityIndicator color={colors.museAccent} />
+        ) : userSettings === null ? (
+          <Text style={styles.meSub}>Muse settings aren't available for this persona yet.</Text>
+        ) : (
+          <View style={styles.museBox}>
+            <View style={styles.museApproveRow}>
+              <Text style={styles.rowName}>Let your Muse talk to friends' Muses about events</Text>
+              <Switch
+                value={userSettings.settings.talkToMuses}
+                onValueChange={(v) => updateUserSettings({ personaId: viewerId, settings: { talkToMuses: v } })}
+              />
+            </View>
+            <View style={styles.museApproveRow}>
+              <Text style={styles.rowName}>Nudge me about events worth going to</Text>
+              <Switch
+                value={userSettings.settings.nudgesOn}
+                onValueChange={(v) => updateUserSettings({ personaId: viewerId, settings: { nudgesOn: v } })}
+              />
+            </View>
+
+            <Text style={styles.subLabel}>Always ask before</Text>
+            <View style={styles.lockedRow}>
+              <Text style={styles.rowName}>RSVP for me</Text>
+              <Text style={styles.lockedTag}>Always on</Text>
+            </View>
+            <View style={styles.lockedRow}>
+              <Text style={styles.rowName}>Share my location</Text>
+              <Text style={styles.lockedTag}>Always on</Text>
+            </View>
+            <Text style={styles.museLine}>Committing anything always asks you first. That can't be turned off.</Text>
+
+            <Text style={styles.subLabel}>Never share</Text>
+            <View style={styles.chipRow}>
+              {userSettings.neverShare.length === 0 ? (
+                <Text style={styles.museLine}>Nothing added yet.</Text>
+              ) : (
+                userSettings.neverShare.map((topic: string) => (
+                  <Pressable key={topic} style={styles.chip} onPress={() => removeNeverShareTopic(topic)}>
+                    <Text style={styles.chipText}>{topic} ✕</Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+            <View style={styles.addTopicRow}>
+              <TextInput
+                placeholder="Add a topic Muse should never share"
+                value={newNeverShareTopic}
+                onChangeText={setNewNeverShareTopic}
+                onSubmitEditing={addNeverShareTopic}
+                style={[styles.search, { flex: 1, marginBottom: 0 }]}
+                placeholderTextColor={colors.textMuted}
+              />
+              <Pressable style={styles.addTopicBtn} onPress={addNeverShareTopic}>
+                <Text style={styles.addTopicBtnText}>Add</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.subLabel}>What Muse knows about you for events</Text>
+            {eventSafeProfile === undefined ? (
+              <ActivityIndicator color={colors.museAccent} />
+            ) : eventSafeProfile === null ? (
+              <Text style={styles.museLine}>No summary yet.</Text>
+            ) : (
+              <>
+                <Text style={styles.museLine}>Interests: {eventSafeProfile.interests.join(", ") || "—"}</Text>
+                <Text style={styles.museLine}>Social style: {eventSafeProfile.socialStyle || "—"}</Text>
+                <Text style={styles.museLine}>
+                  Availability: {eventSafeProfile.availability.length} slot{eventSafeProfile.availability.length === 1 ? "" : "s"}
+                </Text>
+                {userSettings.settings.profileApproved ? (
+                  <Text style={styles.museStatus}>Approved — Muse can use this summary for events</Text>
+                ) : (
+                  <Pressable style={styles.secondaryBtn} onPress={() => approveProfile({ personaId: viewerId })}>
+                    <Text style={styles.secondaryBtnTextNeutral}>Approve this summary</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Switch demo user</Text>
         <TextInput placeholder="Search" value={search} onChangeText={setSearch} style={styles.search} placeholderTextColor={colors.textMuted} />
-        <FlatList
-          data={filtered}
-          keyExtractor={(p) => p.id}
-          style={{ maxHeight: 320 }}
-          renderItem={({ item }) => (
-            <Pressable style={styles.row} onPress={() => { setViewerId(item.id); onClose(); }}>
+        <View>
+          {filtered.map((item) => (
+            <Pressable key={item.id} style={styles.row} onPress={() => { setViewerId(item.id); onClose(); }}>
               <Avatar initials={item.initials} color={item.color} size={36} />
               <View style={{ marginLeft: spacing.md }}>
                 <Text style={styles.rowName}>{item.name}</Text>
                 <Text style={styles.rowSub}>{item.job}</Text>
               </View>
             </Pressable>
-          )}
-        />
+          ))}
+        </View>
+      </ScrollView>
       </View>
     </Modal>
   );
@@ -177,6 +290,15 @@ const styles = StyleSheet.create({
   museLine: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
   museApproveRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
   resyncText: { color: colors.museAccent, fontWeight: "600", fontSize: 13, marginTop: spacing.sm },
+  subLabel: { fontWeight: "700", color: colors.text, fontSize: 13, marginTop: spacing.md, marginBottom: spacing.xs },
+  lockedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  lockedTag: { color: colors.textMuted, fontWeight: "700", fontSize: 12 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  chip: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4, marginRight: spacing.xs, marginBottom: spacing.xs },
+  chipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  addTopicRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.sm, gap: spacing.sm },
+  addTopicBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  addTopicBtnText: { color: colors.text, fontWeight: "700", fontSize: 13 },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
   sectionTitle: { fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
   search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md, color: colors.text },
