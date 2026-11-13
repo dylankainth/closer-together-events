@@ -1,4 +1,5 @@
 import React from "react";
+import { EventBanner } from "@/components/events/EventBanner";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "convex/react";
@@ -15,11 +16,7 @@ export default function Flyer() {
 
   return (
     <ScrollView style={styles.screen}>
-      {event.poster?.url ? (
-        <Image source={{ uri: event.poster.url }} style={styles.poster} resizeMode="cover" />
-      ) : (
-        <View style={[styles.poster, { backgroundColor: colors.museTint }]} />
-      )}
+      <EventBanner eventId={event.eventId} posterUrl={event.poster?.url} style={styles.poster} />
       <View style={{ padding: spacing.lg }}>
         <Text style={styles.title}>{event.title}</Text>
         <Text style={styles.sub}>{event.slotId} {event.venueId ? `· ${event.venueId}` : ""}</Text>

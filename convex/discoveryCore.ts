@@ -24,6 +24,8 @@ export interface DiscoveredInput {
   price: "free" | "paid" | "unknown";
   isOnline: boolean;
   isCancelled: boolean;
+  /** The source gave a date but no time; startsAt is noon that day in Los Angeles. */
+  allDay?: boolean;
 }
 
 export type Keyed = DiscoveredInput & { key: string };
@@ -115,15 +117,18 @@ function isEmpty(v: unknown): boolean {
   return v === null || v === undefined || v === "";
 }
 
-/** One row per event. A Facebook record wins; empty fields are filled from the other sources. */
+/** One row per event (exact key, or the same event worded differently: see sameEvent). A Facebook
+ * record wins; empty fields are filled from the other sources. */
 export function mergeDuplicates(items: DiscoveredInput[]): Keyed[] {
-  const groups = new Map<string, DiscoveredInput[]>();
+  const groups: DiscoveredInput[][] = [];
   for (const it of items) {
-    const k = eventKey(it);
-    groups.set(k, [...(groups.get(k) ?? []), it]);
+    const group = groups.find((g) => sameEvent(g[0], it));
+    if (group) group.push(it);
+    else groups.push([it]);
   }
-  return [...groups.entries()].map(([key, group]) => {
+  return groups.map((group) => {
     const primary = group.find((g) => g.source === "facebook") ?? group[0];
+    const key = eventKey(primary);
     const merged: Record<string, unknown> = { ...primary };
     for (const other of group) {
       for (const [field, value] of Object.entries(other)) {
@@ -188,9 +193,10 @@ const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const ORG_COLORS = ["#1877F2", "#E4405F", "#2E7D32", "#F57C00", "#6A1B9A", "#00838F"];
 
-/** "Sat 14 Nov · 7:30 PM" in Los Angeles time. */
-export function formatWhen(ms: number): string {
+/** "Sat 14 Nov · 7:30 PM" in Los Angeles time ("Sat 14 Nov · All day" when the source had no time). */
+export function formatWhen(ms: number, allDay: boolean = false): string {
   const d = toLA(ms);
+  if (allDay) return `${SHORT_DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${SHORT_MONTHS[d.getUTCMonth()]} · All day`;
   const h = d.getUTCHours();
   const m = String(d.getUTCMinutes()).padStart(2, "0");
   const h12 = h % 12 === 0 ? 12 : h % 12;
@@ -253,7 +259,7 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     friendsGoing: friendsGoing.slice(0, 3),
     chips: [] as { kind: "people" | "goal" | "fit" | "plan"; text: string }[],
     createdAt: e.startsAt,
-    whenLabel: formatWhen(e.startsAt) as string | null,
+    whenLabel: formatWhen(e.startsAt, e.allDay === true) as string | null,
     placeLabel: placeOf(e),
     // For the in-app event page; links to the source site are removed (picks read as Facebook events).
     description: cleanText(e.description).slice(0, DESCRIPTION_CHARS),
@@ -275,9 +281,11 @@ function scoreCandidate(profile: RankProfile, c: Keyed, now: number): PickDraft 
   const wanted = terms(profile);
   const pastCats = profile.pastEvents.filter((p) => p.category).map((p) => ({ cat: p.category!.toLowerCase(), title: p.title }));
   const hay = `${c.title} ${c.category ?? ""} ${c.description}`.toLowerCase();
-  const hit = wanted.find((t) => hay.includes(t));
+  // Whole words only: "art" must not match "party".
+  const has = (t: string) => new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(hay);
+  const hit = wanted.find(has);
   const past = c.category ? pastCats.find((p) => p.cat === c.category!.toLowerCase()) : undefined;
-  const matches = wanted.filter((t) => hay.includes(t)).length;
+  const matches = wanted.filter(has).length;
   const days = (c.startsAt - now) / DAY_MS;
   const score = matches * 3 + (past ? 2 : 0) - days * 0.1 - kmFromMenlo(c) * 0.02;
   const reason = hit
@@ -406,4 +414,56 @@ export const REFRESH_GAP_MS = 60_000;
 export function canRefresh(lastAt: number | null, now: number): boolean {
   if (lastAt === null || lastAt > now) return true;
   return now - lastAt >= REFRESH_GAP_MS;
+}
+
+// ---- rules from the final review ----
+
+/** A fallback run (Muse down or slow) never replaces picks Muse already wrote. */
+export function shouldSavePicks(newSource: "muse" | "fallback", existingSources: string[]): boolean {
+  return newSource === "muse" || !existingSources.includes("muse");
+}
+
+/** Do not offer events the person already answered (going, maybe, can't, snoozed). */
+export function excludeAnswered(candidates: Keyed[], answered: Set<string>): Keyed[] {
+  return candidates.filter((c) => !answered.has(c.key));
+}
+
+/** After a background fetch: the schedule re-ranks everyone; a manual refresh only re-ranks if
+ * something new arrived, so cards do not reshuffle under the presenter for nothing. */
+export function shouldRerankAfterFetch(personaId: string | undefined, inserted: number): boolean {
+  return personaId === undefined || inserted > 0;
+}
+
+export function refreshDecision(o: { exists: boolean; lastAt: number | null; now: number }): "ok" | "too_soon" | "unknown" {
+  if (!o.exists) return "unknown";
+  return canRefresh(o.lastAt, o.now) ? "ok" : "too_soon";
+}
+
+const TITLE_STOPWORDS = new Set(["and", "the", "a", "an", "of", "at", "in", "for", "with", "to", "on"]);
+const SAME_PLACE_KM = 8;
+
+function titleTokens(title: string): Set<string> {
+  const t = normTitle(title).replace(/\bsave the date\b/g, " ");
+  return new Set(t.split(" ").filter((w) => w && !TITLE_STOPWORDS.has(w)));
+}
+
+/** Same real event listed by two sources: same local day, one title essentially contained in the
+ * other, and (when both locations are known) within a few km. Exact keys are the fast path. */
+export function sameEvent(a: DiscoveredInput, b: DiscoveredInput): boolean {
+  if (laDay(a.startsAt) !== laDay(b.startsAt)) return false;
+  if (eventKey(a) === eventKey(b)) return true;
+  const ta = titleTokens(a.title);
+  const tb = titleTokens(b.title);
+  const shared = [...ta].filter((w) => tb.has(w)).length;
+  const smaller = Math.min(ta.size, tb.size);
+  if (smaller < 2 || shared / smaller < 0.8) return false;
+  const pa = resolveCoords(a);
+  const pb = resolveCoords(b);
+  return !pa || !pb || distanceKm(pa, pb) <= SAME_PLACE_KM;
+}
+
+/** The stored row this incoming event duplicates, if any. */
+export function findDuplicate(item: DiscoveredInput, rows: Keyed[]): Keyed | undefined {
+  const key = eventKey(item);
+  return rows.find((r) => r.key === key) ?? rows.find((r) => sameEvent(r, item));
 }

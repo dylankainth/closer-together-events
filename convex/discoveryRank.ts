@@ -11,19 +11,24 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { museJSON } from "./muse";
 import { leaksIn } from "./privacy";
-import { buildRankPrompt, cleanRankResponse, fallbackRank, type Keyed, type RankProfile } from "./discoveryCore";
+import { buildRankPrompt, cleanRankResponse, excludeAnswered, fallbackRank, shouldSavePicks, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Persona } from "./types";
 
 const CONCURRENCY = 5;
 
+// verdict is any string: one odd value must not throw away Muse's whole answer;
+// cleanRankResponse maps anything other than "go" to "maybe".
 const RankResponse = z.object({
-  picks: z.array(z.object({ key: z.string(), verdict: z.enum(["go", "maybe"]), reason: z.string() })),
+  picks: z.array(z.object({ key: z.string(), verdict: z.string(), reason: z.string() })),
 });
 
 export const rankPersona = internalAction({
   args: { personaId: v.string() },
   handler: async (ctx, { personaId }): Promise<{ picks: number; source: "muse" | "fallback" }> => {
-    const candidates: Keyed[] = await ctx.runQuery(internal.discoveryData.candidates, {});
+    const state: { answered: string[]; liveSources: string[] } = await ctx.runQuery(internal.discoveryData.pickState, { personaId });
+    const pool: Keyed[] = await ctx.runQuery(internal.discoveryData.candidates, {});
+    // Never offer again what the person already answered.
+    const candidates = excludeAnswered(pool, new Set(state.answered));
     if (candidates.length === 0) return { picks: 0, source: "fallback" };
     const profile: RankProfile | null = await ctx.runQuery(internal.discoveryData.profileFor, { personaId });
     const now = Date.now();
@@ -48,8 +53,11 @@ export const rankPersona = internalAction({
       budget: { used: 0, max: 1 },
       fallback: () => ({ picks: fallback.map(({ key, verdict, reason }) => ({ key, verdict, reason })) }),
     });
-    const picks = cleanRankResponse(result.data, new Set(candidates.map((c) => c.key)), fallback, isLeak);
+    const data = { picks: result.data.picks.map((p) => ({ ...p, verdict: p.verdict === "go" ? ("go" as const) : ("maybe" as const) })) };
+    const picks = cleanRankResponse(data, new Set(candidates.map((c) => c.key)), fallback, isLeak);
     const reasonSource = result.source === "muse" ? "muse" : "fallback";
+    // Muse down or slow: keep the Muse-written picks the person already has.
+    if (!shouldSavePicks(reasonSource, state.liveSources)) return { picks: 0, source: reasonSource };
     const { saved } = await ctx.runMutation(internal.discoveryData.savePicks, { personaId, reasonSource, picks });
     return { picks: saved, source: reasonSource };
   },

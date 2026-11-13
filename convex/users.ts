@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { HOST_ID } from "./seedData";
 import { hashString, initialsOf } from "./fbVerify";
 import { allowedAs } from "./authz";
+import { internal } from "./_generated/api";
 
 const COLORS = ["#F87171", "#FB923C", "#FBBF24", "#34D399", "#22D3EE", "#60A5FA", "#A78BFA", "#F472B6"];
 
@@ -77,6 +78,8 @@ export const upsertFromFacebook = internalMutation({
           await ctx.db.patch(f._id, { friends: [...f.friends, personaId] });
         }
       }
+      // A new person sees picks straight away (popular nearby until their Muse is connected).
+      await ctx.scheduler.runAfter(0, internal.discoveryRank.rankPersona, { personaId });
     } else if (persona.name !== args.name) {
       await ctx.db.patch(persona._id, { name: args.name, initials: initialsOf(args.name) });
     }

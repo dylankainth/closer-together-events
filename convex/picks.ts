@@ -10,10 +10,10 @@ import { toPickView } from "./discoveryCore";
  * fetch fresh events in the background and re-rank them again. Never clears what they see. */
 export const refresh = action({
   args: { personaId: v.string() },
-  handler: async (ctx, { personaId }): Promise<{ status: "ranked" | "too_soon"; picks: number }> => {
+  handler: async (ctx, { personaId }): Promise<{ status: "ranked" | "too_soon" | "unknown"; picks: number }> => {
     await requireActor(ctx, personaId, "write", "picks.refresh");
-    const claimed: boolean = await ctx.runMutation(internal.discoveryData.claimRefresh, { personaId });
-    if (!claimed) return { status: "too_soon", picks: 0 };
+    const claim: "ok" | "too_soon" | "unknown" = await ctx.runMutation(internal.discoveryData.claimRefresh, { personaId });
+    if (claim !== "ok") return { status: claim, picks: 0 };
     const { picks } = await ctx.runAction(internal.discoveryRank.rankPersona, { personaId });
     await ctx.scheduler.runAfter(0, internal.discoverySources.fetchAll, { personaId });
     return { status: "ranked", picks };

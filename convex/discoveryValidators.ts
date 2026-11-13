@@ -24,6 +24,7 @@ export const discoveredInputFields = {
   price: v.union(v.literal("free"), v.literal("paid"), v.literal("unknown")),
   isOnline: v.boolean(),
   isCancelled: v.boolean(),
+  allDay: v.optional(v.boolean()),
 };
 
 export const discoveredInputV = v.object(discoveredInputFields);
