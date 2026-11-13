@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
+import { GuestInviteCard } from "@/components/events/GuestInviteCard";
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -211,16 +212,7 @@ function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: stri
           </>
         )}
 
-        {ev.plusOne && canAnswer && (
-          <View style={styles.agentCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.agentTitle}>Your agent can also bring 1 person</Text>
-              <Text style={styles.agentSub}>Suggested: {firstName(ev.plusOne.name)}. {ev.plusOne.why}</Text>
-            </View>
-            {/* No guest-side invite backend yet: shown so the idea is visible, but disabled. */}
-            <View style={[styles.soon, { opacity: 0.45 }]}><Text style={styles.soonText}>Soon</Text></View>
-          </View>
-        )}
+        {canAnswer && <GuestInviteCard eventId={eventId} personaId={viewerId} />}
 
         {/* About */}
         {ev.about ? (
