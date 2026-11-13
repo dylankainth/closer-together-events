@@ -107,6 +107,11 @@ export default defineSchema({
     secrets: v.array(v.string()),
     neverShare: v.array(v.string()),
     shareable: v.optional(v.array(v.string())),
+    // What this person actively does NOT want. The model had no way to express a negative
+    // preference before — only "no shared interest", which reads as indifference. "I don't do
+    // football" is a different answer from "football isn't in my list", and only the first can
+    // honestly produce "this isn't for you".
+    dislikes: v.optional(v.array(v.string())),
     ties: v.optional(v.record(v.string(), v.string())),
     recentChats: v.optional(v.array(v.string())),
     hasMuse: v.boolean(),
@@ -174,6 +179,11 @@ export default defineSchema({
     capacity: v.optional(v.number()),
     // Explicit host opt-in for one friend per original guest; absent means disabled.
     allowGuestInvites: v.optional(v.boolean()),
+    // Host gate for acceptance-driven spread (convex/spread.ts): when a guest says yes, close
+    // friends of theirs who aren't invited yet get the event surfaced, each still judged by their
+    // own Muse. Separate from allowGuestInvites (one explicit plus-one chosen by the guest) —
+    // this one is automatic, so it needs its own opt-in. Absent = off.
+    allowSpread: v.optional(v.boolean()),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
     // How this event's huddle runs (claude.md §5.1). "free" = real multi-turn agent-to-agent

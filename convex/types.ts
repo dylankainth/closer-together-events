@@ -36,6 +36,9 @@ export interface Persona {
   // Rich demo context (convex/personaContextData.ts), only on the named personas. `shareable` = talking points the person
   // approved for events; `ties` = their private read on specific friends (friend id -> note).
   shareable?: string[];
+  /** Active negative preferences ("football", "loud clubs"). See schema.ts for why this is its
+   *  own field rather than the absence of an interest. */
+  dislikes?: string[];
   ties?: Record<string, string>;
   recentChats?: string[];
   hasMuse: boolean;
