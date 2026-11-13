@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Image, type ImageStyle, type StyleProp } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Image, StyleSheet, View, type ImageStyle, type StyleProp, type ViewStyle } from "react-native";
 
 // The 16 banners in assets/banners, bundled with the app. Every event shows a banner: its own picture when it
 // has one, otherwise one of these. The same event always gets the same one, so it doesn't change between
@@ -32,22 +32,42 @@ function hash(s: string) {
 /** The bundled banner for an event id (same id, same banner). */
 export const fallbackBanner = (eventId: string) => BUNDLED[hash(eventId || "event") % BUNDLED.length];
 
-/**
- * An event's picture. Shows `posterUrl` when there is one; if there isn't, or it fails to load (a dead link,
- * a bad image), shows the event's bundled banner instead, so no event is ever left with an empty tile.
- */
-export function EventBanner({
-  eventId,
-  posterUrl,
-  style,
-  resizeMode = "cover",
-}: {
+type Props = {
   eventId: string;
   posterUrl?: string | null;
   style?: StyleProp<ImageStyle>;
   resizeMode?: "cover" | "contain" | "stretch" | "center";
-}) {
+};
+
+/**
+ * An event's picture. With a `posterUrl` it shows that, with the event's bundled banner kept underneath: if the
+ * picture is slow, blocked, comes back blank or fails to load, the banner shows through instead of an empty tile.
+ * (A failed load alone isn't enough: some links, like Facebook's expiring image links, can simply never paint
+ * and never report an error.) The banner under a picture only appears after a short delay, so a normal load
+ * doesn't flash a banner first. With no `posterUrl` it just shows the banner.
+ *
+ * It is keyed on the event and the picture, so when a screen reuses it for a different event (swiping from one
+ * card to the next) it starts fresh instead of keeping the previous event's picture on screen until the new one
+ * has loaded.
+ */
+export function EventBanner(props: Props) {
+  return <Banner key={`${props.eventId}|${props.posterUrl ?? ""}`} {...props} />;
+}
+
+function Banner({ eventId, posterUrl, style, resizeMode = "cover" }: Props) {
   const [failed, setFailed] = useState(false);
-  const source = posterUrl && !failed ? { uri: posterUrl } : fallbackBanner(eventId);
-  return <Image source={source} style={style} resizeMode={resizeMode} onError={() => setFailed(true)} />;
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 900);
+    return () => clearTimeout(t);
+  }, []);
+
+  const banner = fallbackBanner(eventId);
+  if (!posterUrl || failed) return <Image source={banner} style={style} resizeMode={resizeMode} />;
+  return (
+    <View style={[style as StyleProp<ViewStyle>, { overflow: "hidden" }]}>
+      {waited && <Image source={banner} style={StyleSheet.absoluteFill} resizeMode={resizeMode} />}
+      <Image source={{ uri: posterUrl }} style={StyleSheet.absoluteFill} resizeMode={resizeMode} onError={() => setFailed(true)} />
+    </View>
+  );
 }

@@ -1,5 +1,7 @@
 import React from "react";
 import { EventBanner } from "./EventBanner";
+import { shortPlace } from "./place";
+import { Mascot } from "@/components/Mascot";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
@@ -25,7 +27,7 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
   const slot = parseSlot(ev.slotLabel);
   // Muse picks of real events carry their own date and place; invited events use the demo slot.
   const meta = ev.whenLabel
-    ? [ev.whenLabel, ev.placeLabel].filter(Boolean).join(" · ")
+    ? [ev.whenLabel, shortPlace(ev.placeLabel)].filter(Boolean).join(" · ")
     : [slot ? `${slot.weekday} ${slot.day} · ${slot.time}` : ev.slotLabel, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
   // `chips` only exists once the updated convex/feed.ts is deployed; until then the card shows no rows.
   const chips = ev.chips ?? [];
@@ -47,7 +49,13 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
         <Text style={styles.meta}>{meta}</Text>
       </View>
       <Text style={styles.title} numberOfLines={1}>{ev.title}</Text>
-      <Text style={styles.headline}>{headline}</Text>
+      {/* Muse says it: the mascot beside a speech bubble holding the headline. */}
+      <View style={styles.sayRow}>
+        <Mascot size={60} />
+        <View style={styles.bubble}>
+          <Text style={styles.headline}>{headline}</Text>
+        </View>
+      </View>
 
       <View style={styles.rows}>
         {rows.map((c, i) => (
@@ -71,9 +79,11 @@ const styles = StyleSheet.create({
   banner: { aspectRatio: 1, borderRadius: 22, overflow: "hidden" },
   verdictRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 },
   verdict: { fontSize: 44, lineHeight: 48, fontWeight: "800", letterSpacing: -1 },
-  meta: { color: discover.muted, fontSize: 12, paddingBottom: 8 },
+  meta: { color: discover.muted, fontSize: 12, paddingBottom: 8, flexShrink: 1, textAlign: "right", marginLeft: 12 },
   title: { color: discover.textDim, fontSize: 14, fontWeight: "700", marginTop: 2 },
-  headline: { color: swipe.ink, fontSize: 22, lineHeight: 28, fontWeight: "800", marginTop: 8 },
+  sayRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 12 },
+  bubble: { flex: 1, backgroundColor: swipe.lavender, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 14 },
+  headline: { color: swipe.ink, fontSize: 20, lineHeight: 26, fontWeight: "800" },
   rows: { marginTop: 14, borderTopWidth: 1, borderTopColor: "#ECECF0" },
   row: { flexDirection: "row", gap: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#ECECF0" },
   tag: { width: 58, fontSize: 10, fontWeight: "800", letterSpacing: 1, paddingTop: 3 },
