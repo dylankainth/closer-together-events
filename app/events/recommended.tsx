@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
-import { ViewerSwitcher } from "@/components/ViewerSwitcher";
+import { EventsNavBar } from "@/components/events/EventsNavBar";
 import { SwipeCard } from "@/components/events/SwipeCard";
 import { swipe } from "@/theme/swipeTheme";
 
@@ -14,7 +14,8 @@ const COMMIT = 90; // px a drag must travel before it counts as a swipe
 
 /**
  * "Your week, by your agent": a stack of recommended events, best match first.
- *   swipe left / right  -> browse to the next / previous recommendation (never answers it)
+ *   swipe right         -> next recommendation; on the last one it opens the general feed (never answers it)
+ *   swipe left          -> previous recommendation; on the first one it does nothing
  *   swipe up            -> leave the stack and open the general feed
  *   tap the card        -> open the event page with the full reasoning
  *   x / I'm going / clock buttons -> the only things that answer (ballot B10: the guest always taps it)
@@ -29,8 +30,9 @@ export default function Recommended() {
   const [cursor, setCursor] = useState(0);
   const pan = useRef(new Animated.ValueXY()).current;
 
-  // Cards that get answered drop out of `list`, so the cursor already points at the next one.
-  const idx = n === 0 ? 0 : ((cursor % n) + n) % n;
+  // Not a loop: the cursor stops at the first and last card. Cards that get answered drop out of `list`,
+  // so the cursor already points at the next one (and is clamped if the last card was answered).
+  const idx = n === 0 ? 0 : Math.min(Math.max(cursor, 0), n - 1);
   const current = list[idx];
 
   // The responder is built once, so it reads live state through this ref.
@@ -56,14 +58,19 @@ export default function Recommended() {
         onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
         onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
         onPanResponderRelease: (_, g) => {
-          const { n: count } = live.current;
+          const { n: count, idx: at } = live.current;
           const vertical = Math.abs(g.dy) > Math.abs(g.dx);
-          if (vertical && g.dy < -COMMIT) {
-            flyAway(0, -SCREEN_H, () => router.push("/events/feed"));
-          } else if (!vertical && g.dx < -COMMIT && count > 1) {
-            flyAway(-SCREEN_W, 0, () => setCursor((c) => c + 1));
-          } else if (!vertical && g.dx > COMMIT && count > 1) {
-            flyAway(SCREEN_W, 0, () => setCursor((c) => c - 1));
+          if (count === 0) {
+            Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
+          } else if (vertical && g.dy < -COMMIT) {
+            flyAway(0, -SCREEN_H, () => router.navigate("/events/feed"));
+          } else if (!vertical && g.dx > COMMIT) {
+            // Right = next. Past the last card there is nothing left, so carry on to the general feed.
+            if (at < count - 1) flyAway(SCREEN_W, 0, () => setCursor(at + 1));
+            else flyAway(SCREEN_W, 0, () => router.navigate("/events/feed"));
+          } else if (!vertical && g.dx < -COMMIT && at > 0) {
+            // Left = previous. On the first card this falls through and just springs back.
+            flyAway(-SCREEN_W, 0, () => setCursor(at - 1));
           } else {
             Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
           }
@@ -97,7 +104,6 @@ export default function Recommended() {
         </View>
         <Text style={styles.heading}>Your agent's picks</Text>
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
-        <ViewerSwitcher />
       </View>
 
       <View style={styles.stage}>
@@ -107,7 +113,7 @@ export default function Recommended() {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>You're all caught up</Text>
             <Text style={styles.emptyBody}>No new recommendations right now. Anything you snoozed will come back.</Text>
-            <Pressable style={styles.emptyBtn} onPress={() => router.push("/events/feed")}>
+            <Pressable style={styles.emptyBtn} onPress={() => router.navigate("/events/feed")}>
               <Text style={styles.emptyBtnText}>See all events</Text>
             </Pressable>
           </View>
@@ -133,16 +139,18 @@ export default function Recommended() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.hint} onPress={() => router.push("/events/feed")}>
+      <Pressable style={styles.hint} onPress={() => router.navigate("/events/feed")}>
         <Ionicons name="chevron-up" size={16} color="#8A8A94" />
         <Text style={styles.hintText}>Swipe up for all events</Text>
       </Pressable>
+
+      <EventsNavBar active="picks" picks={n} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52, paddingBottom: 18 },
+  screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52 },
   segments: { flexDirection: "row", gap: 6, paddingHorizontal: 20 },
   segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "#E4E4EA" },
   segmentOn: { backgroundColor: swipe.ink },
@@ -156,7 +164,7 @@ const styles = StyleSheet.create({
   round: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, borderColor: "#D5D5DC", alignItems: "center", justifyContent: "center" },
   going: { backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 40, height: 60, alignItems: "center", justifyContent: "center" },
   goingText: { color: "#fff", fontWeight: "800", fontSize: 19 },
-  hint: { flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 4, paddingTop: 10 },
+  hint: { flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 4, paddingTop: 10, paddingBottom: 10 },
   hintText: { color: "#8A8A94", fontSize: 12, fontWeight: "600" },
   empty: { flex: 1, backgroundColor: "#F6F6F8", borderRadius: 28, alignItems: "center", justifyContent: "center", padding: 28, gap: 10 },
   emptyTitle: { fontSize: 22, fontWeight: "800", color: swipe.ink },
