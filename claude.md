@@ -533,3 +533,81 @@ section, scoped to whichever persona is actually signed in, not a standalone tab
 - Break glass (CI down): one person deploys by hand after posting a `claim` on the bus.
 - New public Convex functions need an authz guard (see `tests/guardCoverage.test.mjs` once the
   auth PR lands), or the `test` job fails and nothing deploys.
+
+## 18. Free agent-to-agent conversation + the swarm (2026-11-13)
+
+Section 5.1 chose "B on the surface, C underneath". Design B itself now exists as a real,
+opt-in alternative, so the two can be compared instead of argued about.
+
+**Opt-in, per event.** `events.conversationMode` is `"structured" | "free"`, and it is
+**optional** — absent means `"structured"`, so every event that already exists keeps today's
+exact behaviour and no migration was needed. Structured mode's code path in `convex/huddle.ts`
+is unchanged, not refactored. Nothing runs free mode until an event explicitly asks for it,
+which for now means setting the field by hand on one seeded demo event.
+
+**What free mode does** (`convex/huddleChat.ts`, `runExchange()`): a genuine multi-turn exchange
+per candidate↔peer edge, capped at `CONFIG.maxTurns` (4) counted across both sides, and never
+ending before one full round-trip. The bound question from section 5.3 ("is this event worth it
+for my person?") is restated in the system prompt **every** turn, not just the first — over a
+longer exchange that is what stops drift. The host's Muse still does not chat; it keeps the same
+synthetic reply.
+
+**Privacy had to get stricter, not looser.** Section 5.3's layers were written for one schema'd
+reply; free text across several turns is exactly the shape the research in that section says
+leaks:
+- `privacy.guardText()` is the counterpart to `guardOutgoing` for a bare line. The never-share /
+  pattern / injection regex scan is now shared by both through `scanTopics()`, so the two modes
+  can never drift apart on what counts as a leak.
+- Incoming turns are injection-scrubbed **before** they can land in the shared transcript or the
+  next prompt. Checking on the way out only is not enough once there is a next turn to poison.
+- `runHuddle`'s existing `codeCheck` flag is threaded into free mode, so section 12's leak test
+  can run it unguarded as a baseline. The injection scrub deliberately stays on even then: the
+  baseline measures what leaks *out of* a Muse, whereas the scrub stops a Muse being *steered* by
+  another agent, and letting that through would corrupt the eval's own transcripts.
+
+**Cost is the real constraint, and it shaped the design.** A Spark privacy call on every turn
+costs ~8 Muse calls per edge, ~300 per event at `displaySize` 12, against a
+`maxCallsPerEvent` ceiling of 160 — `museJSON` degrades to offline fallbacks rather than failing,
+so the back half of a huddle would have quietly stopped being real while still looking real. So:
+the regex layer runs every turn (it is free and it is the layer that catches hard leaks), the
+Spark pass runs **once per exchange**, and free mode fans out over `CONFIG.maxPeersFree` (2)
+rather than `maxPeers` (3). That lands at ~132 calls. Raising any of those three numbers needs
+the arithmetic redone — `museConfig.ts` carries it.
+
+**Honest caveat for Q&A.** Section 5.1's caveat still holds and free mode does not refute it:
+this is more expensive per event than structured mode and is not claimed to decide better. What
+it buys is that the transcript shown on stage is a real conversation.
+
+### The swarm (`app/events/[eventId]/swarm.tsx`)
+
+The "wow moment" screen: the host watches their friends' Muses answer. Design export is committed
+at `design/sketches/04-swarm-wow-moment.html`; that artboard is a fixed 1440×900 desktop split
+(960px network canvas beside a feed panel), which does not survive contact with a phone, so the
+screen is one column: compact pan/zoom graph, confirmed count, stat row, live feed, footer link
+into the existing transcript.
+
+- Node layout lives on a fixed 340×340 virtual canvas, and the visible frame is a clipped viewport
+  onto it — that is what gives panning somewhere to go. Pan/zoom is `PanResponder` + `Animated`
+  (scale clamped 0.6–2.5, translation clamped so the graph cannot leave the frame).
+  **Not** `react-native-gesture-handler`: it is a native module, and adding one would break every
+  teammate's already-built dev client until they rebuild.
+- Node state is derived **client-side** from queries that already exist (`events.getByEventId`,
+  `huddleData.messagesForEvent`, `guests.listForEvent`) — no new public Convex function, so no new
+  authz guard and no `guardCoverage` entry. Verdict prefers a guest's Muse `nudge` over their raw
+  RSVP `status`; a persona with an ask but no verdict yet shows as "talking".
+- "Private info shared: 0" is a true statement about the guard, not a placeholder.
+- Graph drawing is capped at 14 nodes for legibility; the counters still count the whole shortlist.
+
+### Sending starts where the host already is
+
+The checklist's last row (`checklist.ts`'s `"send"` step) was decorative — a host could not
+actually send from the screen where they watch the plan get built. It now has three states driven
+by real checklist data (not by the playback animation, which deliberately never auto-completes
+that step): inert while anything else is unfinished, a "Send invites" call-to-action once
+everything else is done, and "tap to view" once sent, which reopens the swarm and never resends.
+Manage's send button and its transcript button both land on the swarm too; the swarm links onward
+to the transcript, so nothing was removed.
+
+`events.doSendInvites` is now idempotent (early-return when `status === "sent"`). It previously
+scheduled another concurrent `runHuddle` on every call, which the old single Send button hid and
+a re-tappable checklist row would not have.
