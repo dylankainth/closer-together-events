@@ -8,6 +8,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { agent } from "@/theme/swipeTheme";
+import { Mascot, type MascotHandle } from "@/components/Mascot";
 
 type Msg = { from: "me" | "agent"; text: string; note?: string };
 type Step = { key: string; label: string; detail: string; state: "done" | "active" | "todo" | "blocked" };
@@ -66,6 +67,9 @@ export default function Planning() {
   const [thinking, setThinking] = useState(false);
   // RN 0.88's ScrollView ref type doesn't fit the usual useRef<ScrollView> pattern; only scrollToEnd is called.
   const scroller = useRef<any>(null);
+  const mascot = useRef<MascotHandle>(null);
+  // The mascot's eyes follow wherever the screen is touched.
+  const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
 
   useEffect(() => {
     if (draft || onboardingComplete) return;
@@ -191,7 +195,12 @@ export default function Planning() {
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      onTouchStart={lookAtTouch}
+      onTouchMove={lookAtTouch}
+    >
       <View style={styles.topBar}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events"))} hitSlop={12} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={agent.text} />
@@ -201,6 +210,11 @@ export default function Planning() {
           <Animated.View style={[styles.dot, { opacity: page.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
         </View>
         <View style={styles.back} />
+      </View>
+
+      {/* The mascot sits above everything else, in its own fixed-height slot so nothing can overlap it. */}
+      <View style={styles.mascotWrap} pointerEvents="none">
+        <Mascot ref={mascot} size={120} thinking={thinking} />
       </View>
 
       <View
@@ -363,7 +377,8 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   dots: { flexDirection: "row", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: agent.text },
-  pager: { flex: 1, overflow: "hidden" },
+  mascotWrap: { height: 100, alignItems: "center", justifyContent: "flex-start", zIndex: 0 },
+  pager: { flex: 1, overflow: "hidden", zIndex: 1 },
   status: { color: agent.muted, padding: 24 },
   waitingWrap: { flex: 1, justifyContent: "center", padding: 32, gap: 10 },
   waitingTitle: { color: agent.text, fontSize: 22, fontWeight: "800" },
