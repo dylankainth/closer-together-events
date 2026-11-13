@@ -69,6 +69,6 @@ export function SpreadControl({ eventId, enabled, canEdit = true, hostName }: { 
 const styles = StyleSheet.create({
   card: { margin: 20, marginBottom: 0, padding: 18, gap: 10, borderRadius: 16, borderWidth: 1, borderColor: discover.pill },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  title: { flex: 1, fontSize: 16, fontWeight: "700", color: discover.text },
+  title: { flex: 1, fontSize: 16, fontWeight: "600", color: discover.text },
   body: { color: discover.muted, fontSize: 13, lineHeight: 19 },
 });

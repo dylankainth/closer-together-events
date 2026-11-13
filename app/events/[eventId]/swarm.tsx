@@ -23,7 +23,7 @@ const NODE_LOOK: Record<NodeState, { bg: string; border: string; fg: string; lin
   talking: { bg: "#1E2A6E", border: "#4F6BFF", fg: "#FFFFFF", line: "#4F6BFF", pulse: true },
   going: { bg: palette.going, border: palette.going, fg: palette.darkFg, line: palette.goingLine, pulse: false },
   maybe: { bg: palette.maybe, border: palette.maybe, fg: palette.darkFg, line: "rgba(242,193,78,0.6)", pulse: false },
-  cant: { bg: "#2A2C35", border: "#4A4D57", fg: palette.muted, line: "rgba(255,255,255,0.05)", pulse: false },
+  cant: { bg: "#2A2C35", border: "#65676B", fg: palette.muted, line: "rgba(255,255,255,0.05)", pulse: false },
 };
 const CHIP: Record<"going" | "maybe" | "cant", [string, string]> = {
   going: ["GOING", palette.going],
@@ -434,7 +434,7 @@ export default function Swarm() {
                     />
                   )}
                   <View style={{ width: p.size, height: p.size, borderRadius: 999, backgroundColor: look.bg, borderWidth: 2, borderColor: look.border, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: look.fg, fontSize: Math.round(p.size * 0.36), fontWeight: "700" }}>{c.initials}</Text>
+                    <Text style={{ color: look.fg, fontSize: Math.round(p.size * 0.36), fontWeight: "600" }}>{c.initials}</Text>
                   </View>
                 </View>
               );
@@ -537,22 +537,22 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   livePill: { flexDirection: "row", alignItems: "center", gap: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: palette.going },
-  livePillText: { fontSize: 12, fontWeight: "700", color: palette.going, letterSpacing: 0.4 },
+  livePillText: { fontSize: 12, fontWeight: "600", color: palette.going, letterSpacing: 0.4 },
 
   headlineBlock: { paddingHorizontal: 20, paddingTop: 2, paddingBottom: 14 },
   eyebrow: { fontSize: 12, fontWeight: "600", color: palette.muted, letterSpacing: 1.3, textTransform: "uppercase" },
-  eventTitle: { fontSize: 24, fontWeight: "700", color: palette.text, marginTop: 4, letterSpacing: -0.3 },
+  eventTitle: { fontSize: 24, fontWeight: "600", color: palette.text, marginTop: 4, letterSpacing: -0.3 },
 
   mapWrap: { paddingHorizontal: 20, paddingBottom: 8 },
   mapFrame: { height: 164, borderRadius: 16, borderWidth: 1, borderColor: palette.panelLine, backgroundColor: "#12131A", overflow: "hidden" },
   mapInner: { position: "absolute", left: 0, top: 0, width: VIRTUAL_SIZE, height: VIRTUAL_SIZE },
   centerNode: { position: "absolute", borderRadius: 999, backgroundColor: palette.text, alignItems: "center", justifyContent: "center" },
-  centerNodeText: { color: palette.bg, fontWeight: "700", fontSize: 11, paddingHorizontal: 4 },
+  centerNodeText: { color: palette.bg, fontWeight: "600", fontSize: 11, paddingHorizontal: 4 },
   mapHint: {
     position: "absolute", left: 10, bottom: 10, backgroundColor: "rgba(14,15,20,0.72)",
     borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
   },
-  mapHintText: { fontSize: 10.5, fontWeight: "600", color: palette.sub },
+  mapHintText: { fontSize: 11, fontWeight: "600", color: palette.sub },
   mapReset: {
     position: "absolute", right: 8, bottom: 8, width: 30, height: 30, borderRadius: 999,
     backgroundColor: "rgba(14,15,20,0.75)", borderWidth: 1, borderColor: palette.panelLine,
@@ -564,17 +564,17 @@ const styles = StyleSheet.create({
   // Sits to the right of the big number, baseline-aligned with it, so the two counts read as one
   // line: what the Muses think, then what people have actually said.
   rsvpPill: { marginLeft: "auto", flexDirection: "row", alignItems: "baseline", gap: 5, backgroundColor: palette.card, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
-  rsvpNum: { color: palette.going, fontSize: 17, fontWeight: "700" },
-  rsvpLabel: { color: palette.muted, fontSize: 11.5, fontWeight: "600", letterSpacing: 0.3 },
-  headlineNum: { fontSize: 56, fontWeight: "700", color: palette.text, letterSpacing: -1.5, lineHeight: 56 },
+  rsvpNum: { color: palette.going, fontSize: 17, fontWeight: "600" },
+  rsvpLabel: { color: palette.muted, fontSize: 12, fontWeight: "600", letterSpacing: 0.3 },
+  headlineNum: { fontSize: 56, fontWeight: "600", color: palette.text, letterSpacing: -1.5, lineHeight: 56 },
   headlineOf: { fontSize: 15, color: palette.sub },
   barTrack: { height: 8, borderRadius: 999, backgroundColor: palette.panelLine, overflow: "hidden" },
   barFill: { height: 8, borderRadius: 999, backgroundColor: palette.going },
 
   statGrid: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingTop: 16 },
   statCard: { flex: 1, backgroundColor: palette.card, borderRadius: 12, padding: 10, gap: 3 },
-  statLabel: { fontSize: 10.5, color: palette.muted, lineHeight: 13 },
-  statValue: { fontSize: 19, fontWeight: "700", color: palette.text },
+  statLabel: { fontSize: 11, color: palette.muted, lineHeight: 13 },
+  statValue: { fontSize: 19, fontWeight: "600", color: palette.text },
 
   logHead: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 },
   logList: { flex: 1 },
@@ -582,15 +582,15 @@ const styles = StyleSheet.create({
   empty: { color: palette.dim, fontSize: 13, paddingVertical: 8 },
   logItem: { flexDirection: "row", gap: 11, alignItems: "flex-start", backgroundColor: palette.card, borderRadius: 14, padding: 11 },
   logAvatar: { width: 30, height: 30, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  logAvatarText: { color: palette.darkFg, fontSize: 12, fontWeight: "700" },
+  logAvatarText: { color: palette.darkFg, fontSize: 12, fontWeight: "600" },
   logBody: { flex: 1, gap: 2 },
   logHeadRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  logName: { fontSize: 11.5, color: palette.muted },
+  logName: { fontSize: 12, color: palette.muted },
   logChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  logChipText: { fontSize: 10, fontWeight: "700", color: palette.darkFg },
-  logText: { fontSize: 13.5, lineHeight: 18, color: palette.text },
+  logChipText: { fontSize: 10, fontWeight: "600", color: palette.darkFg },
+  logText: { fontSize: 13, lineHeight: 18, color: palette.text },
 
   foot: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 20, borderTopWidth: 1, borderTopColor: palette.panelLine, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  footLink: { color: palette.link, fontSize: 15, fontWeight: "700" },
+  footLink: { color: palette.link, fontSize: 15, fontWeight: "600" },
   replayLink: { color: palette.dim, fontSize: 13, fontWeight: "600" },
 });

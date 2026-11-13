@@ -132,7 +132,7 @@ export default function Notifications() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "white" },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.md },
-  headerTitle: { fontSize: 30, fontWeight: "800", color: colors.text },
+  headerTitle: { fontSize: 24, fontWeight: "700", color: colors.text },
 
   list: { paddingTop: spacing.sm },
   row: {

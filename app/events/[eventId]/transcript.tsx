@@ -72,6 +72,6 @@ const styles = StyleSheet.create({
   bubbleFooter: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm },
   checks: { color: colors.textMuted, fontSize: 12 },
   receipt: { borderTopWidth: 1, borderTopColor: colors.border, padding: spacing.lg, backgroundColor: colors.card },
-  receiptTitle: { fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
+  receiptTitle: { fontWeight: "600", color: colors.text, marginBottom: spacing.xs },
   receiptLine: { color: colors.text, fontSize: 13 },
 });

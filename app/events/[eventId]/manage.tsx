@@ -104,7 +104,7 @@ export default function Manage() {
             <View style={{ width: 60, height: 66, justifyContent: "flex-end" }}><Mascot size={60} /></View>
             <View style={[styles.bubble, status.ok && styles.bubbleOk]}>
               <Text style={[styles.bubbleTitle, status.ok && { color: "#14532D" }]}>{status.title}</Text>
-              <Text style={[styles.bubbleSub, status.ok && { color: "#2F6B45" }]}>{status.sub}</Text>
+              <Text style={[styles.bubbleSub, status.ok && { color: "#31A24C" }]}>{status.sub}</Text>
             </View>
           </Pressable>
           <View style={styles.tabs}>
@@ -247,11 +247,11 @@ function Guests({ guests, byId, going, capacity, eventId }: any) {
     <View style={styles.body}>
       <Text style={styles.h2}>At a glance</Text>
       <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
-        <Text style={styles.big}><Text style={{ color: "#2F9E44" }}>{going}</Text> <Text style={styles.bigSub}>Going</Text></Text>
+        <Text style={styles.big}><Text style={{ color: "#31A24C" }}>{going}</Text> <Text style={styles.bigSub}>Going</Text></Text>
         {capacity ? <Text style={styles.muted}>cap <Text style={styles.capNum}>{capacity}</Text></Text> : null}
       </View>
       <View style={styles.bar}>
-        <View style={{ flex: going, backgroundColor: "#2F9E44" }} />
+        <View style={{ flex: going, backgroundColor: "#31A24C" }} />
         <View style={{ flex: maybe, backgroundColor: "#F0A202" }} />
         <View style={{ flex: invited, backgroundColor: "#B7B2A8" }} />
         <View style={{ flex: Math.max(denom - going - maybe - invited, 0), backgroundColor: discover.pill }} />
@@ -305,11 +305,11 @@ function StatusPill({ status }: { status: string }) {
     going: ["Going", "#DCFCE7", "#1F7A3A"],
     maybe: ["Maybe", "#FEF3C7", "#8A5A00"],
     invited: ["Invited", discover.pill, discover.muted],
-    cant: ["Not going", "#FDE2E2", "#B4233F"],
-    skip: ["Not going", "#FDE2E2", "#B4233F"],
+    cant: ["Not going", "#FDE2E2", "#E41E3F"],
+    skip: ["Not going", "#FDE2E2", "#E41E3F"],
   };
   const [label, bg, fg] = map[status] ?? map.invited;
-  return <View style={[styles.pill, { backgroundColor: bg }]}><Text style={{ color: fg, fontSize: 12, fontWeight: "700" }}>{label}</Text></View>;
+  return <View style={[styles.pill, { backgroundColor: bg }]}><Text style={{ color: fg, fontSize: 12, fontWeight: "600" }}>{label}</Text></View>;
 }
 
 function Tile({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
@@ -405,7 +405,7 @@ function Details({ event, slots, venues }: any) {
       <Text style={styles.fieldLabel}>Description</Text>
       <TextInput style={[styles.field, { minHeight: 110, textAlignVertical: "top" }]} multiline value={form.description} onChangeText={(v) => set("description", v)} placeholder="What should guests know?" placeholderTextColor={discover.muted} />
 
-      {note && <Text style={{ color: note.ok ? "#1F7A3A" : "#B4233F", marginTop: 12 }}>{note.text}</Text>}
+      {note && <Text style={{ color: note.ok ? "#1F7A3A" : "#E41E3F", marginTop: 12 }}>{note.text}</Text>}
       <Pressable style={[styles.primary, (dirty.length === 0 || saving) && { opacity: 0.4 }]} onPress={save} disabled={dirty.length === 0 || saving}>
         <Text style={styles.primaryText}>{saving ? "Saving…" : dirty.length ? `Save ${dirty.length} change${dirty.length === 1 ? "" : "s"}` : "No changes"}</Text>
       </Pressable>
@@ -418,55 +418,55 @@ const styles = StyleSheet.create({
   header: { paddingTop: 52, paddingHorizontal: 20, backgroundColor: discover.bg, borderBottomWidth: 1, borderBottomColor: discover.line },
   crumb: { color: discover.muted, fontSize: 14 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
-  title: { flex: 1, color: discover.text, fontSize: 28, lineHeight: 33, fontWeight: "800" },
+  title: { flex: 1, color: discover.text, fontSize: 24, lineHeight: 33, fontWeight: "700" },
   iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: discover.pill, alignItems: "center", justifyContent: "center" },
   sayRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 14 },
   bubble: { flex: 1, backgroundColor: swipe.lavender, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 14 },
   bubbleOk: { backgroundColor: "#DCFCE7" },
-  bubbleTitle: { color: swipe.ink, fontSize: 18, lineHeight: 24, fontWeight: "800" },
+  bubbleTitle: { color: swipe.ink, fontSize: 18, lineHeight: 24, fontWeight: "700" },
   bubbleSub: { color: swipe.lavenderText, fontSize: 14, marginTop: 2 },
   tabs: { flexDirection: "row", gap: 6, marginTop: 14 },
   tab: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabOn: { borderBottomColor: discover.text },
-  tabText: { color: discover.muted, fontWeight: "700", fontSize: 15 },
+  tabText: { color: discover.muted, fontWeight: "600", fontSize: 15 },
   body: { padding: 20, gap: 14 },
   statusRow: { flexDirection: "row", alignItems: "center" },
-  h2: { color: discover.text, fontSize: 20, fontWeight: "800" },
+  h2: { color: discover.text, fontSize: 20, fontWeight: "700" },
   muted: { color: discover.muted, fontSize: 14, lineHeight: 19 },
   primary: { backgroundColor: discover.text, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
-  primaryText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  primaryText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   primaryLight: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line },
   primaryLightText: { color: discover.text, fontWeight: "600" },
   card: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, padding: 16 },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  cardLabel: { color: discover.muted, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  cardLabel: { color: discover.muted, fontWeight: "700", fontSize: 12, letterSpacing: 1 },
   recapRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9 },
   recapText: { color: discover.text, fontSize: 16 },
   empty: { alignItems: "center", gap: 6, paddingVertical: 14 },
-  emptyTitle: { color: discover.text, fontSize: 16, fontWeight: "700" },
-  stat: { color: discover.text, fontSize: 28, fontWeight: "800" },
-  big: { fontSize: 40, fontWeight: "800" },
+  emptyTitle: { color: discover.text, fontSize: 16, fontWeight: "600" },
+  stat: { color: discover.text, fontSize: 24, fontWeight: "700" },
+  big: { fontSize: 40, fontWeight: "700" },
   bigSub: { color: discover.text, fontSize: 22, fontWeight: "600" },
-  capNum: { color: discover.text, fontSize: 24, fontWeight: "700" },
+  capNum: { color: discover.text, fontSize: 24, fontWeight: "600" },
   bar: { flexDirection: "row", height: 8, borderRadius: 4, overflow: "hidden", backgroundColor: discover.pill, marginVertical: 8 },
   tile: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: discover.card, borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 14, paddingVertical: 12 },
   tileIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: "#E6E9FF", alignItems: "center", justifyContent: "center" },
-  tileText: { color: discover.text, fontWeight: "700", fontSize: 15 },
+  tileText: { color: discover.text, fontWeight: "600", fontSize: 15 },
   search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: discover.card, borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 14 },
   searchInput: { flex: 1, paddingVertical: 12, color: discover.text, fontSize: 16 },
   chip: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   chipOn: { backgroundColor: discover.text, borderColor: discover.text },
-  dateText: { color: discover.text, fontWeight: "700", fontSize: 17 },
+  dateText: { color: discover.text, fontWeight: "600", fontSize: 17 },
   chipText: { color: discover.text, fontWeight: "600", fontSize: 14 },
   listCard: { backgroundColor: discover.card, borderRadius: 18, borderWidth: 1, borderColor: discover.line, overflow: "hidden" },
   guestRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   guestDivider: { borderTopWidth: 1, borderTopColor: discover.line },
-  guestName: { color: discover.text, fontSize: 16, fontWeight: "700" },
+  guestName: { color: discover.text, fontSize: 16, fontWeight: "600" },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  fieldLabel: { color: discover.muted, fontWeight: "800", fontSize: 12, letterSpacing: 1, marginTop: 14, marginBottom: 8, textTransform: "uppercase" },
+  fieldLabel: { color: discover.muted, fontWeight: "700", fontSize: 12, letterSpacing: 1, marginTop: 14, marginBottom: 8, textTransform: "uppercase" },
   field: { backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: discover.text, fontSize: 16 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   venue: { flexDirection: "row", alignItems: "center", backgroundColor: discover.card, borderWidth: 1, borderColor: discover.line, borderRadius: 14, padding: 14 },
   venueOn: { borderColor: discover.text, borderWidth: 2 },
-  venueName: { color: discover.text, fontWeight: "700", fontSize: 16 },
+  venueName: { color: discover.text, fontWeight: "600", fontSize: 16 },
 });

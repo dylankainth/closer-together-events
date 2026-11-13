@@ -61,5 +61,5 @@ export function HuddleRecovery({ eventId }: { eventId: string }) {
 const styles = StyleSheet.create({
   box: { marginHorizontal: 20, marginVertical: 12, padding: 14, borderRadius: 12, backgroundColor: palette.panel, gap: 10 },
   row: { gap: 8 }, text: { color: palette.sub, fontSize: 13, lineHeight: 19 },
-  button: { alignSelf: "flex-start", paddingVertical: 6 }, link: { color: palette.going, fontWeight: "700", fontSize: 14 },
+  button: { alignSelf: "flex-start", paddingVertical: 6 }, link: { color: palette.going, fontWeight: "600", fontSize: 14 },
 });
