@@ -16,7 +16,11 @@ export const eventIdsPage = internalQuery({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, args) => {
     const page = await ctx.db.query("events").paginate({ numItems: PAGE, cursor: args.cursor });
-    return { ids: page.page.map((e) => e.eventId), done: page.isDone, cursor: page.continueCursor };
+    return {
+      events: page.page.map((e) => ({ eventId: e.eventId, posterSource: (e.poster?.source ?? null) as "muse" | "offline" | null })),
+      done: page.isDone,
+      cursor: page.continueCursor,
+    };
   },
 });
 
@@ -33,32 +37,42 @@ export const setPoster = internalMutation({
 type Summary = {
   events: number;
   updated: number;
+  keptMuse: number; // events left alone because their poster is a Muse Image
   dryRun: boolean;
   failed: { eventId: string; error: string }[];
   picks: Record<string, number>; // banner index -> how many events got it
 };
 
 /**
- * Every event gets one banner, chosen independently at random. Each event is updated in its own mutation, so
- * one that can't be written (for example a record already near the 1 MB limit) is reported and skipped
- * instead of undoing the rest. `dryRun` picks and reports without writing anything.
+ * Every event gets one banner, chosen independently at random, EXCEPT events whose poster is a Muse Image: those
+ * are kept by default (`replaceMuse: true` overrides), because a Muse-generated poster is part of the demo that
+ * Muse powers the core AI. Each event is updated in its own mutation, so one that can't be written (for example
+ * a record already near the 1 MB limit) is reported and skipped instead of undoing the rest. `dryRun` picks and
+ * reports without writing anything.
  */
 export const assignRandom = internalAction({
-  args: { banners: v.array(v.string()), dryRun: v.optional(v.boolean()) },
+  args: { banners: v.array(v.string()), dryRun: v.optional(v.boolean()), replaceMuse: v.optional(v.boolean()) },
   handler: async (ctx, args): Promise<Summary> => {
     if (args.banners.length === 0) throw new Error("No banners given");
 
-    const ids: string[] = [];
+    const events: { eventId: string; posterSource: "muse" | "offline" | null }[] = [];
     let cursor: string | null = null;
     for (;;) {
-      const page: { ids: string[]; done: boolean; cursor: string } = await ctx.runQuery(internal.banners.eventIdsPage, { cursor });
-      ids.push(...page.ids);
+      const page: { events: { eventId: string; posterSource: "muse" | "offline" | null }[]; done: boolean; cursor: string } = await ctx.runQuery(
+        internal.banners.eventIdsPage,
+        { cursor },
+      );
+      events.push(...page.events);
       if (page.done) break;
       cursor = page.cursor;
     }
 
-    const summary: Summary = { events: ids.length, updated: 0, dryRun: !!args.dryRun, failed: [], picks: {} };
-    for (const eventId of ids) {
+    const summary: Summary = { events: events.length, updated: 0, keptMuse: 0, dryRun: !!args.dryRun, failed: [], picks: {} };
+    for (const { eventId, posterSource } of events) {
+      if (posterSource === "muse" && !args.replaceMuse) {
+        summary.keptMuse += 1;
+        continue;
+      }
       const i = Math.floor(Math.random() * args.banners.length);
       if (!args.dryRun) {
         try {
