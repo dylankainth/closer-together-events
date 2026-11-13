@@ -41,6 +41,10 @@ export function facebookLoginAvailable(): boolean {
 
 export class LoginCancelled extends Error {}
 
+// Name and photo only (claude.md). Asking for "email" fails with "Invalid Scopes: email" unless the
+// email permission is added to the Facebook app's Login use case, and we don't need it.
+const PERMISSIONS = ["public_profile"];
+
 export async function signInWithFacebook(): Promise<FacebookTokens> {
   const fb = loadSdk();
   if (!fb || !facebookLoginAvailable()) throw new Error("Login with Facebook needs the development build.");
@@ -48,14 +52,14 @@ export async function signInWithFacebook(): Promise<FacebookTokens> {
 
   if (Platform.OS === "ios") {
     const nonce = Crypto.randomUUID();
-    const res = await LoginManager.logInWithPermissions(["public_profile", "email"], "limited", nonce);
+    const res = await LoginManager.logInWithPermissions(PERMISSIONS, "limited", nonce);
     if (res.isCancelled) throw new LoginCancelled("Login cancelled");
     const tok = await AuthenticationToken.getAuthenticationTokenIOS();
     if (!tok?.authenticationToken) throw new Error("Facebook did not return a login token.");
     return { kind: "limited", idToken: tok.authenticationToken, nonce };
   }
 
-  const res = await LoginManager.logInWithPermissions(["public_profile", "email"]);
+  const res = await LoginManager.logInWithPermissions(PERMISSIONS);
   if (res.isCancelled) throw new LoginCancelled("Login cancelled");
   const tok = await AccessToken.getCurrentAccessToken();
   if (!tok?.accessToken) throw new Error("Facebook did not return an access token.");
