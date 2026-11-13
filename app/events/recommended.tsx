@@ -14,7 +14,8 @@ const COMMIT = 90; // px a drag must travel before it counts as a swipe
 
 /**
  * "Your week, by your agent": a stack of recommended events, best match first.
- *   swipe left / right  -> browse to the next / previous recommendation (never answers it)
+ *   swipe right         -> next recommendation; on the last one it opens the general feed (never answers it)
+ *   swipe left          -> previous recommendation; on the first one it does nothing
  *   swipe up            -> leave the stack and open the general feed
  *   tap the card        -> open the event page with the full reasoning
  *   x / I'm going / clock buttons -> the only things that answer (ballot B10: the guest always taps it)
@@ -29,8 +30,9 @@ export default function Recommended() {
   const [cursor, setCursor] = useState(0);
   const pan = useRef(new Animated.ValueXY()).current;
 
-  // Cards that get answered drop out of `list`, so the cursor already points at the next one.
-  const idx = n === 0 ? 0 : ((cursor % n) + n) % n;
+  // Not a loop: the cursor stops at the first and last card. Cards that get answered drop out of `list`,
+  // so the cursor already points at the next one (and is clamped if the last card was answered).
+  const idx = n === 0 ? 0 : Math.min(Math.max(cursor, 0), n - 1);
   const current = list[idx];
 
   // The responder is built once, so it reads live state through this ref.
@@ -56,14 +58,19 @@ export default function Recommended() {
         onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
         onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
         onPanResponderRelease: (_, g) => {
-          const { n: count } = live.current;
+          const { n: count, idx: at } = live.current;
           const vertical = Math.abs(g.dy) > Math.abs(g.dx);
-          if (vertical && g.dy < -COMMIT) {
+          if (count === 0) {
+            Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
+          } else if (vertical && g.dy < -COMMIT) {
             flyAway(0, -SCREEN_H, () => router.navigate("/events/feed"));
-          } else if (!vertical && g.dx < -COMMIT && count > 1) {
-            flyAway(-SCREEN_W, 0, () => setCursor((c) => c + 1));
-          } else if (!vertical && g.dx > COMMIT && count > 1) {
-            flyAway(SCREEN_W, 0, () => setCursor((c) => c - 1));
+          } else if (!vertical && g.dx > COMMIT) {
+            // Right = next. Past the last card there is nothing left, so carry on to the general feed.
+            if (at < count - 1) flyAway(SCREEN_W, 0, () => setCursor(at + 1));
+            else flyAway(SCREEN_W, 0, () => router.navigate("/events/feed"));
+          } else if (!vertical && g.dx < -COMMIT && at > 0) {
+            // Left = previous. On the first card this falls through and just springs back.
+            flyAway(-SCREEN_W, 0, () => setCursor(at - 1));
           } else {
             Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
           }
