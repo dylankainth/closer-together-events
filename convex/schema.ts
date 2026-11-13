@@ -131,6 +131,9 @@ export default defineSchema({
     drafts: v.optional(v.array(v.any())), // VendorDraft[], write-once
     shortlist: v.optional(v.array(v.any())), // ShortlistItem[], write-once (re-plan = new event)
     museSource: v.optional(v.string()),
+    // Host-edited details (Manage > Details). Optional so events made before these existed still validate.
+    description: v.optional(v.string()),
+    capacity: v.optional(v.number()),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
     createdAt: v.number(),

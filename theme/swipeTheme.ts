@@ -27,6 +27,22 @@ export const discover = {
   categoryColors: ["#A855F7", "#D69E2E", "#E08A00", "#C79A00", "#4F7CFF", "#EC5FA0", "#14B8A6", "#F97316"],
 };
 
+// "Your agent is on it" checklist + Muse chat (app/new-event/planning.tsx): the dark look from the designs.
+export const agent = {
+  bg: "#141418",
+  card: "#23242B",
+  line: "#2C2D36",
+  text: "#FFFFFF",
+  muted: "#A3A3AF",
+  dim: "#7A7A86",
+  todo: "#4A4B55",
+  blue: "#3447E4",
+  ring: "#A5B0FF",
+  link: "#9DB0FF",
+  warn: "#F0A94B",
+  bubbleMe: "#2B2F52",
+};
+
 /** "Sat 21 Nov, 7pm" -> { month: "NOV", day: "21", weekday: "Sat", time: "7pm" } (null if it doesn't parse). */
 export function parseSlot(label: string | null | undefined) {
   if (!label) return null;

@@ -57,7 +57,8 @@ function buildView(w: World, e: any, viewerId: string) {
   const host = person(w, e.hostId);
   const venue = e.venueId ? w.venues.get(e.venueId) : undefined;
   const slot = e.slotId ? w.slots.get(e.slotId) : undefined;
-  const capacity: number | null = venue?.capacity ?? null;
+  // A capacity the host set by hand (Manage > Details) wins over the venue's.
+  const capacity: number | null = (typeof e.capacity === "number" ? e.capacity : venue?.capacity) ?? null;
 
   const friendsGoing = going
     .filter((g) => g.personaId && g.personaId !== viewerId && viewer?.friends?.includes(g.personaId))
@@ -211,13 +212,16 @@ export const detail = query({
         ? person(w, evGuests.find((g) => g.personaId && g.personaId !== args.personaId && viewer.friends.includes(g.personaId))?.personaId)
         : null);
 
-    const about = [
-      e.answers?.purpose && e.answers.purpose !== "Other" ? `${e.answers.purpose}.` : null,
-      e.answers?.vibe ? `A ${String(e.answers.vibe).toLowerCase()} one.` : null,
-      e.audienceRaw && e.audienceRaw !== "my friends" ? `For: ${e.audienceRaw}.` : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    // The host's own description wins; otherwise build one from how the event was planned.
+    const about = e.description
+      ? String(e.description)
+      : [
+          e.answers?.purpose && e.answers.purpose !== "Other" ? `${e.answers.purpose}.` : null,
+          e.answers?.vibe ? `A ${String(e.answers.vibe).toLowerCase()} one.` : null,
+          e.audienceRaw && e.audienceRaw !== "my friends" ? `For: ${e.audienceRaw}.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ");
 
     return {
       ...view,
