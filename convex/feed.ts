@@ -14,6 +14,55 @@ type Relation = "hosting" | "invited" | "responded" | "discover";
 
 const first = (name: string) => name.split(" ")[0];
 
+export type ChipKind = "people" | "goal" | "fit" | "plan";
+export type Chip = { kind: ChipKind; text: string };
+
+/**
+ * Cosmetic label for a free-text reason that has no structured reason_tag behind it (the seeded
+ * demo nudges). It only picks which small tag sits next to the line; it never changes the text.
+ */
+function classifyReason(text: string): ChipKind {
+  const t = text.toLowerCase();
+  if (/(free|available|busy|clear|away|nearby|schedule|\btime\b)/.test(t)) return "fit";
+  if (/(together|leaving|same night|better fit|instead)/.test(t)) return "plan";
+  if (/(interest|want|asked|advice|learn|like|love|enjoy|goal)/.test(t)) return "goal";
+  return "people";
+}
+
+const TAG_TO_KIND: Record<string, ChipKind> = {
+  close_friend: "people",
+  new_people: "people",
+  shared_interest: "goal",
+  free_time: "fit",
+  busy: "fit",
+  no_fit: "fit",
+};
+
+/** The viewer's own Muse replies from the huddle for one event (blocked messages dropped). */
+async function loadReplies(ctx: any, eventId: string, viewerId: string) {
+  const msgs: any[] = await ctx.db
+    .query("huddleMessages")
+    .withIndex("by_event_forPersona", (q: any) => q.eq("eventId", eventId).eq("forPersona", viewerId))
+    .collect();
+  return msgs.flatMap((m) =>
+    m.kind === "reply" && m.reply && m.status !== "blocked" ? [{ fromPersona: m.fromPersona as string, reply: m.reply as any }] : [],
+  );
+}
+
+/** Why-you lines: real huddle replies when there are any, else the nudge's own reasons. */
+function chipsFrom(replies: { reply: any }[], reasons: string[]): Chip[] {
+  const out: Chip[] = [];
+  const seen = new Set<string>();
+  for (const m of replies) {
+    const text = String(m.reply.why ?? "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push({ kind: TAG_TO_KIND[m.reply.reason_tag] ?? "fit", text });
+  }
+  if (out.length === 0) reasons.forEach((text) => out.push({ kind: classifyReason(text), text }));
+  return out;
+}
+
 async function loadWorld(ctx: any) {
   const [events, guests, personas, venues, slots] = await Promise.all([
     ctx.db.query("events").collect(),
@@ -97,6 +146,8 @@ function buildView(w: World, e: any, viewerId: string) {
     reasons: (mine?.nudge?.reasons ?? []) as string[],
     matchPct: mine ? matchPct(mine.nudge?.verdict, free, friendsGoing.length) : null,
     friendsGoing: friendsGoing.slice(0, 3),
+    // Filled in by forViewer for the recommended stack only (it needs a huddle lookup per event).
+    chips: [] as Chip[],
     createdAt: e.createdAt as number,
   };
 }
@@ -114,23 +165,17 @@ export const forViewer = query({
     const visible = w.events.filter((e) => e.status === "sent" || e.hostId === args.personaId);
     const views = visible.map((e) => buildView(w, e, args.personaId));
 
-    const recommended = views
+    const ranked = views
       .filter((x) => x.relation === "invited" && !x.snoozed && x.verdict !== "skip")
       .sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
+    const recommended = await Promise.all(
+      ranked.map(async (x) => ({ ...x, chips: chipsFrom(await loadReplies(ctx, x.eventId, args.personaId), x.reasons) })),
+    );
     const recIds = new Set(recommended.map((x) => x.eventId));
     const feed = views.filter((x) => !recIds.has(x.eventId)).sort((a, b) => b.createdAt - a.createdAt);
     return { recommended, feed };
   },
 });
-
-const TAG_TO_KIND: Record<string, "people" | "goal" | "fit"> = {
-  close_friend: "people",
-  new_people: "people",
-  shared_interest: "goal",
-  free_time: "fit",
-  busy: "fit",
-  no_fit: "fit",
-};
 
 /** Full event page for one viewer: the view above plus reasoning, attendees and agent suggestions. */
 export const detail = query({
@@ -143,25 +188,9 @@ export const detail = query({
     const view = buildView(w, e, args.personaId);
     const evGuests = w.guests.filter((g) => g.eventId === e.eventId);
 
-    // Why-you chips: the viewer's own Muse replies from the huddle, grouped by what they're about.
-    const msgs = await ctx.db
-      .query("huddleMessages")
-      .withIndex("by_event_forPersona", (q: any) => q.eq("eventId", e.eventId).eq("forPersona", args.personaId))
-      .collect();
-    const replies = msgs.flatMap((m) =>
-      m.kind === "reply" && m.reply && m.status !== "blocked" ? [{ fromPersona: m.fromPersona, reply: m.reply }] : [],
-    );
-    const chips: { kind: "people" | "goal" | "fit"; text: string }[] = [];
-    const seen = new Set<string>();
-    for (const m of replies) {
-      const kind = TAG_TO_KIND[m.reply.reason_tag] ?? "fit";
-      const text = String(m.reply.why ?? "").trim();
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      chips.push({ kind, text });
-    }
-    // Fall back to the nudge's own reasons so the card is never empty before/without a huddle.
-    if (chips.length === 0) view.reasons.forEach((text, i) => chips.push({ kind: (["people", "goal", "fit"] as const)[i % 3], text }));
+    // Why-you lines: the viewer's own Muse replies from the huddle (same helper the swipe card uses).
+    const replies = await loadReplies(ctx, e.eventId, args.personaId);
+    const chips = chipsFrom(replies, view.reasons);
 
     const tradeoff = replies.find((m) => m.reply.reason_tag === "busy" || m.reply.reason_tag === "no_fit")?.reply.why ?? null;
 
