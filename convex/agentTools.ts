@@ -156,12 +156,14 @@ const draft_vendor_orders: Tool = {
       await ctx.runMutation(internal.events.addTask, {
         eventId: event.eventId,
         label: "Order the cake",
-        detail: `Email ${cake.vendor} to order the cake.`,
+        detail: `Email a cake order to ${cake.vendor}.`,
         kind: "order_cake",
       });
+      // Surface the approval prompt now rather than waiting on a later task to drive the queue.
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: event.eventId });
     }
-    const suffix = cake ? " Queued the cake order to email on your OK." : "";
-    return { summary: `Drafted ${drafts.length} vendor enquiries (simulated, nothing paid).${suffix}`, patch: { drafts } };
+    const suffix = cake ? " The cake order is a real email, queued for your OK." : "";
+    return { summary: `Drafted ${drafts.length} vendor enquiries (others simulated).${suffix}`, patch: { drafts } };
   },
 };
 

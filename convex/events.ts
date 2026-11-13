@@ -258,6 +258,9 @@ export const approveTask = mutation({
     const task = (e!.tasks ?? []).find((t: any) => t.id === args.taskId);
     if (!task) throw new Error("Task not found");
     if (task.kind === "order_cake") {
+      // Only a blocked (awaiting-approval) task fires — guards a double tap or stale client from
+      // sending the order twice.
+      if (task.status !== "blocked") return;
       // Host approved the vendor email: hand off to the action that composes + sends it (it marks
       // the task done with the real result) and keep the queue moving while it goes out.
       const next = (e!.tasks ?? []).map((t: any) => (t.id === args.taskId ? { ...t, status: "active", needsYou: undefined } : t));

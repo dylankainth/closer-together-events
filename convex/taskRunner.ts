@@ -46,6 +46,8 @@ export const runNext = internalAction({
     // "order_cake" is a real vendor email — a commit action, so it waits for the host's go-ahead
     // the same way send_invites does. The actual send happens in events.approveTask -> emailAction.
     if (task.kind === "order_cake") {
+      const cake = (event.drafts ?? []).find((d: any) => d.id === "cake" || d.item === "cake");
+      const preview = cake?.draft ? ` Draft: "${cake.draft}"` : "";
       await ctx.runMutation(internal.events.updateTask, {
         eventId: args.eventId,
         taskId: task.id,
@@ -53,7 +55,7 @@ export const runNext = internalAction({
           status: "blocked",
           needsYou: {
             title: "Order the cake?",
-            body: "I've drafted the cake order. Say go and I'll email it to the bakery — nothing is sent until you approve.",
+            body: `Say go and I'll email this cake order to our demo inbox — nothing is sent until you approve.${preview}`,
           },
         },
       });

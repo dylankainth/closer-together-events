@@ -13,7 +13,9 @@ import { internal } from "./_generated/api";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
 
-const RECIPIENT = process.env.CAKE_ORDER_TO ?? "kainth.dylan@gmail.com";
+// Env-only: never hardcode a teammate's address in source (this repo goes public for Devpost).
+// Empty => treated as offline (composed + logged, not sent) until CAKE_ORDER_TO is set on Convex.
+const RECIPIENT = process.env.CAKE_ORDER_TO ?? "";
 
 /** Muse writes a clean subject+body from the event's pending cake draft; falls back to the draft
  * text already on the event when Muse isn't live. */
@@ -34,17 +36,26 @@ async function composeCakeEmail(event: any): Promise<{ subject: string; body: st
   return r.data;
 }
 
-/** Send via the provider when a key is set; otherwise log and report offline. Never throws. */
-async function deliver(to: string, subject: string, body: string): Promise<{ sent: boolean; via: string }> {
+/** Send via the provider when a key AND recipient are set; otherwise log and report offline. The
+ * Idempotency-Key makes a retry or double-approval a no-op upstream, so one approval = one email.
+ * Never throws. */
+async function deliver(to: string, subject: string, body: string, idempotencyKey: string): Promise<{ sent: boolean; via: string }> {
   const key = process.env.RESEND_API_KEY;
-  if (!key) {
-    console.log("[cakeEmail offline] would send to", to, "|", subject);
+  if (!key || !to) {
+    console.log("[cakeEmail offline] not sending —", key ? "no recipient configured" : "no provider key");
     return { sent: false, via: "offline" };
   }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
       body: JSON.stringify({
         from: process.env.CAKE_ORDER_FROM ?? "Muse Events <onboarding@resend.dev>",
         to,
@@ -56,6 +67,8 @@ async function deliver(to: string, subject: string, body: string): Promise<{ sen
     console.error("[cakeEmail] non-ok", res.status, await res.text().catch(() => ""));
   } catch (e) {
     console.error("[cakeEmail] fetch failed", e instanceof Error ? e.message : e);
+  } finally {
+    clearTimeout(timer);
   }
   return { sent: false, via: "error" };
 }
@@ -67,15 +80,18 @@ export const sendCakeOrder = internalAction({
   handler: async (ctx, args) => {
     const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
     if (!event) return;
-    const { subject, body } = await composeCakeEmail(event);
-    const { sent, via } = await deliver(RECIPIENT, subject, body);
-    const detail = sent ? `Cake order emailed to ${RECIPIENT}.` : `Cake order prepared for ${RECIPIENT} (not sent: ${via}).`;
-    if (args.taskId) {
-      await ctx.runMutation(internal.events.updateTask, {
-        eventId: args.eventId,
-        taskId: args.taskId,
-        patch: { status: "done", detail, needsYou: undefined },
-      });
+    const markDone = (detail: string) =>
+      args.taskId
+        ? ctx.runMutation(internal.events.updateTask, { eventId: args.eventId, taskId: args.taskId, patch: { status: "done", detail, needsYou: undefined } })
+        : Promise.resolve();
+
+    const cake = (event.drafts ?? []).find((d: any) => d.id === "cake" || d.item === "cake");
+    if (cake?.status === "rejected") {
+      await markDone("Cake order skipped — the draft was rejected.");
+      return;
     }
+    const { subject, body } = await composeCakeEmail(event);
+    const { sent, via } = await deliver(RECIPIENT, subject, body, `${args.eventId}:${args.taskId ?? "cake"}`);
+    await markDone(sent ? "Cake order emailed to the demo inbox." : `Cake order prepared (not sent: ${via}).`);
   },
 });
