@@ -112,8 +112,9 @@ export const approveDraft = mutation({
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) throw new Error("Event not found");
+    await requireHost(ctx, e, "write", "events.approveDraft");
     const drafts = (e.drafts ?? []).map((d: any) =>
-      d.id === args.draftId ? { ...d, status: "confirmed", simulatedReply: "Sorted — confirming shortly (simulated, nothing is paid)." } : d,
+      d.id === args.draftId ? { ...d, status: "confirmed", simulatedReply: "Sorted, confirming shortly (simulated, nothing is paid)." } : d,
     );
     await ctx.db.patch(e._id, { drafts });
   },
@@ -125,6 +126,7 @@ export const rejectDraft = mutation({
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) throw new Error("Event not found");
+    await requireHost(ctx, e, "write", "events.rejectDraft");
     await ctx.db.patch(e._id, { drafts: (e.drafts ?? []).filter((d: any) => d.id !== args.draftId) });
   },
 });
