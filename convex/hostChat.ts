@@ -157,14 +157,20 @@ export const reply = action({
       if (offlineLooksLikeSend) return say("Added to your checklist — I'll ask once more before anything actually goes out.");
     }
     if (r.data.tellGuests?.text) {
-      const out: any = await ctx.runMutation(internal.events.addAnnouncement, {
+      if (event.status !== "sent") {
+        return say("I can't pass that on yet — nothing has gone out, so there's nobody to tell. Send the invites first.");
+      }
+      // PROPOSE, don't send. This goes to every guest and the text above is the model's paraphrase
+      // of what the host said, so the host approves the exact words first (claude.md §3.1, same
+      // gate as a vendor order). taskRunner parks it; events.approveTask does the announcing.
+      await ctx.runMutation(internal.events.addTask, {
         eventId: args.eventId,
-        text: r.data.tellGuests.text,
+        label: "Tell your guests",
+        detail: r.data.tellGuests.text,
+        kind: "announce",
       });
-      // Tell the host what actually happened rather than echoing the model's optimism: the
-      // mutation refuses on an unsent event, and only it knows how many people it reached.
-      if (!out?.sent) return say("I can't pass that on yet — nothing has gone out, so there's nobody to tell. Send the invites first.");
-      return say(`Passed on to ${out.reached} ${out.reached === 1 ? "guest" : "guests"}: "${r.data.tellGuests.text}"`);
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+      return say(`Ready to send: "${r.data.tellGuests.text}" — approve it on your checklist and it goes to everyone.`);
     }
     if (r.data.addTask) {
       await ctx.runMutation(internal.events.addTask, {

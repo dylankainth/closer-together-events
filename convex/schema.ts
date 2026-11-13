@@ -41,7 +41,7 @@ const eventTask = v.object({
   id: v.string(),
   label: v.string(),
   detail: v.string(),
-  kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake")),
+  kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake"), v.literal("announce")),
   status: v.union(v.literal("todo"), v.literal("active"), v.literal("done"), v.literal("blocked")),
   needsYou: v.optional(v.object({ title: v.string(), body: v.string() })),
 });

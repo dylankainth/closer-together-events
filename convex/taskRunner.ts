@@ -43,6 +43,20 @@ export const runNext = internalAction({
       return;
     }
 
+    // An announcement goes to every guest and the model PARAPHRASED what the host said, so the
+    // host approves the exact words before they land — claude.md §3.1, same as vendor orders.
+    if (task.kind === "announce") {
+      await ctx.runMutation(internal.events.updateTask, {
+        eventId: args.eventId,
+        taskId: task.id,
+        patch: {
+          status: "blocked",
+          needsYou: { title: "Send this to your guests?", body: `"${task.detail}"` },
+        },
+      });
+      return;
+    }
+
     // "order_cake" is a real vendor email — a commit action, so it waits for the host's go-ahead
     // the same way send_invites does. The actual send happens in events.approveTask -> emailAction.
     if (task.kind === "order_cake") {

@@ -106,9 +106,6 @@ export const updateSettings = mutation({
   },
 });
 
-/** Called by hostChat.reply when the host asks for something not already on the plan (e.g. "order
- * pizza"). Adds it to the checklist as a pending item — nothing is "sent" to a vendor until the
- * host approves it via approveDraft, consistent with every other vendor step being simulated. */
 /** The host telling everyone something, written through their Muse in chat ("moved to 8pm").
  * Only for a sent event: there is nobody to tell before invites go out. Internal — hostChat.reply
  * has already checked requireHost. Guests see it in their notifications. */
@@ -130,6 +127,9 @@ export const addAnnouncement = internalMutation({
   },
 });
 
+/** Called by hostChat.reply when the host asks for something not already on the plan (e.g. "order
+ * pizza"). Adds it to the checklist as a pending item — nothing is "sent" to a vendor until the
+ * host approves it via approveDraft, consistent with every other vendor step being simulated. */
 export const proposeDraft = internalMutation({
   args: { eventId: v.string(), vendor: v.string(), item: v.string(), draft: v.string() },
   handler: async (ctx, args) => {
@@ -249,7 +249,7 @@ export const sendEvent = mutation({
  * while one is still sitting in the checklist awaiting approval. Internal: hostChat already
  * checked requireHost before calling it. */
 export const addTask = internalMutation({
-  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake")) },
+  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake"), v.literal("announce")) },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) throw new Error("Event not found");
@@ -284,6 +284,16 @@ export const approveTask = mutation({
     await requireHost(ctx, e, "write", "events.approveTask");
     const task = (e!.tasks ?? []).find((t: any) => t.id === args.taskId);
     if (!task) throw new Error("Task not found");
+    if (task.kind === "announce") {
+      if (task.status !== "blocked") return; // guards a double tap sending it twice
+      await ctx.runMutation(internal.events.addAnnouncement, { eventId: args.eventId, text: task.detail });
+      const next = (e!.tasks ?? []).map((t: any) =>
+        t.id === args.taskId ? { ...t, status: "done", detail: `Sent: "${task.detail}"`, needsYou: undefined } : t,
+      );
+      await ctx.db.patch(e!._id, { tasks: next });
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+      return;
+    }
     if (task.kind === "order_cake") {
       // Only a blocked (awaiting-approval) task fires — guards a double tap or stale client from
       // sending the order twice.
