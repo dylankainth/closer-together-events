@@ -24,6 +24,7 @@ export const reply = action({
     const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
     if (!event) return { reply: "I couldn't find that event." };
     const checklist: any = await ctx.runQuery(api.checklist.forEvent, { eventId: args.eventId });
+    const existingDrafts: any[] = event.drafts ?? [];
 
     const stuck = checklist?.items?.find((i: any) => i.state === "blocked");
     const next = checklist?.items?.find((i: any) => i.state === "active");
@@ -33,6 +34,23 @@ export const reply = action({
         ? `Noted. ${checklist.doneCount} of ${checklist.total} steps are done and I'm on "${next.label}". I'll check with you before anything is paid or sent.`
         : "Noted. Everything on the list is done, so you can review and send when you're ready.";
 
+    // Models drift on the draft-message field's name ("draft", "enquiry", "message", ...) despite
+    // being told what to call it, so accept any of the likely synonyms rather than let a harmless
+    // wording choice fail the whole schema and silently drop the proposal.
+    const ReplySchema = z.object({
+      reply: z.string().max(500),
+      proposeOrder: z
+        .object({
+          vendor: z.string().max(60),
+          item: z.string().max(60),
+          draft: z.string().max(300).optional(),
+          enquiry: z.string().max(300).optional(),
+          message: z.string().max(300).optional(),
+        })
+        .optional(),
+    });
+    type ReplyResult = z.infer<typeof ReplySchema>;
+
     const budget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const r = await museJSON({
       model: "spark",
@@ -41,16 +59,28 @@ export const reply = action({
       system:
         "You are the host's Muse, helping them finish planning their event. Use ONLY the event and checklist data given. " +
         "Be concrete and brief (1-3 short sentences). If a step is blocked, say what is wrong and offer one next step. " +
-        "Vendors are simulated: never claim to have paid, ordered or booked anything, and say you will ask first before committing.",
+        "Vendors are simulated: never claim to have paid, ordered or booked anything, and say you will ask first before committing. " +
+        "If the host asks you to get, order or arrange something (e.g. \"order pizza\") that isn't already in existingDrafts, " +
+        "set proposeOrder to {vendor, item, draft} — vendor is a short name, item is what's being ordered, draft is the one-line " +
+        "enquiry text (always use the key \"draft\" for that field). Tell them you've added it to their checklist for approval. " +
+        "If it's already in existingDrafts, say so instead of proposing it again.",
       user: {
         message,
         recent: args.history.slice(-8).map((m) => ({ from: m.from, text: m.text.slice(0, 400) })),
         event: { title: event.title, slotId: event.slotId, venueId: event.venueId, status: event.status, dateCheck: event.dateCheck },
         checklist: checklist ? { summary: checklist.summary, items: checklist.items.map((i: any) => ({ step: i.label, state: i.state, detail: i.detail })) } : null,
+        existingDrafts: existingDrafts.map((d) => ({ vendor: d.vendor, item: d.item })),
       },
-      schema: z.object({ reply: z.string().max(500) }),
-      fallback: () => ({ reply: offline }),
+      schema: ReplySchema,
+      fallback: (): ReplyResult => ({ reply: offline }),
     });
+
+    const proposal = r.data.proposeOrder;
+    const draftText = proposal?.draft ?? proposal?.enquiry ?? proposal?.message;
+    const duplicate = proposal && existingDrafts.some((d) => String(d.item).toLowerCase() === proposal.item.toLowerCase());
+    if (proposal && draftText && !duplicate) {
+      await ctx.runMutation(internal.events.proposeDraft, { eventId: args.eventId, vendor: proposal.vendor, item: proposal.item, draft: draftText });
+    }
     return { reply: r.data.reply };
   },
 });

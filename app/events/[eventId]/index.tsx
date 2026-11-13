@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
@@ -14,6 +15,7 @@ const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } 
 export default function EventPage() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { viewerId } = useViewer();
+  const insets = useSafeAreaInsets();
   const ev = useQuery(api.feed.detail, { eventId, personaId: viewerId });
   const respond = useMutation(api.feed.respond);
 
@@ -30,11 +32,11 @@ export default function EventPage() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable onPress={() => router.back()} style={styles.back} hitSlop={10}>
+      <Pressable onPress={() => router.back()} style={[styles.back, { top: insets.top + 12 }]} hitSlop={10}>
         <Ionicons name="chevron-back" size={24} color={swipe.ink} />
       </Pressable>
       {ev.relation === "hosting" && (
-        <Pressable onPress={() => router.push(`/events/${eventId}/manage`)} style={styles.manageBtn} hitSlop={8}>
+        <Pressable onPress={() => router.push(`/events/${eventId}/manage`)} style={[styles.manageBtn, { top: insets.top + 12 }]} hitSlop={8}>
           <Ionicons name="options-outline" size={16} color="#fff" />
           <Text style={styles.manageText}>Manage</Text>
         </Pressable>

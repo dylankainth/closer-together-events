@@ -65,6 +65,47 @@ export const updateSettings = mutation({
   },
 });
 
+/** Called by hostChat.reply when the host asks for something not already on the plan (e.g. "order
+ * pizza"). Adds it to the checklist as a pending item — nothing is "sent" to a vendor until the
+ * host approves it via approveDraft, consistent with every other vendor step being simulated. */
+export const proposeDraft = internalMutation({
+  args: { eventId: v.string(), vendor: v.string(), item: v.string(), draft: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) throw new Error("Event not found");
+    const drafts = e.drafts ?? [];
+    const id = `d_${Date.now().toString(36)}_${drafts.length}`;
+    await ctx.db.patch(e._id, {
+      drafts: [...drafts, { id, vendor: args.vendor, item: args.item, draft: args.draft, simulated: true, status: "pending" }],
+    });
+    return { id };
+  },
+});
+
+/** Host approves a pending draft from the checklist: fills in the canned vendor confirmation,
+ * same simulated pattern as the drafts created at plan time. */
+export const approveDraft = mutation({
+  args: { eventId: v.string(), draftId: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) throw new Error("Event not found");
+    const drafts = (e.drafts ?? []).map((d: any) =>
+      d.id === args.draftId ? { ...d, status: "confirmed", simulatedReply: "Sorted — confirming shortly (simulated, nothing is paid)." } : d,
+    );
+    await ctx.db.patch(e._id, { drafts });
+  },
+});
+
+/** Host dismisses a pending draft instead of approving it. */
+export const rejectDraft = mutation({
+  args: { eventId: v.string(), draftId: v.string() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) throw new Error("Event not found");
+    await ctx.db.patch(e._id, { drafts: (e.drafts ?? []).filter((d: any) => d.id !== args.draftId) });
+  },
+});
+
 export const bumpCalls = internalMutation({
   args: { eventId: v.string(), by: v.number() },
   handler: async (ctx, args) => {
