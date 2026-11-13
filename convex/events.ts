@@ -2,6 +2,7 @@ import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { allowedAs, requireActor, requireHost } from "./authz";
+import { spreadFromAcceptance } from "./spread";
 
 function publicEvent(e: any) {
   const { _id, _creationTime, ...rest } = e;
@@ -334,5 +335,8 @@ export const updateRsvp = mutation({
     const g = await ctx.db.query("guests").withIndex("by_event_persona", (q) => q.eq("eventId", args.eventId).eq("personaId", args.personaId)).unique();
     if (!g) throw new Error("Guest not found");
     await ctx.db.patch(g._id, { status: args.status });
+    // A yes is the moment the circle can widen — see convex/spread.ts for the rules that keep
+    // that from becoming a blast. No-ops unless the host opted in.
+    if (args.status === "going") await spreadFromAcceptance(ctx, args.eventId, args.personaId);
   },
 });

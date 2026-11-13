@@ -1,6 +1,7 @@
 import { query, mutation, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { mayViewEvent, requireActor } from "./authz";
+import { spreadFromAcceptance } from "./spread";
 import { canGoIf } from "./authPolicy";
 import { toPickView, type CardPerson } from "./discoveryCore";
 
@@ -357,6 +358,8 @@ export const respond = mutation({
       await ctx.db.patch(g._id, { status: "maybe", goIfFriend: args.friendId, snoozedUntil: undefined });
     } else {
       await ctx.db.patch(g._id, { status: args.action, goIfFriend: undefined, snoozedUntil: undefined });
+      // A yes widens the circle (convex/spread.ts). Host-gated and capped there; no-ops otherwise.
+      if (args.action === "going") await spreadFromAcceptance(ctx, args.eventId, args.personaId);
     }
   },
 });

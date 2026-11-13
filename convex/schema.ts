@@ -220,6 +220,11 @@ export default defineSchema({
     goIfFriend: v.optional(v.string()),
     // Guest-initiated invitations cannot themselves expand the guest list.
     invitedByPersonaId: v.optional(v.string()),
+    // Who said yes and caused this person to be surfaced the event (convex/spread.ts). Deliberately
+    // NOT invitedByPersonaId: that field means "this guest spent their one plus-one on you", and
+    // plusOnePolicy counts it to enforce one-each. Spread is automatic and must not consume
+    // anyone's plus-one, so it gets its own provenance.
+    spreadFrom: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
     .index("by_event_persona", ["eventId", "personaId"]),
