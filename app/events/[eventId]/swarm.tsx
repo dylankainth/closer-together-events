@@ -118,13 +118,23 @@ export default function Swarm() {
     const m = new Map<string, NodeState>();
     for (const c of allCandidates) {
       const guest = guestByPersona.get(c.personaId);
-      const verdict = guest?.nudge?.verdict;
+      // What the PERSON did outranks what their Muse suggested. This used to read the nudge
+      // first and fall back to `status`, but every invited guest has a nudge, so the fallback
+      // never ran: someone whose Muse said "maybe" stayed MAYBE forever even after they tapped
+      // Going. A recommendation is not an answer, and it must never overwrite one.
       let state: NodeState | null =
-        verdict === "worth" ? "going" : verdict === "maybe" ? "maybe" : verdict === "skip" ? "cant" : null;
+        guest?.status === "going"
+          ? "going"
+          : guest?.status === "maybe"
+            ? "maybe"
+            : guest?.status === "skip" || guest?.status === "cant"
+              ? "cant"
+              : null;
+      // Still "invited" — nobody has answered yet, so the Muse's verdict is the only signal there
+      // is, and showing it is the whole point of the swarm while the huddle is running.
       if (!state) {
-        if (guest?.status === "going") state = "going";
-        else if (guest?.status === "maybe") state = "maybe";
-        else if (guest?.status === "skip" || guest?.status === "cant") state = "cant";
+        const verdict = guest?.nudge?.verdict;
+        state = verdict === "worth" ? "going" : verdict === "maybe" ? "maybe" : verdict === "skip" ? "cant" : null;
       }
       if (!state) state = messages.some((msg) => msg.forPersona === c.personaId) ? "talking" : "idle";
       m.set(c.personaId, state);
