@@ -7,6 +7,7 @@ import { v } from "convex/values";
 import { MENLO, shouldRerankAfterFetch } from "./discoveryCore";
 import { mapHackRadar } from "./sources/hackradar";
 import { mapApifyFacebook } from "./sources/apifyFacebook";
+import { facebookEventUrls, parseAlleventsResults, type ParallelResult } from "./sources/parallel";
 import type { DiscoveredInput } from "./discoveryCore";
 
 const HACKRADAR_URL = "https://hackradar.tech/api/discovery/v1/events";
@@ -68,6 +69,7 @@ export const fetchAll = internalAction({
     const sources = [
       ["hackradar", internal.discoverySources.fetchHackRadar, 15 * 60_000],
       ["apify-facebook", internal.discoverySources.fetchApifyFacebook, 60 * 60_000],
+      ["parallel", internal.discoverySources.fetchParallel, 60 * 60_000],
     ] as const;
     for (const [name, fn, minGapMs] of sources) {
       try {
@@ -147,3 +149,65 @@ export const fetchApifyFacebook = internalAction({
     return { fetched: items.length, inserted: await upsertAll(ctx, items) };
   },
 });
+
+// ---- Parallel web search: allevents listings + Facebook event pages (details via Apify) ----
+
+const PARALLEL_URL = "https://api.parallel.ai/v1/search";
+const PARALLEL_TIMEOUT_MS = 60_000;
+const PARALLEL_BODY = {
+  objective:
+    "Public events (Facebook events and allevents listings) in Menlo Park, Palo Alto, Stanford, Mountain View or Redwood City, California in the next three weeks, with title, date, time and address.",
+  search_queries: [
+    "facebook events Palo Alto this month",
+    "facebook events Menlo Park",
+    "allevents Palo Alto this week",
+    "allevents Mountain View events",
+    "allevents Menlo Park events",
+    "allevents Redwood City events",
+  ],
+  advanced_settings: { max_results: 20, source_policy: { include_domains: ["facebook.com", "allevents.in"] } },
+};
+
+export const fetchParallel = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ fetched: number; inserted: number }> => {
+    const key = process.env.PARALLEL_API_KEY;
+    if (!key) return { fetched: 0, inserted: 0 };
+    let results: ParallelResult[] = [];
+    try {
+      const body = (await postJson(PARALLEL_URL, { "x-api-key": key }, PARALLEL_BODY, PARALLEL_TIMEOUT_MS)) as { results?: ParallelResult[] };
+      results = Array.isArray(body?.results) ? body.results : [];
+    } catch (err) {
+      console.warn(`[discovery] parallel search failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      return { fetched: 0, inserted: 0 };
+    }
+    const items: DiscoveredInput[] = parseAlleventsResults(results);
+    // Facebook event pages Parallel found: Apify reads their full details (same mapper as the city search).
+    const fbUrls = facebookEventUrls(results);
+    const token = process.env.APIFY_TOKEN;
+    if (fbUrls.length > 0 && token) {
+      try {
+        const rows = (await postJson(APIFY_URL, { Authorization: `Bearer ${token}` }, { searchQueries: [], startUrls: fbUrls.map((url) => ({ url })), maxEvents: fbUrls.length }, APIFY_TIMEOUT_MS)) as unknown[];
+        for (const row of Array.isArray(rows) ? rows : []) {
+          const mapped = mapApifyFacebook(row);
+          if (mapped) items.push(mapped);
+        }
+      } catch (err) {
+        console.warn(`[discovery] apify detail fetch failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      }
+    }
+    return { fetched: items.length, inserted: await upsertAll(ctx, items) };
+  },
+});
+
+async function postJson(url: string, headers: Record<string, string>, body: unknown, timeoutMs: number): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body), signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
