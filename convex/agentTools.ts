@@ -149,7 +149,19 @@ const draft_vendor_orders: Tool = {
     const venue = venues.find((v) => v.id === event.venueId);
     const headcount = Math.max((event.shortlist ?? []).filter((s: any) => s.selected).length, event.settings?.quota ?? 6);
     const drafts = vendorDrafts(event.answers, event.title, slot, venue, headcount);
-    return { summary: `Drafted ${drafts.length} vendor enquiries (simulated, nothing paid).`, patch: { drafts } };
+    // If there's a cake to order, queue a real vendor-email task for the host to approve (dedup'd
+    // in events.addTask). This is the one draft that leaves the app for real, on the host's OK.
+    const cake = drafts.find((d: any) => d.id === "cake");
+    if (cake) {
+      await ctx.runMutation(internal.events.addTask, {
+        eventId: event.eventId,
+        label: "Order the cake",
+        detail: `Email ${cake.vendor} to order the cake.`,
+        kind: "order_cake",
+      });
+    }
+    const suffix = cake ? " Queued the cake order to email on your OK." : "";
+    return { summary: `Drafted ${drafts.length} vendor enquiries (simulated, nothing paid).${suffix}`, patch: { drafts } };
   },
 };
 

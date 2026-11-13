@@ -222,13 +222,13 @@ export const sendEvent = mutation({
  * while one is still sitting in the checklist awaiting approval. Internal: hostChat already
  * checked requireHost before calling it. */
 export const addTask = internalMutation({
-  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom")) },
+  args: { eventId: v.string(), label: v.string(), detail: v.string(), kind: v.union(v.literal("send_invites"), v.literal("custom"), v.literal("order_cake")) },
   handler: async (ctx, args) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) throw new Error("Event not found");
     const tasks = e.tasks ?? [];
-    if (args.kind === "send_invites") {
-      const live = tasks.find((t: any) => t.kind === "send_invites" && t.status !== "done");
+    if (args.kind === "send_invites" || args.kind === "order_cake") {
+      const live = tasks.find((t: any) => t.kind === args.kind && t.status !== "done");
       if (live) return { id: live.id as string };
     }
     const id = `t_${Date.now().toString(36)}_${tasks.length}`;
@@ -257,6 +257,15 @@ export const approveTask = mutation({
     await requireHost(ctx, e, "write", "events.approveTask");
     const task = (e!.tasks ?? []).find((t: any) => t.id === args.taskId);
     if (!task) throw new Error("Task not found");
+    if (task.kind === "order_cake") {
+      // Host approved the vendor email: hand off to the action that composes + sends it (it marks
+      // the task done with the real result) and keep the queue moving while it goes out.
+      const next = (e!.tasks ?? []).map((t: any) => (t.id === args.taskId ? { ...t, status: "active", needsYou: undefined } : t));
+      await ctx.db.patch(e!._id, { tasks: next });
+      await ctx.scheduler.runAfter(0, internal.emailAction.sendCakeOrder, { eventId: args.eventId, taskId: args.taskId });
+      await ctx.scheduler.runAfter(0, internal.taskRunner.runNext, { eventId: args.eventId });
+      return;
+    }
     if (task.kind === "send_invites" && e!.status !== "sent") {
       const candidateIds = (e!.shortlist ?? []).filter((s: any) => s.selected).map((s: any) => s.personaId);
       await doSendInvites(ctx, e!, candidateIds);

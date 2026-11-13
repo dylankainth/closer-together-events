@@ -43,6 +43,23 @@ export const runNext = internalAction({
       return;
     }
 
+    // "order_cake" is a real vendor email — a commit action, so it waits for the host's go-ahead
+    // the same way send_invites does. The actual send happens in events.approveTask -> emailAction.
+    if (task.kind === "order_cake") {
+      await ctx.runMutation(internal.events.updateTask, {
+        eventId: args.eventId,
+        taskId: task.id,
+        patch: {
+          status: "blocked",
+          needsYou: {
+            title: "Order the cake?",
+            body: "I've drafted the cake order. Say go and I'll email it to the bakery — nothing is sent until you approve.",
+          },
+        },
+      });
+      return;
+    }
+
     const budget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const Schema = z.object({
       canResolve: z.boolean(),
