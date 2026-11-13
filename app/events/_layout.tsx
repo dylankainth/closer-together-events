@@ -12,6 +12,7 @@ export default function EventsLayout() {
       <Stack.Screen name="[eventId]/manage" options={{ headerShown: false }} />
       <Stack.Screen name="[eventId]/transcript" options={{ title: "Transcript" }} />
       <Stack.Screen name="[eventId]/swarm" options={{ headerShown: false }} />
+      <Stack.Screen name="[eventId]/room" options={{ headerShown: false }} />
       <Stack.Screen name="[eventId]/story" options={{ presentation: "transparentModal", headerShown: false, animation: "slide_from_bottom" }} />
     </Stack>
   );

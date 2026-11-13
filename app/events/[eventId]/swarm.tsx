@@ -465,7 +465,12 @@ export default function Swarm() {
         {feed.map((e, i) => {
           const [label, chipColor] = CHIP[e.state as "going" | "maybe" | "cant"];
           return (
-            <View key={e.personaId} style={[styles.logItem, { opacity: 1 - i * 0.12 }]}>
+            <Pressable
+              key={e.personaId}
+              style={[styles.logItem, { opacity: 1 - i * 0.12 }]}
+              onPress={() => router.push(`/events/${eventId}/room?personaId=${e.personaId}`)}
+              accessibilityLabel={`Open the Muse conversation about ${e.name}`}
+            >
               <View style={[styles.logAvatar, { backgroundColor: e.color }]}>
                 <Text style={styles.logAvatarText}>{e.initials}</Text>
               </View>
@@ -478,7 +483,8 @@ export default function Swarm() {
                 </View>
                 <Text style={styles.logText}>{e.reason}</Text>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={15} color={palette.dim} style={{ marginTop: 2 }} />
+            </Pressable>
           );
         })}
       </ScrollView>
