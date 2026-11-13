@@ -8,7 +8,7 @@ function WatchIcon({ color, focused }: { color: string; focused: boolean }) {
     <View>
       <Ionicons name={focused ? "play-circle" : "play-circle-outline"} size={26} color={color} />
       <View style={{ position: "absolute", top: -4, right: -8, backgroundColor: colors.danger, borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}>
-        <Text style={{ color: "white", fontSize: 10, fontWeight: "700" }}>2</Text>
+        <Text style={{ color: "white", fontSize: 10, fontWeight: "600" }}>2</Text>
       </View>
     </View>
   );

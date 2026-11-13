@@ -43,9 +43,9 @@ export function GuestInviteCard({ eventId, personaId }: { eventId: string; perso
 }
 const styles = StyleSheet.create({
   card: { marginTop: 24, padding: 18, borderRadius: 18, backgroundColor: swipe.lavender, gap: 10 },
-  title: { fontSize: 17, fontWeight: "700", color: swipe.ink },
+  title: { fontSize: 17, fontWeight: "600", color: swipe.ink },
   body: { fontSize: 14, lineHeight: 21, color: swipe.ink },
   button: { alignSelf: "flex-start", backgroundColor: swipe.blue, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12 },
-  buttonText: { color: "white", fontWeight: "700" },
-  error: { color: "#9B2929", fontSize: 13, lineHeight: 19 },
+  buttonText: { color: "white", fontWeight: "600" },
+  error: { color: "#E41E3F", fontSize: 13, lineHeight: 19 },
 });

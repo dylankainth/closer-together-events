@@ -44,7 +44,7 @@ export function EventCard({ event }: { event: EventCardData }) {
 const styles = StyleSheet.create({
   card: { width: 260, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginRight: spacing.md },
   poster: { width: "100%", height: 120 },
-  title: { fontWeight: "700", fontSize: 16, color: colors.text },
+  title: { fontWeight: "600", fontSize: 16, color: colors.text },
   sub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   nudge: { color: colors.text, fontSize: 13, marginTop: 4 },
   footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.md },

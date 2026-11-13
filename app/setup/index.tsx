@@ -74,12 +74,12 @@ export default function Setup() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.xl },
-  header: { fontSize: 24, fontWeight: "700", color: colors.text },
+  header: { fontSize: 24, fontWeight: "600", color: colors.text },
   body: { color: colors.textMuted, marginTop: spacing.md, lineHeight: 20 },
   list: { marginTop: spacing.lg, gap: spacing.xs },
   item: { color: colors.text },
   cta: { marginTop: spacing.xl, backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center" },
   ctaBusy: { opacity: 0.7 },
-  ctaText: { color: "white", fontWeight: "700", fontSize: 16 },
-  error: { marginTop: spacing.md, color: "#B3261E" },
+  ctaText: { color: "white", fontWeight: "600", fontSize: 16 },
+  error: { marginTop: spacing.md, color: "#E41E3F" },
 });

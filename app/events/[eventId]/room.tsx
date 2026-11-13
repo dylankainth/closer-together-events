@@ -15,7 +15,7 @@ import { agent as palette } from "@/theme/swipeTheme";
 const VERDICT: Record<string, { label: string; tint: string }> = {
   worth: { label: "VERDICT: GO", tint: palette.bubbleMe },
   maybe: { label: "VERDICT: MAYBE", tint: palette.maybe },
-  skip: { label: "VERDICT: SKIP", tint: "#4A4D57" },
+  skip: { label: "VERDICT: SKIP", tint: "#65676B" },
 };
 
 // huddle.ts/huddleChat.ts prefix every line with who is speaking ("Muse (Sam): …", or
@@ -132,7 +132,7 @@ export default function Room() {
                       </View>
                     )}
                     {kept && (
-                      <View style={[styles.chip, { borderColor: "#4A4D57" }]}>
+                      <View style={[styles.chip, { borderColor: "#65676B" }]}>
                         <Text style={[styles.chipText, { color: palette.muted }]}>Kept private: {kept}</Text>
                       </View>
                     )}
@@ -184,39 +184,39 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.bg },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 52, paddingHorizontal: 20, paddingBottom: 10 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  backText: { color: palette.link, fontSize: 15, fontWeight: "700" },
+  backText: { color: palette.link, fontSize: 15, fontWeight: "600" },
   liveRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.going },
   liveText: { color: palette.going, fontSize: 13, fontWeight: "600" },
   body: { paddingHorizontal: 20, paddingBottom: 28 },
   eyebrow: { color: palette.link, fontSize: 13, fontWeight: "600" },
-  headline: { color: palette.text, fontSize: 26, lineHeight: 31, fontWeight: "800", letterSpacing: -0.3, marginTop: 6 },
+  headline: { color: palette.text, fontSize: 24, lineHeight: 31, fontWeight: "700", letterSpacing: -0.3, marginTop: 6 },
   empty: { color: palette.muted, fontSize: 15, lineHeight: 21 },
-  speakerLabel: { color: palette.muted, fontSize: 12.5, marginLeft: 44 },
+  speakerLabel: { color: palette.muted, fontSize: 12, marginLeft: 44 },
   bubbleRow: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
   avatar: { width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: palette.darkFg, fontSize: 12.5, fontWeight: "700" },
+  avatarText: { color: palette.darkFg, fontSize: 12, fontWeight: "600" },
   bubble: { flex: 1, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12 },
   bubbleMine: { backgroundColor: palette.bubbleMe, borderBottomRightRadius: 6 },
   bubbleTheirs: { backgroundColor: palette.bubbleThem, borderBottomLeftRadius: 6 },
   bubbleText: { color: palette.text, fontSize: 15, lineHeight: 21 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginLeft: 44 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  chipText: { fontSize: 11.5, fontWeight: "600" },
+  chipText: { fontSize: 12, fontWeight: "600" },
   typingRow: { flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 44 },
   typingDots: { flexDirection: "row", gap: 4 },
   typingDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.dim },
-  typingText: { color: palette.muted, fontSize: 13.5 },
+  typingText: { color: palette.muted, fontSize: 13 },
   verdictCard: { backgroundColor: palette.text, margin: 16, borderRadius: 20, padding: 18, gap: 10 },
   verdictHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   verdictPill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
-  verdictPillText: { color: "#FFFFFF", fontSize: 11.5, fontWeight: "800", letterSpacing: 0.3 },
+  verdictPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700", letterSpacing: 0.3 },
   verdictMeta: { color: palette.dim, fontSize: 13 },
   verdictBody: { color: palette.darkFg, fontSize: 16, lineHeight: 22, fontWeight: "600" },
   verdictActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   btnPrimary: { flex: 1, backgroundColor: palette.panel, borderRadius: 13, paddingVertical: 14, alignItems: "center" },
-  btnPrimaryText: { color: palette.text, fontSize: 15, fontWeight: "700" },
+  btnPrimaryText: { color: palette.text, fontSize: 15, fontWeight: "600" },
   btnGhost: { flex: 1, borderWidth: 1, borderColor: "#C9C7C0", borderRadius: 13, paddingVertical: 14, alignItems: "center" },
-  btnGhostText: { color: palette.darkFg, fontSize: 15, fontWeight: "700" },
-  verdictNote: { color: palette.dim, fontSize: 13.5, lineHeight: 19 },
+  btnGhostText: { color: palette.darkFg, fontSize: 15, fontWeight: "600" },
+  verdictNote: { color: palette.dim, fontSize: 13, lineHeight: 19 },
 });

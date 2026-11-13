@@ -4,10 +4,10 @@ export const swipe = {
   blue: "#3447E4", // swipe stack background
   blueDeep: "#222A8C", // banner placeholder
   blueSoft: "rgba(255,255,255,0.18)", // card peeking behind the front card
-  ink: "#14141C", // primary dark buttons / text on cream
+  ink: "#050505", // primary dark buttons / text on cream
   lavender: "#E6E9FF", // "why you'd like this" panel
   lavenderLine: "#CDD3FF",
-  lavenderText: "#3447E4",
+  lavenderText: "#0064D1",
   chip: "#FFFFFF",
   cream: "#F6F3EE",
 };
@@ -17,12 +17,12 @@ export const discover = {
   bg: "#F6F3EE",
   headerTint: "#F6F3EE",
   card: "#FFFFFF",
-  line: "#E5E1DA",
-  text: "#14141C",
-  muted: "#6B6B76",
+  line: "#CED0D4",
+  text: "#050505",
+  muted: "#65676B",
   // Secondary muted role, a touch darker than `muted` — body copy on light surfaces that needs a
   // little more contrast than a caption but shouldn't compete with `text`.
-  textDim: "#55555F",
+  textDim: "#65676B",
   pill: "#ECE8E0",
   categoryColors: ["#A855F7", "#D69E2E", "#E08A00", "#C79A00", "#4F7CFF", "#EC5FA0", "#14B8A6", "#F97316"],
 };
@@ -45,8 +45,8 @@ export const agent = {
   bubbleThem: "#23252D",
   line: "#23252D",
   panelLine: "#23252D",
-  text: "#F2F1EC",
-  muted: "#8A8D96",
+  text: "#E4E6EB",
+  muted: "#B0B3B8",
   sub: "#B8BAC2",
   dim: "#6E717A",
   todo: "#33363F",

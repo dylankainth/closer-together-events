@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   close: { position: "absolute", top: spacing.md, right: spacing.md, zIndex: 1, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: radius.pill, width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   photo: { width: "100%", height: 220 },
   body: { padding: spacing.lg },
-  title: { fontSize: 20, fontWeight: "700", color: colors.text },
+  title: { fontSize: 20, fontWeight: "600", color: colors.text },
   sub: { color: colors.textMuted, marginTop: 2 },
   reasoning: { marginTop: spacing.md, backgroundColor: colors.museTint, borderRadius: radius.md, padding: spacing.md },
   reasoningText: { color: colors.text, marginTop: spacing.xs },
@@ -70,5 +70,5 @@ const styles = StyleSheet.create({
   remind: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
   no: { flex: 1, borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
   yes: { flex: 1, backgroundColor: colors.success, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
-  actionText: { fontWeight: "700", color: colors.text },
+  actionText: { fontWeight: "600", color: colors.text },
 });

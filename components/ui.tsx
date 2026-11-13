@@ -5,7 +5,7 @@ import { colors, radius, spacing } from "@/theme/tokens";
 export function Avatar({ initials, color, size = 40 }: { initials: string; color: string; size?: number }) {
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: color }]}>
-      <Text style={{ color: "white", fontWeight: "700", fontSize: size * 0.38 }}>{initials}</Text>
+      <Text style={{ color: "white", fontWeight: "600", fontSize: size * 0.38 }}>{initials}</Text>
     </View>
   );
 }
@@ -22,7 +22,7 @@ export function AvatarStack({ people, max = 5 }: { people: { initials: string; c
       ))}
       {extra > 0 && (
         <View style={[styles.avatar, { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, marginLeft: -10 }]}>
-          <Text style={{ fontSize: 11, color: colors.text, fontWeight: "700" }}>+{extra}</Text>
+          <Text style={{ fontSize: 11, color: colors.text, fontWeight: "600" }}>+{extra}</Text>
         </View>
       )}
     </View>
@@ -32,7 +32,7 @@ export function AvatarStack({ people, max = 5 }: { people: { initials: string; c
 export function MuseBadge({ live }: { live: boolean }) {
   return (
     <View style={[styles.pill, { backgroundColor: live ? colors.museTint : "#FDE9D9" }]}>
-      <Text style={{ color: live ? colors.museAccentDark : colors.warning, fontSize: 12, fontWeight: "700" }}>
+      <Text style={{ color: live ? colors.museAccentDark : colors.warning, fontSize: 12, fontWeight: "600" }}>
         {live ? "Muse live" : "Muse offline demo"}
       </Text>
     </View>

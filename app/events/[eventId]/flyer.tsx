@@ -34,9 +34,9 @@ export default function Flyer() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   poster: { width: "100%", height: 320 },
-  title: { fontSize: 24, fontWeight: "700", color: colors.text },
+  title: { fontSize: 24, fontWeight: "600", color: colors.text },
   sub: { color: colors.textMuted, marginTop: 4 },
   desc: { color: colors.text, marginTop: spacing.md, lineHeight: 20 },
   manage: { marginTop: spacing.xl, backgroundColor: colors.success, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center" },
-  manageText: { color: "white", fontWeight: "700", fontSize: 16 },
+  manageText: { color: "white", fontWeight: "600", fontSize: 16 },
 });

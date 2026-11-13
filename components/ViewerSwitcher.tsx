@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   trigger: { marginLeft: "auto" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, maxHeight: "70%" },
-  title: { fontWeight: "700", fontSize: 16, marginBottom: spacing.md, color: colors.text },
+  title: { fontWeight: "600", fontSize: 16, marginBottom: spacing.md, color: colors.text },
   search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm },
 });

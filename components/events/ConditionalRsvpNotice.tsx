@@ -22,7 +22,7 @@ export function ConditionalRsvpNotice({ state, friendName, busy, onConfirm, comp
 }
 const styles = StyleSheet.create({
   card: { marginTop: 12, padding: 16, borderRadius: 16, backgroundColor: swipe.lavender, gap: 8 },
-  title: { color: swipe.ink, fontWeight: "700", fontSize: 17 }, body: { color: swipe.ink, fontSize: 14, lineHeight: 21 },
+  title: { color: swipe.ink, fontWeight: "600", fontSize: 17 }, body: { color: swipe.ink, fontSize: 14, lineHeight: 21 },
   button: { backgroundColor: swipe.blue, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12, alignSelf: "flex-start" },
-  buttonText: { color: "white", fontWeight: "700" },
+  buttonText: { color: "white", fontWeight: "600" },
 });
