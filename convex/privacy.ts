@@ -33,8 +33,28 @@ export function eventSafeProfile(p: Persona): EventSafeProfile {
     interests: p.interests,
     socialStyle: p.vibe,
     availability: p.availability, // caller resolves slotId -> label where needed
+    ...(p.shareable ? { talkingPoints: p.shareable } : {}),
   };
 }
+
+/**
+ * What a Muse knows about ITS OWN person beyond the shareable profile: their private memory, what they are curious
+ * about, and (when the other Muse is known) their private read on that other person. It goes to the Muse's own
+ * model call only, to make its judgement specific; it is never part of what crosses to another Muse. Only personas
+ * with rich context (`shareable` set) get it, so everyone else behaves exactly as before.
+ */
+export function privateContext(p: Persona, other?: Persona) {
+  if (!p.shareable) return undefined;
+  return {
+    about_my_person: p.memory,
+    curious_about: p.curious,
+    ...(other && p.ties?.[other.id] ? { my_history_with_them: p.ties[other.id] } : {}),
+  };
+}
+
+/** Appended to every Muse system prompt that receives private_context. */
+export const PRIVATE_CONTEXT_RULE =
+  " You may also receive private_context about your person. Use it only to judge fit and to make your answer specific to them. NEVER quote it, paraphrase it, or hint at it. Only say things that appear in profile.talkingPoints or profile.interests.";
 
 export interface CheckResult {
   ok: boolean;

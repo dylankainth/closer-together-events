@@ -106,6 +106,8 @@ export default defineSchema({
     memory: v.array(v.string()),
     secrets: v.array(v.string()),
     neverShare: v.array(v.string()),
+    shareable: v.optional(v.array(v.string())),
+    ties: v.optional(v.record(v.string(), v.string())),
     hasMuse: v.boolean(),
     settings: museSettings,
   }).index("by_personaId", ["personaId"]),
