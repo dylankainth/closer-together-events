@@ -724,3 +724,81 @@ On this Windows setup Metro's file watcher is unreliable for **edits**, not just
 change can fail to appear on device through several app restarts, and only a Metro restart picks
 it up. If something you just wrote seems not to work, restart `expo start` before you debug the
 code.
+
+## 20. Is the AI actually real? Measure it, don't assume (2026-11-13, morning)
+
+§19 ended with "check `source: "muse"` is coming back before presenting". That was advice with no
+tool behind it, and the thing it warns about turned out to be happening.
+
+**Half the agent conversation was fallback, and nothing on screen said so.** On a real
+12-candidate huddle, 43 of 86 transcript messages came from the deterministic offline path while
+the swarm showed a live-looking conversation and counted all 86. It is invisible by construction:
+every `museJSON` call site falls back rather than failing, so a half-canned huddle looks identical
+to a real one.
+
+The cause was ours. `timeoutMs` was 10s against a documented ~8.5s average — an average with
+almost no headroom, so every slower-than-typical call was aborted. The deployment logs for that
+run held 34 `AbortError`s and **zero** auth, rate-limit or schema failures: every single fallback
+was our own timeout killing a call that would have succeeded. Raised to 20s.
+
+Two further things were making the picture look worse than it was, both mislabels rather than
+failures:
+- `huddle.ts` hardcoded `source: "offline"` on each candidate's final decision, even though
+  `decide` / `decideFromTranscript` are real Spark calls whose source was being discarded.
+- The host's opening "Is X worth it for Y?" is a fixed **template**, never a model call, and was
+  being scored as a failure. `source` has no third value meaning "never asked a model", so the
+  measurement excludes templated asks rather than pretending they are fallbacks.
+
+**`scripts/check-muse-live.mjs`** is the check, as one command. It reads the stored `source` on a
+run's huddle messages, separates the free multi-turn conversation (what goes on stage) from
+one-shot structured replies, and exits non-zero below 90% real. Run it after a rehearsal huddle.
+
+Measured before and after, same script:
+
+| | before | after |
+|---|---|---|
+| scored messages from Muse | 50% | **100%** (99/99) |
+| live conversation | ~50% | **100%** (69/69) |
+| AbortErrors in the window | 34 | 0 |
+
+**The honest cost, and it matters for the run of show.** That 15-guest huddle took ~11 minutes,
+against ~80s before. Raising the timeout converted fast failures into slow successes, and
+`displaySize` 12 → 15 adds a quarter more work on top. Every call now succeeds, which is exactly
+why it is slow *and* why it is real. For a demo, pre-run the huddle and use the swarm's **Replay**
+button rather than watching 15 Muses think on stage. The levers if it must run live are
+`displaySize` or `CANDIDATE_CONCURRENCY` — not the timeout, which is what bought the realness.
+
+**A Muse only talks to peers who are actually invited.** Peers used to be drawn from a candidate's
+friends at large, so a Muse could be asked "is this worth it for X?" about someone never invited,
+and that fed reasons like "Maya will be there" about a non-guest. Measured before changing it: on
+a real 15-guest event every invitee had at least 4 friends among the other invitees (mean 7.5,
+none with zero), and `maxPeersFree` is 2 — so restricting peers costs no conversation at all.
+
+**Still not true, and worth saying out loud.** The host's Muse does not converse; it sends a fixed
+ask and a synthetic "Hosting." reply (§18, a deliberate cost decision). "Each guest's Muse argues
+for its own person" is true and is the privacy story. "The host's Muse negotiates with each guest"
+is not — don't say it.
+
+## 21. The host's own guest list (2026-11-13)
+
+§9.3 Screen 5 was wireframed on day one and never built: the shortlist carried `selected` and a
+per-person reason with no way for the host to act on either. A host planning a birthday has a
+fixed list in mind, and the product had no way to hear it.
+
+**Pins are a separate top-level array on the event, not a flag on shortlist items.** `rank_guests`
+writes `shortlist` wholesale and `funnel.ts` computes `selected: idx < cut` purely by rank, so
+anything stored on an item is clobbered the next time ranking runs. `shortlistPolicy.applyPins` is
+the single place that reconciles host intent against rank, called both after a rerank and when the
+host edits, so the two paths cannot drift.
+
+One deliberate rule: **if the host pins more people than the quota, every pin stays selected and
+nothing else is added.** Quota is a planning target; a pin is the host naming a specific person.
+"My 10 best friends" has to mean exactly that, even when quota says 8.
+
+Verified on the live deployment rather than in a unit test: planned a birthday, pinned 10 —
+including five ranked 17, 21, 26, 31 and 38, i.e. people the ranker had *not* selected — and all
+10 were kept while Muse filled exactly 5, total 15 of quota 15.
+
+`displaySize` went 12 → 15 to make room for that story. Per §18 the call-budget arithmetic was
+redone rather than eyeballed: `15×2 + 15×2×5 + 15 = 195` against the 240 ceiling, ~45 calls of
+headroom.
