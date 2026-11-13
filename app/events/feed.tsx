@@ -5,11 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
-import { ViewerSwitcher } from "@/components/ViewerSwitcher";
+import { EventsNavBar } from "@/components/events/EventsNavBar";
 import type { EventView } from "@/components/events/SwipeCard";
 import { discover } from "@/theme/swipeTheme";
 
-type Tab = "discover" | "going" | "hosting";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const CATEGORY_ICONS: Record<string, IconName> = {
@@ -45,7 +44,6 @@ export default function Feed() {
   const { viewerId } = useViewer();
   const { width, height } = useWindowDimensions();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
-  const [tab, setTab] = useState<Tab>("discover");
   const [category, setCategory] = useState<string | null>(null);
   const [viewAll, setViewAll] = useState(false);
 
@@ -75,7 +73,6 @@ export default function Feed() {
 
   const pageW = Math.min(width - 56, 460);
   const open = (ev: EventView) => router.push(`/events/${ev.eventId}`);
-  const backToPicks = goToPicks;
 
   // Pull the feed down while it's scrolled to the top to go back to the recommended-events stack (the
   // reverse of the swipe up that opened it). At the top, a downward drag can't scroll anything, so it
@@ -102,47 +99,17 @@ export default function Feed() {
     [ty, height],
   );
 
-  const tabEvents = tab === "going" ? all.filter((e) => e.myStatus === "going") : tab === "hosting" ? all.filter((e) => e.relation === "hosting") : [];
-
   return (
-    <Animated.View style={[styles.screen, { transform: [{ translateY: ty }] }]} {...pullDown.panHandlers}>
-      <View style={styles.header}>
-        <Pressable onPress={backToPicks} hitSlop={8} accessibilityLabel="Your picks" style={styles.navIcon}>
-          <Ionicons name="sparkles" size={24} color={discover.muted} />
-          {picks > 0 && <View style={styles.dot} />}
-        </Pressable>
-        <Pressable onPress={() => setTab("going")} hitSlop={8} accessibilityLabel="Going" style={styles.navIcon}>
-          <Ionicons name="ticket-outline" size={24} color={tab === "going" ? discover.text : discover.muted} />
-        </Pressable>
-        <Pressable onPress={() => setTab("hosting")} hitSlop={8} accessibilityLabel="Hosting" style={styles.navIcon}>
-          <Ionicons name="calendar-outline" size={24} color={tab === "hosting" ? discover.text : discover.muted} />
-        </Pressable>
-        <Pressable onPress={() => setTab("discover")} hitSlop={8} accessibilityLabel="Discover" style={styles.navIcon}>
-          <Ionicons name={tab === "discover" ? "compass" : "compass-outline"} size={24} color={tab === "discover" ? discover.text : discover.muted} />
-        </Pressable>
-        <Pressable style={styles.create} onPress={() => router.push("/new-event/planning")}>
-          <Text style={styles.createText}>Create Event</Text>
-        </Pressable>
-        <ViewerSwitcher />
-      </View>
-
+    <View style={styles.root}>
+      <Animated.View style={[styles.screen, { transform: [{ translateY: ty }] }]} {...pullDown.panHandlers}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingTop: 56, paddingBottom: 40 }}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
       >
         {data === undefined ? (
           <View style={{ padding: 20, gap: 16 }}>
             {[0, 1, 2].map((i) => <View key={i} style={styles.skeleton} />)}
-          </View>
-        ) : tab !== "discover" ? (
-          <View style={styles.section}>
-            <Text style={styles.h1}>{tab === "going" ? "You're going" : "You're hosting"}</Text>
-            {tabEvents.length === 0 ? (
-              <Text style={styles.empty}>{tab === "going" ? "No plans yet. Say yes to something from your picks." : "You haven't hosted anything yet."}</Text>
-            ) : (
-              tabEvents.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)
-            )}
           </View>
         ) : (
           <>
@@ -230,14 +197,16 @@ export default function Feed() {
           </>
         )}
       </ScrollView>
-    </Animated.View>
+      </Animated.View>
+      {/* Outside the pull-down wrapper so the bar stays put while the page slides away. */}
+      <EventsNavBar active="feed" picks={picks} />
+    </View>
   );
 }
 
-/** Back to the recommended-events stack: pop the feed if it was pushed from there, else open the stack. */
+/** Back to the recommended-events stack: jump to it if it's already open underneath, else open it. */
 function goToPicks() {
-  if (router.canGoBack()) router.back();
-  else router.replace("/events/recommended");
+  router.navigate("/events/recommended");
 }
 
 function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
@@ -266,12 +235,8 @@ function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: discover.bg },
   screen: { flex: 1, backgroundColor: discover.bg },
-  header: { flexDirection: "row", alignItems: "center", gap: 18, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 14, backgroundColor: discover.headerTint, borderBottomWidth: 1, borderBottomColor: discover.line },
-  navIcon: { padding: 2 },
-  dot: { position: "absolute", top: 0, right: 0, width: 9, height: 9, borderRadius: 5, backgroundColor: "#EF4444" },
-  create: { marginLeft: "auto" },
-  createText: { color: discover.text, fontWeight: "700", fontSize: 16 },
   section: { paddingTop: 22 },
   divided: { marginTop: 26, borderTopWidth: 1, borderTopColor: discover.line },
   sectionHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 16 },
