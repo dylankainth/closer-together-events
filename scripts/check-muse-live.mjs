@@ -67,21 +67,37 @@ try {
     throw new Error("no messages");
   }
 
-  const muse = messages.filter((m) => m.source === "muse").length;
-  const offline = messages.length - muse;
-  const blocked = messages.filter((m) => m.status !== "sent").length;
-  const musePct = pct(muse, messages.length);
+  // The host's opening "Is <event> worth it for <name>?" is a fixed template, not a model call —
+  // convex/huddle.ts writes it with source "offline" because `source` has no third value meaning
+  // "never asked a model". Scoring those as failures made 100% unreachable and would have had the
+  // team chasing a number that cannot exist. They are reported, just not scored.
+  const event = await client.query(anyApi.events.getByEventId, { eventId });
+  const isTemplate = (m) => m.kind === "ask" && m.turn === undefined && m.fromPersona === event?.hostId;
+  const templated = messages.filter(isTemplate);
+  const scored = messages.filter((m) => !isTemplate(m));
 
-  console.log(`\n${eventId} on ${new URL(url).host}`);
-  console.log(`  messages     ${messages.length}`);
-  console.log(`  from Muse    ${muse} (${musePct}%)`);
-  console.log(`  offline      ${offline} (${pct(offline, messages.length)}%)`);
+  const muse = scored.filter((m) => m.source === "muse").length;
+  const offline = scored.length - muse;
+  const blocked = messages.filter((m) => m.status !== "sent").length;
+  const musePct = pct(muse, scored.length);
+
+  // Where the fallback lands matters: the free multi-turn conversation (turn is set) is what goes
+  // on stage, so fallback there is worse than fallback in a one-shot structured reply.
+  const conv = scored.filter((m) => m.turn !== undefined);
+  const convMuse = conv.filter((m) => m.source === "muse").length;
+
+  console.log(`
+${eventId} on ${new URL(url).host}`);
+  console.log(`  messages     ${messages.length} (${templated.length} templated host asks, not scored)`);
+  console.log(`  from Muse    ${muse}/${scored.length} (${musePct}%)`);
+  console.log(`  offline      ${offline} (${pct(offline, scored.length)}%)`);
+  if (conv.length) console.log(`  live convo   ${convMuse}/${conv.length} real (${pct(convMuse, conv.length)}%)`);
   console.log(`  guarded      ${blocked} blocked/rewritten`);
 
   // A healthy run is overwhelmingly real. Anything less means a call is failing somewhere and the
   // transcript on stage is partly canned — check the deployment logs for "[museJSON]".
   if (musePct >= 90) console.log(`\n  OK — the conversation on screen is real.\n`);
-  else if (musePct >= 60) console.log(`\n  WARNING — ${offline} of ${messages.length} messages are canned fallback. Check deployment logs for "[museJSON]".\n`);
+  else if (musePct >= 60) console.log(`\n  WARNING — ${offline} of ${scored.length} scored messages are canned fallback. Check deployment logs for "[museJSON]".\n`);
   else console.log(`\n  NOT DEMO READY — most of this transcript is deterministic fallback, not Muse.\n`);
   // exitCode rather than exit(): process.exit() with the Convex client's sockets still open trips
   // a libuv assertion on Windows and prints a crash dump underneath the result.
