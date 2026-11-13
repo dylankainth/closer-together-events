@@ -134,7 +134,7 @@ export default function Swarm() {
       // is, and showing it is the whole point of the swarm while the huddle is running.
       if (!state) {
         const verdict = guest?.nudge?.verdict;
-        state = verdict === "worth" ? "going" : verdict === "maybe" ? "maybe" : verdict === "skip" ? "cant" : null;
+        state = verdict === "worth" ? "going" : verdict === "maybe" ? "maybe" : null;
       }
       if (!state) state = messages.some((msg) => msg.forPersona === c.personaId) ? "talking" : "idle";
       m.set(c.personaId, state);

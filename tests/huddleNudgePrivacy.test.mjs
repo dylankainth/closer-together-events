@@ -45,10 +45,10 @@ for (const text of ["sam-private-canary", "Call 415-555-0199.", "Money is tight 
     assert.doesNotMatch(JSON.stringify(result.nudge), new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   });
 }
-test("skip verdicts cannot hide private reasons behind a clean display line", async () => {
-  const result = await run({ verdict: "skip" });
+test("a verdict's stored reasons cannot hide private info behind a clean display line", async () => {
+  const result = await run({ verdict: "maybe" });
   assert.doesNotMatch(JSON.stringify(result.nudge), /sam-private-canary/);
-  assert.equal(result.nudge.verdict, "skip");
+  assert.equal(result.nudge.verdict, "maybe");
 });
 test("safe long recommendations are not rejected by the structured reply's 140-character limit", async () => {
   const text = "Likes bowling with friends and trying a new place after work on Friday. ".repeat(2).trim();

@@ -28,8 +28,8 @@ for (const mode of ["structured", "free"]) {
     assert.equal(result.report.leakingRows, 0, JSON.stringify(result.report.findings));
     assert.ok(result.nudges.every((n) => result.owners.every((p) => !result.privacy.leaksIn(JSON.stringify(n.nudge), p))));
   });
-  test(`${mode}: a skip verdict's stored reasons are checked even when its text is clean`, async () => {
-    const result = await runPrivacyFixture({ mode, scenario: "final-skip" });
+  test(`${mode}: a non-worth verdict's stored reasons are checked even when its text is clean`, async () => {
+    const result = await runPrivacyFixture({ mode, scenario: "final-maybe" });
     assert.equal(result.report.leakingRows, 0);
     assert.ok(result.nudges.every((n) => result.owners.every((p) => !result.privacy.leaksIn(JSON.stringify(n.nudge), p))));
   });
