@@ -1,84 +1,81 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import { AvatarStack } from "@/components/ui";
-import { discover, priceLabel, swipe } from "@/theme/swipeTheme";
+import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
 export type EventView = FunctionReturnType<typeof api.feed.forViewer>["recommended"][number];
 
-const VERDICT: Record<string, string> = { worth: "Go", maybe: "Maybe", skip: "Skip" };
+const VERDICT_WORD: Record<string, string> = { worth: "Go.", maybe: "Maybe.", skip: "Skip." };
+const VERDICT_COLOR: Record<string, string> = { worth: swipe.blue, maybe: "#A8700A", skip: discover.muted };
+const BANNERS = ["#374B7C", "#B0694B", "#4A7B5A", "#C4BDD6"]; // placeholder colours until an event has a poster
+const TAG_LABEL = { people: "PEOPLE", goal: "GOAL", fit: "FIT", plan: "PLAN" } as const;
 
-/** Front card of the "Your week, by your agent" stack. Presentational: gestures live in the screen. */
+const bannerColor = (id: string) => BANNERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % BANNERS.length];
+const first = (name: string) => name.split(" ")[0];
+
+/**
+ * One recommendation in the "Your agent's picks" stack. Presentational: the swipe gestures and the
+ * progress header live in the screen. Every line below the banner is written by the viewer's Muse
+ * (the screen header says so), so there's no per-line label.
+ */
 export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void }) {
-  const meta = [ev.slotLabel, ev.venue?.area, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
-  const headline = ev.reasons[0] ?? `${ev.host?.name ?? "Someone"} is hosting.`;
-  const micro = ev.reasons.slice(1, 3).join(" · ");
-  const going = ev.friendsGoing.length > 0 ? ev.friendsGoing : ev.host ? [ev.host] : [];
+  const verdict = ev.verdict ?? "worth";
+  const tone = VERDICT_COLOR[verdict];
+  const slot = parseSlot(ev.slotLabel);
+  const meta = [slot ? `${slot.weekday} ${slot.day} · ${slot.time}` : ev.slotLabel, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
+  // `chips` only exists once the updated convex/feed.ts is deployed; until then the card shows no rows.
+  const chips = ev.chips ?? [];
+  const headline = ev.reasons[0] ?? chips[0]?.text ?? `${ev.host?.name ?? "Someone"} is hosting.`;
+  const rows = chips.filter((c) => c.text !== headline).slice(0, 3);
+  const goingText =
+    ev.friendsGoing.length > 0
+      ? ev.friendsGoing.map((f) => `${first(f.name)}'s in`).join(" · ")
+      : "No friends you know are going yet";
 
   return (
-    <View style={styles.card}>
-      <View style={styles.banner}>
-        {ev.poster ? (
-          <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.45)" />
-        )}
-        {ev.verdict && (
-          <View style={styles.verdict}>
-            <View style={styles.dot} />
-            <Text style={styles.verdictText}>{VERDICT[ev.verdict]}</Text>
-          </View>
-        )}
-        {ev.matchPct !== null && (
-          <View style={styles.match}>
-            <Text style={styles.matchText}>{ev.matchPct}% match</Text>
-          </View>
-        )}
+    <Pressable style={styles.card} onPress={onOpen}>
+      <View style={[styles.banner, { backgroundColor: bannerColor(ev.eventId) }]}>
+        {ev.poster ? <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
       </View>
 
-      <Pressable style={styles.body} onPress={onOpen}>
+      <View style={styles.verdictRow}>
+        <Text style={[styles.verdict, { color: tone }]}>{ev.verdict ? VERDICT_WORD[verdict] : "New."}</Text>
         <Text style={styles.meta}>{meta}</Text>
-        <Text style={styles.title}>{ev.title} →</Text>
-        {/* Every Muse-written line is labelled as from Muse (claude.md §9.4). */}
-        <View style={styles.from}>
-          <Ionicons name="sparkles" size={11} color={swipe.blue} />
-          <Text style={styles.fromText}>Muse</Text>
-        </View>
-        <Text style={styles.headline}>{headline}</Text>
-        <View style={styles.people}>
-          <AvatarStack people={going} max={3} />
-          {micro ? <Text style={styles.micro} numberOfLines={2}>{micro}</Text> : null}
-        </View>
-        <View style={styles.footer}>
-          <Text style={styles.footerText} numberOfLines={1}>
-            {ev.goingCount} going{ev.vibe ? ` · ${ev.vibe}` : ""}
-          </Text>
-          <Text style={styles.why}>Why? →</Text>
-        </View>
-      </Pressable>
-    </View>
+      </View>
+      <Text style={styles.title} numberOfLines={1}>{ev.title}</Text>
+      <Text style={styles.headline}>{headline}</Text>
+
+      <View style={styles.rows}>
+        {rows.map((c, i) => (
+          <View key={i} style={styles.row}>
+            <Text style={[styles.tag, { color: tone }]}>{TAG_LABEL[c.kind]}</Text>
+            <Text style={styles.rowText}>{c.text}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.pill}>
+        {ev.friendsGoing.length > 0 && <AvatarStack people={ev.friendsGoing} max={3} />}
+        <Text style={styles.pillText} numberOfLines={1}>{goingText}</Text>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#fff", borderRadius: 28, overflow: "hidden", flex: 1 },
-  banner: { aspectRatio: 1.15, backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
-  verdict: { position: "absolute", top: 14, left: 14, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: swipe.blue },
-  verdictText: { fontWeight: "800", color: swipe.ink, fontSize: 15 },
-  match: { position: "absolute", top: 14, right: 14, backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  matchText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-  body: { padding: 18, flex: 1 },
-  meta: { color: discover.muted, fontSize: 13 },
-  title: { color: swipe.ink, fontWeight: "700", fontSize: 15, marginTop: 4 },
-  from: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 12 },
-  fromText: { color: swipe.blue, fontSize: 12, fontWeight: "600" },
-  headline: { color: swipe.ink, fontWeight: "800", fontSize: 24, lineHeight: 29, marginTop: 4 },
-  people: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
-  micro: { flex: 1, color: discover.textDim, fontSize: 13, lineHeight: 17 },
-  footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 12, borderTopWidth: 1, borderTopColor: discover.line },
-  footerText: { color: discover.muted, fontSize: 13, flex: 1 },
-  why: { color: swipe.blue, fontWeight: "800", fontSize: 14 },
+  card: { flex: 1 },
+  banner: { aspectRatio: 1.75, borderRadius: 22, overflow: "hidden" },
+  verdictRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 },
+  verdict: { fontSize: 44, lineHeight: 48, fontWeight: "800", letterSpacing: -1 },
+  meta: { color: discover.muted, fontSize: 12, paddingBottom: 8 },
+  title: { color: discover.textDim, fontSize: 14, fontWeight: "700", marginTop: 2 },
+  headline: { color: swipe.ink, fontSize: 22, lineHeight: 28, fontWeight: "800", marginTop: 8 },
+  rows: { marginTop: 14, borderTopWidth: 1, borderTopColor: "#ECECF0" },
+  row: { flexDirection: "row", gap: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#ECECF0" },
+  tag: { width: 58, fontSize: 10, fontWeight: "800", letterSpacing: 1, paddingTop: 3 },
+  rowText: { flex: 1, color: swipe.ink, fontSize: 15, lineHeight: 20 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F1F1F4", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14 },
+  pillText: { flex: 1, color: discover.textDim, fontSize: 14 },
 });

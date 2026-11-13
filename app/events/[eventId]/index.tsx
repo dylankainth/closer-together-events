@@ -8,7 +8,7 @@ import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
-const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit" } as const;
+const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } as const;
 
 /** Guest event page: what it is, why Muse picked it for you, who's going, and how to answer. */
 export default function EventPage() {

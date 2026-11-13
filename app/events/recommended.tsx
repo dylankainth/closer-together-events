@@ -32,7 +32,6 @@ export default function Recommended() {
   // Cards that get answered drop out of `list`, so the cursor already points at the next one.
   const idx = n === 0 ? 0 : ((cursor % n) + n) % n;
   const current = list[idx];
-  const upcoming = n > 1 ? list[(idx + 1) % n] : null;
 
   // The responder is built once, so it reads live state through this ref.
   const live = useRef({ n, idx });
@@ -85,16 +84,19 @@ export default function Recommended() {
     <View style={styles.screen}>
       <View style={styles.segments}>
         {Array.from({ length: Math.min(Math.max(n, 1), 8) }).map((_, i) => (
-          <View key={i} style={[styles.segment, n > 0 && i === Math.min(idx, 7) && styles.segmentOn]} />
+          <View key={i} style={[styles.segment, n > 0 && i <= Math.min(idx, 7) && styles.segmentOn]} />
         ))}
       </View>
 
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
+          <Ionicons name="chevron-back" size={22} color={swipe.ink} />
         </Pressable>
-        <Text style={styles.heading}>Your week, by your agent</Text>
-        {n > 0 && <Text style={styles.count}>{idx + 1} of {n}</Text>}
+        <View style={styles.badge}>
+          <Ionicons name="star" size={13} color="#fff" />
+        </View>
+        <Text style={styles.heading}>Your agent's picks</Text>
+        {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
         <ViewerSwitcher />
       </View>
 
@@ -110,32 +112,29 @@ export default function Recommended() {
             </Pressable>
           </View>
         ) : (
-          <>
-            {upcoming && <View style={styles.peek} />}
-            <Animated.View
-              {...responder.panHandlers}
-              style={[styles.front, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
-            >
-              <SwipeCard ev={current} onOpen={open} />
-            </Animated.View>
-          </>
+          <Animated.View
+            {...responder.panHandlers}
+            style={[styles.front, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
+          >
+            <SwipeCard ev={current} onOpen={open} />
+          </Animated.View>
         )}
       </View>
 
       <View style={styles.actions}>
         <Pressable style={styles.round} onPress={() => answer("cant")} disabled={!current} accessibilityLabel="Not for me">
-          <Ionicons name="close" size={26} color="#fff" />
+          <Ionicons name="close" size={26} color={swipe.ink} />
         </Pressable>
         <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current}>
           <Text style={styles.goingText}>I'm going</Text>
         </Pressable>
         <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current} accessibilityLabel="Remind me later">
-          <Ionicons name="time-outline" size={26} color="#fff" />
+          <Ionicons name="time-outline" size={26} color={swipe.ink} />
         </Pressable>
       </View>
 
       <Pressable style={styles.hint} onPress={() => router.push("/events/feed")}>
-        <Ionicons name="chevron-up" size={16} color="rgba(255,255,255,0.7)" />
+        <Ionicons name="chevron-up" size={16} color="#8A8A94" />
         <Text style={styles.hintText}>Swipe up for all events</Text>
       </Pressable>
     </View>
@@ -143,23 +142,23 @@ export default function Recommended() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: swipe.blue, paddingTop: 52, paddingBottom: 18 },
-  segments: { flexDirection: "row", gap: 6, paddingHorizontal: 18 },
-  segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.3)" },
-  segmentOn: { backgroundColor: "#fff" },
-  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingTop: 16 },
-  heading: { flex: 1, color: "#fff", fontWeight: "800", fontSize: 20 },
-  count: { color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 14 },
-  stage: { flex: 1, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 14 },
+  screen: { flex: 1, backgroundColor: "#FFFFFF", paddingTop: 52, paddingBottom: 18 },
+  segments: { flexDirection: "row", gap: 6, paddingHorizontal: 20 },
+  segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: "#E4E4EA" },
+  segmentOn: { backgroundColor: swipe.ink },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingTop: 18 },
+  badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: swipe.blue, alignItems: "center", justifyContent: "center" },
+  heading: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 15 },
+  count: { color: "#6B6B76", fontWeight: "600", fontSize: 13 },
+  stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10 },
   front: { flex: 1 },
-  peek: { position: "absolute", left: 32, right: 32, bottom: 6, top: 28, borderRadius: 28, backgroundColor: swipe.blueSoft },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18, paddingVertical: 6 },
-  round: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(255,255,255,0.55)", alignItems: "center", justifyContent: "center" },
-  going: { backgroundColor: "#fff", borderRadius: 999, paddingHorizontal: 40, height: 64, alignItems: "center", justifyContent: "center" },
-  goingText: { color: swipe.ink, fontWeight: "800", fontSize: 20 },
+  round: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, borderColor: "#D5D5DC", alignItems: "center", justifyContent: "center" },
+  going: { backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 40, height: 60, alignItems: "center", justifyContent: "center" },
+  goingText: { color: "#fff", fontWeight: "800", fontSize: 19 },
   hint: { flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 4, paddingTop: 10 },
-  hintText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" },
-  empty: { flex: 1, backgroundColor: "#fff", borderRadius: 28, alignItems: "center", justifyContent: "center", padding: 28, gap: 10 },
+  hintText: { color: "#8A8A94", fontSize: 12, fontWeight: "600" },
+  empty: { flex: 1, backgroundColor: "#F6F6F8", borderRadius: 28, alignItems: "center", justifyContent: "center", padding: 28, gap: 10 },
   emptyTitle: { fontSize: 22, fontWeight: "800", color: swipe.ink },
   emptyBody: { textAlign: "center", color: "#55555F", fontSize: 15 },
   emptyBtn: { marginTop: 8, backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 26, paddingVertical: 14 },
