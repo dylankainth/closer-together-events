@@ -12,6 +12,11 @@ export const CONFIG = {
   poolSize: 50,
   displaySize: 12,
   maxPeers: 3,
+  // Free-conversation mode (convex/huddleChat.ts): hard cap on turns per candidate<->peer
+  // exchange, counted across BOTH sides. 4 = two round-trips each way, which reads as a real
+  // exchange while keeping the per-edge Muse cost near structured mode's (claude.md §5.3's
+  // "cap and goal-bind"). Raising this multiplies cost per edge — see the budget note there.
+  maxTurns: 4,
   maxCallsPerEvent: 160,
   // Measured low-effort spark calls average ~8.5s, wonder ~4.2s; every museJSON call site uses
   // "low" effort (no medium/high), so 10s gives headroom above the slowest normal case while

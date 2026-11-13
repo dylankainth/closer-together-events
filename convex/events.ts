@@ -186,7 +186,11 @@ export const appendAgentLog = internalMutation({
 /** Shared by the "Send invites" button (events.sendEvent) and the host-chat "send invites" task
  * (events.approveTask): sets status to "sent", seeds `guests` rows, then schedules the huddle
  * action so the caller returns immediately. Caller must already hold a write-level requireHost. */
-async function doSendInvites(ctx: { db: any; scheduler: any }, e: { eventId: string; hostId: string; _id: any }, rawCandidateIds: string[]) {
+async function doSendInvites(ctx: { db: any; scheduler: any }, e: { eventId: string; hostId: string; status: string; _id: any }, rawCandidateIds: string[]) {
+  // Idempotent: the checklist's send row, Manage's Send button and the host-chat send task all
+  // reach here, and the checklist row stays tappable after sending (it reopens the swarm), so a
+  // second call must NOT seed guests again or schedule a second concurrent huddle run.
+  if (e.status === "sent") return;
   const personas = await ctx.db.query("personas").collect();
   const hostFriends = new Set(personas.find((x: any) => x.personaId === e.hostId)?.friends ?? []);
   // A host can invite seeded demo personas (incl. friends of friends), but a REAL user only if

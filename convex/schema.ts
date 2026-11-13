@@ -169,6 +169,11 @@ export default defineSchema({
     capacity: v.optional(v.number()),
     museCalls: v.number(), // CallBudget.used, persisted so budget survives across action runs
     huddleSeq: v.number(), // monotonic counter for huddleMessages.seq
+    // How this event's huddle runs (claude.md §5.1). "structured" = the shipped design: one fixed
+    // ask, one schema'd reply per peer ("B on the surface, C underneath"). "free" = real
+    // multi-turn agent-to-agent conversation per edge (convex/huddleChat.ts). Absent means
+    // "structured", so every existing event keeps today's behavior with no migration.
+    conversationMode: v.optional(v.union(v.literal("structured"), v.literal("free"))),
     createdAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
@@ -214,6 +219,11 @@ export default defineSchema({
     source: v.union(v.literal("muse"), v.literal("offline")),
     ts: v.number(),
     seq: v.number(), // monotonic order within event, for stable client sort
+    // Free-conversation mode only (convex/huddleChat.ts): `edgeId` groups the turns of one
+    // candidate<->peer exchange, `turn` is the 1-indexed position within it. Both absent for
+    // structured-mode messages, which are single-shot and need no grouping.
+    edgeId: v.optional(v.string()),
+    turn: v.optional(v.number()),
   })
     .index("by_eventId_seq", ["eventId", "seq"])
     .index("by_event_forPersona", ["eventId", "forPersona"]),
