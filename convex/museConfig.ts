@@ -10,7 +10,7 @@ export const CONFIG = {
   },
   models: { spark: "muse-spark-1.3", wonder: "muse-wonder-1.0", ember: "muse-ember-1.0", image: "muse-image-1.0" },
   poolSize: 50,
-  displaySize: 12,
+  displaySize: 15,
   maxPeers: 3,
   // Free-conversation mode (convex/huddleChat.ts): hard cap on turns per candidate<->peer
   // exchange, counted across BOTH sides. 4 = two round-trips each way, which reads as a real
@@ -18,16 +18,22 @@ export const CONFIG = {
   maxTurns: 4,
   // Free mode fans out less than structured mode, because turns multiply: an exchange costs
   // maxTurns model calls + ONE closing sparkCheck (the per-turn code check is pure regex and
-  // free), so ~5 calls/edge vs structured's ~2. At displaySize 12 candidates that is
-  // 12 x (2 edges x 5 + 1 decide) = 132 calls, inside the 160 ceiling; using maxPeers (3) here
-  // would need ~300 and would silently exhaust the budget mid-huddle, leaving the back half of
+  // free), so ~5 calls/edge vs structured's ~2. At displaySize 15 candidates that is
+  // 15 x (2 edges x 5 + 1 decide) = 165 calls, inside the 240 ceiling; using maxPeers (3) here
+  // would need ~375 and would silently exhaust the budget mid-huddle, leaving the back half of
   // the "real conversation" demo running on offline fallbacks.
   maxPeersFree: 2,
   // Headroom for free conversation, which is now the default (convex/huddle.ts). A full huddle at
-  // displaySize 12 costs roughly: 12 candidates x 2 (the opening reply + its guard) + 12 x 2 edges
-  // x ~5 (4 turns + one closing Spark pass) + 12 deciders = ~156. The old 160 left so little slack
-  // that one retry would push a huddle past it — and museJSON degrades to offline fallbacks rather
-  // than failing, so the back half would quietly stop being real while still looking real.
+  // displaySize 15 costs roughly: 15 candidates x 2 (the opening reply + its guard) + 15 x 2 edges
+  // x ~5 (4 turns + one closing Spark pass) + 15 deciders = ~195 (30 + 150 + 15), leaving ~45
+  // calls of headroom under this 240 ceiling. Raising displaySize again means redoing this
+  // arithmetic, not eyeballing it (claude.md §18).
+  //
+  // Wall-clock grows roughly in step with displaySize too: a measured ~80s huddle at displaySize
+  // 12 becomes ~100s at 15 (CANDIDATE_CONCURRENCY 4 in convex/huddle.ts caps how many candidates
+  // run at once, so more candidates means more sequential batches). That still fits inside
+  // huddleRuntime's 120s lease because every message write renews the lease, so a slower huddle
+  // keeps resetting its own clock rather than racing a fixed deadline.
   maxCallsPerEvent: 240,
   // Measured low-effort spark calls average ~8.5s, wonder ~4.2s; every museJSON call site uses
   // "low" effort (no medium/high).

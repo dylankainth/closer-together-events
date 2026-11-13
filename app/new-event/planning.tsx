@@ -305,6 +305,13 @@ export default function Planning() {
   // one step playback never auto-completes, so its real readiness has to come from the actual data.
   const sendReady = !!checklist && checklist.items.every((i) => i.key === "send" || i.state === "done");
   const alreadySent = checklist?.status === "sent";
+  // Only once the matching step has actually produced a shortlist — before that there is nothing
+  // for pick-guests to show, and tapping through would land the host on an empty screen.
+  const hasShortlist = !!(event?.shortlist && event.shortlist.length > 0);
+  const editGuests = () => {
+    if (!eventId) return;
+    router.push(`/events/${eventId}/pick-guests`);
+  };
 
   const onSendInvites = async () => {
     if (!eventId) return;
@@ -401,14 +408,24 @@ export default function Planning() {
                         row.step.key === "send" ? (
                           <SendRow key="send" step={row.step} ready={sendReady} sent={alreadySent} pending={sendingInvites} onPress={onSendInvites} onExplain={() => setExplainStep(row.step)} />
                         ) : (
-                          <StepRow key={row.step.key} row={row} onPress={() => setExplainStep(row.step)} />
+                          <StepRow
+                            key={row.step.key}
+                            row={row}
+                            onPress={row.step.key === "guests" && hasShortlist ? editGuests : () => setExplainStep(row.step)}
+                            editable={row.step.key === "guests" && hasShortlist}
+                          />
                         ),
                       )
                     : checklist.items.map((s) =>
                         s.key === "send" ? (
                           <SendRow key="send" step={s} ready={sendReady} sent={alreadySent} pending={sendingInvites} onPress={onSendInvites} onExplain={() => setExplainStep(s)} />
                         ) : (
-                          <StepRow key={s.key} row={{ step: s, isDone: s.state === "done", isActive: false, isPending: s.state !== "done", waiting: false, lines: [] }} onPress={() => setExplainStep(s)} />
+                          <StepRow
+                            key={s.key}
+                            row={{ step: s, isDone: s.state === "done", isActive: false, isPending: s.state !== "done", waiting: false, lines: [] }}
+                            onPress={s.key === "guests" && hasShortlist ? editGuests : () => setExplainStep(s)}
+                            editable={s.key === "guests" && hasShortlist}
+                          />
                         ),
                       )}
                 </View>
@@ -585,7 +602,7 @@ function Cursor() {
   return <Animated.Text style={[styles.cursor, { opacity: op }]}>▍</Animated.Text>;
 }
 
-function StepRow({ row, onPress }: { row: PlaybackRow; onPress: () => void }) {
+function StepRow({ row, onPress, editable }: { row: PlaybackRow; onPress: () => void; editable?: boolean }) {
   const { step, isDone, isActive, isPending, waiting, lines } = row;
   const blocked = isDone && step.state === "blocked";
   const dimmed = isPending && !waiting;
@@ -606,7 +623,12 @@ function StepRow({ row, onPress }: { row: PlaybackRow; onPress: () => void }) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.stepLabel, isPending && !waiting && { color: agent.dim }]}>{isActive ? `${step.activeLabel}…` : step.label}</Text>
           {(isDone || (isPending && waiting)) && (
-            <Text style={[styles.stepDetail, blocked && { color: agent.warn }]}>{isDone && !blocked ? `└ ${step.detail}` : step.detail}</Text>
+            <Text style={[styles.stepDetail, blocked && { color: agent.warn }]}>
+              {isDone && !blocked ? `└ ${step.detail}` : step.detail}
+              {/* Only once this step is actually done — editable implies hasShortlist, but a row can
+                  still be mid-typewriter when it finishes, and there's nothing to edit until then. */}
+              {editable && isDone && !blocked && <Text style={styles.editHint}> · edit guests</Text>}
+            </Text>
           )}
           {isActive && (
             <View style={styles.traceBlock}>
@@ -756,6 +778,7 @@ const styles = StyleSheet.create({
   sendStepBtn: { backgroundColor: agent.blue, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   sendStepBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   link: { color: agent.link, fontSize: 16, fontWeight: "700" },
+  editHint: { color: agent.link, fontWeight: "700" },
   chatContent: { flexGrow: 1, padding: 20, paddingTop: 12, gap: 14, justifyContent: "flex-end" },
   openingWrap: { flexGrow: 1, justifyContent: "center", gap: 10 },
   openingPrompt: { color: agent.text, fontSize: 36, lineHeight: 40, fontWeight: "800", letterSpacing: -0.5 },
