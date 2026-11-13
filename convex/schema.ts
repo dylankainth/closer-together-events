@@ -132,6 +132,9 @@ export default defineSchema({
       visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     }),
     audienceRaw: v.string(),
+    // The host's own opening line in the planner ("Boxing night with the crew"); the title prefers it
+    // over Muse's purpose chip (convex/plannerRules.ts titleFromDescription). Optional: older events lack it.
+    hostDescription: v.optional(v.string()),
     // Optional: a fresh draft starts with no reading on its audience yet — agentLoop's
     // match_audience tool is what fills this in (and settings below), as its first real step.
     query: v.optional(

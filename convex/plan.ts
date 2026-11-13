@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { museJSON, museImage } from "./muse";
 import type { CallBudget, HostAnswers, Persona, Slot, Venue } from "./types";
+import { titleFromDescription } from "./plannerRules";
 
 export function availabilityCount(slotId: string, guests: Persona[]): number {
   return guests.filter((g) => g.availability.includes(slotId)).length;
@@ -78,7 +79,11 @@ export function venueOptions(venues: Venue[], answers: HostAnswers, topics: stri
     .map((x) => x.v);
 }
 
-export function titleFor(hostFirst: string, answers: HostAnswers, topics: string[]): string {
+export function titleFor(hostFirst: string, answers: HostAnswers, topics: string[], hostDescription?: string): string {
+  // The host's own opening line beats Muse's purpose chip ("Boxing night with the crew", not
+  // "casual hangout with friends night"); the chip-based titles below are the fallback.
+  const own = titleFromDescription(hostFirst, hostDescription);
+  if (own) return own;
   const topic = topics[0];
   switch (answers.purpose) {
     case "Birthday":
