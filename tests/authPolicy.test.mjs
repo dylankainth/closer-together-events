@@ -1,12 +1,8 @@
 // Who may act as whom. Pure policy, no Convex.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-// seedData.ts now pulls in ./personaContextData extensionlessly, which Node can't resolve on its
-// own — so these two come in dynamically, after the resolve hook is registered.
-import "./lib/ts-resolve.mjs";
-
-const { isSeeded, parseOperators, decide, applyMode, canViewEvent, canGoIf } = await import("../convex/authPolicy.ts");
-const { buildPersonas } = await import("../convex/seedData.ts");
+import { isSeeded, parseOperators, decide, applyMode, canViewEvent, canGoIf } from "../convex/authPolicy.ts";
+import { buildPersonas } from "../convex/seedData.ts";
 
 test("seeded vs real personas", () => {
   assert.equal(isSeeded("maya"), true);

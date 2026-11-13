@@ -2,19 +2,14 @@
 // guardText). No Convex, no network: runExchange takes the model-call function as a parameter,
 // so these drive it with a fake `callText` instead of the real museText.
 //
-// huddleChat.ts imports privacy.ts and muse.ts by their Convex-bundler-style extensionless
-// specifiers ("./privacy", not "./privacy.ts") — the convention every other convex/*.ts file
-// uses, since the Convex bundler resolves those. Node's native TS loader does not, so a direct
-// `import` of a multi-file convex module (as opposed to the leaf, import-free modules the other
-// tests/*.test.mjs files happen to exercise) needs a resolve hook that falls back to appending
-// ".ts". Registered here only, via node:module's `register`, so it never touches how Convex
-// itself bundles these files.
+// huddleChat.ts imports privacy.ts and muse.ts extensionlessly ("./privacy"), the convention
+// every convex/*.ts file follows because the Convex bundler resolves it. Node's loader does not —
+// tests/support/register-ts-resolve.mjs, loaded for the whole suite by `npm test`, is what makes
+// these imports work here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import "./lib/ts-resolve.mjs";
-
-const { runExchange } = await import("../convex/huddleChat.ts");
-const { guardText, NEUTRAL_WHY } = await import("../convex/privacy.ts");
+import { runExchange } from "../convex/huddleChat.ts";
+import { guardText, NEUTRAL_WHY } from "../convex/privacy.ts";
 
 const persona = (overrides = {}) => ({
   id: "x",
