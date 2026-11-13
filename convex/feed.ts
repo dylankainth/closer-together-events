@@ -11,6 +11,7 @@ import { toPickView, type CardPerson } from "./discoveryCore";
 // being reworked, so everything that is derived (spots left, mutuals, "via", match %, reason
 // chips) is computed here from the tables as they are today, and only here.
 
+const LIST_POSTER_MAX = 60_000; // characters; above this the list leaves the picture out
 const REMIND_LATER_MS = 60 * 60 * 1000; // "remind me later" snoozes a recommendation for an hour
 
 type Relation = "hosting" | "invited" | "responded" | "discover";
@@ -129,7 +130,9 @@ function buildView(w: World, e: any, viewerId: string) {
     eventId: e.eventId as string,
     title: e.title as string,
     status: e.status as string,
-    poster: e.poster?.url ? { url: e.poster.url as string } : null,
+    // A big embedded picture (a Muse Image is ~0.5-1 MB as a data URI) would make every feed load megabytes. The
+    // list sends url "" for those and the card fetches it on its own through feed.poster (EventBanner does this).
+    poster: e.poster?.url ? { url: (e.poster.url as string).length > LIST_POSTER_MAX ? "" : (e.poster.url as string) } : null,
     host,
     slotLabel: (slot?.label as string | undefined) ?? null,
     venue: venue ? { name: venue.name as string, area: venue.area as string } : null,
@@ -222,6 +225,20 @@ export const forViewer = query({
 });
 
 /** Full event page for one viewer: the view above plus reasoning, attendees and agent suggestions. */
+/** One event's picture, fetched on its own so big embedded pictures stay out of the list queries. */
+export const poster = query({
+  args: { eventId: v.string(), personaId: v.string() },
+  handler: async (ctx, args) => {
+    await requireActor(ctx, args.personaId, "read", "feed.poster");
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e?.poster?.url) return null;
+    const guests = await ctx.db.query("guests").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).collect();
+    const guestIds = guests.flatMap((g) => (g.personaId ? [g.personaId] : []));
+    if (!(await mayViewEvent(ctx, e, guestIds, args.personaId, "feed.poster"))) return null;
+    return e.poster.url as string;
+  },
+});
+
 export const detail = query({
   args: { eventId: v.string(), personaId: v.string() },
   handler: async (ctx, args) => {
