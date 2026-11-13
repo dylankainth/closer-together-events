@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
 import { shortPlace } from "@/components/events/place";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
@@ -11,7 +11,9 @@ import { useViewer } from "@/hooks/useViewer";
 import { Avatar } from "@/components/ui";
 import { discover, swipe } from "@/theme/swipeTheme";
 
-/** A Muse pick of a real nearby event, shown as a Facebook-style event page. No links out:
+const ABOUT_MAX = 150; // characters shown before "See more"
+
+/** A Muse pick of a real nearby event, laid out like a Luma event page. No links out:
  * picks read as Facebook events (docs/superpowers/specs/2026-11-13-event-discovery-design.md). */
 export default function PickPage() {
   const { key: rawKey } = useLocalSearchParams<{ key: string }>();
@@ -20,122 +22,162 @@ export default function PickPage() {
   const insets = useSafeAreaInsets();
   const ev = useQuery(api.picks.detail, { personaId: viewerId, key });
   const respond = useMutation(api.picks.respond);
+  const [scrolled, setScrolled] = useState(false); // the title moves into the top bar once the big one scrolls away
+  const [more, setMore] = useState(false);
 
-  // The page draws its own back button, like the other event pages; no native header.
-  const back = (
-    <>
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/events/recommended"));
+  const topBar = (title?: string, shareMessage?: string) => (
+    <View style={[styles.topBar, { paddingTop: insets.top + 8 }, scrolled && styles.topBarSolid]} pointerEvents="box-none">
       <Stack.Screen options={{ headerShown: false }} />
-      <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/events/recommended"))} style={[styles.back, { top: insets.top + 12 }]} hitSlop={10}>
-        <Ionicons name="chevron-back" size={24} color={swipe.ink} />
+      <Pressable onPress={goBack} style={styles.circle} hitSlop={8} accessibilityLabel="Back">
+        <Ionicons name="chevron-back" size={22} color={swipe.ink} />
       </Pressable>
-    </>
+      <Text style={[styles.topTitle, !scrolled && { opacity: 0 }]} numberOfLines={1}>{title ?? ""}</Text>
+      {shareMessage ? (
+        <Pressable onPress={() => void Share.share({ message: shareMessage }).catch(() => undefined)} style={styles.circle} hitSlop={8} accessibilityLabel="Share">
+          <Ionicons name="share-social-outline" size={20} color={swipe.ink} />
+        </Pressable>
+      ) : <View style={{ width: 40 }} />}
+    </View>
   );
+
   if (ev === undefined) {
-    return <View style={styles.screen}>{back}<View style={[styles.banner, styles.skeleton]} /><View style={[styles.skelLine, { width: "70%" }]} /><View style={[styles.skelLine, { width: "45%" }]} /></View>;
+    return <View style={styles.screen}>{topBar()}<View style={[styles.banner, styles.skeleton]} /><View style={[styles.skelLine, { width: "70%" }]} /><View style={[styles.skelLine, { width: "45%" }]} /></View>;
   }
   if (ev === null) {
-    return <View style={styles.screen}>{back}<Text style={styles.loading}>This event is no longer available.</Text></View>;
+    return <View style={styles.screen}>{topBar()}<Text style={styles.loading}>This event is no longer available.</Text></View>;
   }
 
   const [datePart, timePart] = (ev.whenLabel ?? "").split(" · ");
   const [weekday, day, month] = (datePart ?? "").split(" ");
+  const dateText = weekday ? `${weekday}, ${day} ${month}` : "Date to be confirmed";
   const going = ev.myStatus === "going";
-  const answer = (action: "going" | "maybe" | "cant") => respond({ personaId: viewerId, key, action });
+  const nah = ev.myStatus === "cant";
+  const answer = (action: "going" | "cant") => respond({ personaId: viewerId, key, action }).catch(() => undefined);
+  const place = shortPlace(ev.placeLabel);
+  const about = ev.description ?? "";
+  const long = about.length > ABOUT_MAX;
+  const shownAbout = long && !more ? `${about.slice(0, ABOUT_MAX).trimEnd()}…` : about;
+  const friends = ev.friendsGoing ?? [];
+  const goingText = friends.length === 0 ? "" : `${friends.map((f) => f.name).join(", ")}${ev.goingCount > friends.length ? `, and ${ev.goingCount - friends.length} more` : ""}`;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {back}
-      <View style={styles.banner}>
-        <EventBanner eventId={key} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
-      </View>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 64 }]}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const past = e.nativeEvent.contentOffset.y > 300;
+          if (past !== scrolled) setScrolled(past);
+        }}
+      >
+        <View style={styles.banner}>
+          <EventBanner eventId={key} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
+        </View>
 
-      <Text style={styles.title}>{ev.title}</Text>
-      <View style={styles.hostRow}>
-        <Avatar initials={ev.host.initials} color={ev.host.color} size={22} />
-        <Text style={styles.hostText}>Hosted by {ev.host.name}</Text>
-      </View>
+        <Text style={styles.title}>{ev.title}</Text>
 
-      <View style={styles.infoRow}>
-        <View style={styles.tile}>
-          <Text style={styles.tileTop}>{(month ?? "").toUpperCase()}</Text>
-          <Text style={styles.tileBig}>{day}</Text>
+        {/* Date and time side by side */}
+        <View style={styles.whenRow}>
+          <View style={styles.whenCard}>
+            <Ionicons name="calendar-outline" size={20} color={swipe.ink} />
+            <Text style={styles.whenText}>{dateText}</Text>
+          </View>
+          {timePart ? (
+            <View style={styles.whenCard}>
+              <Ionicons name="time-outline" size={20} color={swipe.ink} />
+              <Text style={styles.whenText}>{timePart}</Text>
+            </View>
+          ) : null}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.infoTitle}>{weekday ? `${weekday}, ${day} ${month}` : "Date to be confirmed"}</Text>
-          {timePart ? <Text style={styles.infoSub}>{timePart}</Text> : null}
-        </View>
-      </View>
-      <View style={styles.infoRow}>
-        <View style={styles.tile}><Ionicons name="location-outline" size={22} color={swipe.ink} /></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.infoTitle}>{shortPlace(ev.placeLabel) ?? "Location to be confirmed"}</Text>
-        </View>
-      </View>
 
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>{ev.myStatus ? "Your answer" : "Are you going?"}</Text>
-        <View style={styles.btnRow}>
-          <Pressable style={[styles.btnDark, { flex: 1 }]} onPress={() => answer("going")}>
-            {going && <Ionicons name="checkmark" size={16} color="#fff" style={{ marginRight: 6 }} />}
-            <Text style={styles.btnDarkText}>{going ? "You're going" : "Going"}</Text>
+        {/* Two action cards */}
+        <View style={styles.tileRow}>
+          <Pressable style={[styles.actionTile, styles.actionTileOn]} onPress={() => answer("going")} accessibilityRole="button">
+            <Ionicons name={going ? "checkmark-circle" : "ticket"} size={22} color="#fff" />
+            <Text style={styles.actionTileTextOn}>{going ? "You're going" : "I'll go"}</Text>
           </Pressable>
-          <Pressable style={[styles.btnLight, { flex: 1 }, ev.myStatus === "maybe" ? styles.btnLightOn : null]} onPress={() => answer("maybe")}>
-            <Text style={styles.btnLightText}>Maybe</Text>
+          <Pressable style={[styles.actionTile, nah && styles.actionTileSel]} onPress={() => answer("cant")} accessibilityRole="button">
+            <Ionicons name="close-circle-outline" size={22} color={swipe.ink} />
+            <Text style={styles.actionTileText}>{nah ? "Not going" : "Nah"}</Text>
           </Pressable>
         </View>
-        {!going && ev.myStatus !== "cant" && (
-          <Pressable onPress={() => answer("cant")} style={{ alignSelf: "center", marginTop: 12 }}>
-            <Text style={styles.skip}>Not for me</Text>
-          </Pressable>
+
+        <View style={styles.why}>
+          <View style={styles.whyHead}>
+            <Ionicons name="sparkles-outline" size={16} color={swipe.lavenderText} />
+            <Text style={styles.whyTitle}>Why you'd like this</Text>
+            <View style={styles.goPill}><Text style={styles.goPillText}>{ev.verdict === "worth" ? "Go" : "Maybe"}</Text></View>
+          </View>
+          <Text style={styles.from}>From your Muse</Text>
+          <Text style={styles.whyText}>{ev.reasons[0]}</Text>
+        </View>
+
+        {place ? (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionLabel}>Location</Text></View>
+            <Text style={styles.locTitle}>{place}</Text>
+          </>
+        ) : null}
+
+        <View style={styles.sectionHead}><Text style={styles.sectionLabel}>Hosts</Text></View>
+        <View style={styles.hostRow}>
+          <Avatar initials={ev.host.initials} color={ev.host.color} size={40} />
+          <Text style={styles.hostName}>{ev.host.name}</Text>
+        </View>
+
+        {friends.length > 0 && (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionLabel}>{ev.goingCount} friend{ev.goingCount === 1 ? "" : "s"} going</Text></View>
+            <View style={styles.faces}>
+              {friends.map((f, i) => (
+                <View key={f.id} style={[styles.face, i > 0 && { marginLeft: -10 }]}>
+                  <Avatar initials={f.initials} color={f.color} size={38} />
+                </View>
+              ))}
+            </View>
+            <Text style={styles.goingNames}>{goingText}</Text>
+          </>
         )}
-      </View>
 
-      <View style={styles.why}>
-        <View style={styles.whyHead}>
-          <Ionicons name="sparkles-outline" size={16} color={swipe.lavenderText} />
-          <Text style={styles.whyTitle}>Why you'd like this</Text>
-          <View style={styles.goPill}><Text style={styles.goPillText}>{ev.verdict === "worth" ? "Go" : "Maybe"}</Text></View>
-        </View>
-        <Text style={styles.from}>From your Muse</Text>
-        <Text style={styles.whyText}>{ev.reasons[0]}</Text>
-      </View>
-
-      {ev.description ? (
-        <>
-          <Text style={styles.sectionBig}>About</Text>
-          <Text style={styles.about}>{ev.description}</Text>
-        </>
-      ) : null}
-    </ScrollView>
+        {about ? (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionLabel}>About event</Text></View>
+            <Text style={styles.about}>{shownAbout}</Text>
+            {long && (
+              <Pressable onPress={() => setMore((m) => !m)} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.seeMore}>{more ? "See less" : "See more"}</Text>
+              </Pressable>
+            )}
+          </>
+        ) : null}
+      </ScrollView>
+      {topBar(ev.title, `${ev.title}${ev.whenLabel ? ` · ${ev.whenLabel}` : ""}`)}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: swipe.cream },
-  content: { padding: 16, paddingTop: 56, paddingBottom: 60 },
+  content: { paddingHorizontal: 16, paddingBottom: 60 },
   loading: { padding: 32, paddingTop: 100, color: discover.textDim },
-  back: { position: "absolute", top: 16, left: 8, zIndex: 2, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.85)", alignItems: "center", justifyContent: "center" },
-  banner: { aspectRatio: 1, borderRadius: 28, overflow: "hidden", backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
+  topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingBottom: 8 },
+  topBarSolid: { backgroundColor: swipe.cream },
+  circle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: discover.line },
+  topTitle: { flex: 1, fontSize: 17, fontWeight: "800", color: swipe.ink },
+  banner: { aspectRatio: 1, borderRadius: 24, overflow: "hidden", backgroundColor: swipe.blueDeep, alignItems: "center", justifyContent: "center" },
   skeleton: { margin: 16, marginTop: 100, backgroundColor: discover.pill },
   skelLine: { height: 18, borderRadius: 9, backgroundColor: discover.pill, marginHorizontal: 16, marginTop: 12 },
-  title: { fontSize: 34, lineHeight: 38, fontWeight: "800", color: swipe.ink, marginTop: 20 },
-  hostRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  hostText: { color: discover.textDim, fontSize: 14 },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 16 },
-  tile: { width: 48, height: 48, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: discover.line, alignItems: "center", justifyContent: "center" },
-  tileTop: { fontSize: 9, fontWeight: "800", color: discover.muted },
-  tileBig: { fontSize: 18, fontWeight: "800", color: swipe.ink, marginTop: -2 },
-  infoTitle: { fontWeight: "700", fontSize: 16, color: swipe.ink },
-  infoSub: { color: discover.muted, fontSize: 13, marginTop: 2 },
-  panel: { backgroundColor: "#fff", borderRadius: 20, padding: 16, marginTop: 20, borderWidth: 1, borderColor: discover.pill },
-  panelTitle: { fontWeight: "800", fontSize: 16, color: swipe.ink },
-  btnRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  btnDark: { flexDirection: "row", backgroundColor: swipe.ink, borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
-  btnDarkText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  btnLight: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#D9D5CC" },
-  btnLightOn: { borderColor: swipe.ink },
-  btnLightText: { color: swipe.ink, fontWeight: "700", fontSize: 15 },
-  skip: { color: discover.muted, fontSize: 14, textDecorationLine: "underline" },
+  title: { fontSize: 30, lineHeight: 35, fontWeight: "800", color: swipe.ink, marginTop: 18 },
+  whenRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  whenCard: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: discover.line, paddingHorizontal: 14, paddingVertical: 12 },
+  whenText: { flex: 1, fontSize: 15, fontWeight: "700", color: swipe.ink },
+  tileRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  actionTile: { flex: 1, height: 74, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: discover.line, alignItems: "center", justifyContent: "center", gap: 6 },
+  actionTileOn: { backgroundColor: swipe.ink, borderColor: swipe.ink },
+  actionTileSel: { borderColor: swipe.ink, borderWidth: 2 },
+  actionTileText: { color: swipe.ink, fontWeight: "700", fontSize: 14 },
+  actionTileTextOn: { color: "#fff", fontWeight: "700", fontSize: 14 },
   why: { backgroundColor: swipe.lavender, borderRadius: 20, padding: 16, marginTop: 16, borderWidth: 1, borderColor: swipe.lavenderLine },
   whyHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   whyTitle: { flex: 1, fontWeight: "800", fontSize: 16, color: swipe.lavenderText },
@@ -143,6 +185,14 @@ const styles = StyleSheet.create({
   goPillText: { color: "#fff", fontWeight: "700", fontSize: 11 },
   from: { color: swipe.lavenderText, fontSize: 11, fontWeight: "600", marginTop: 8 },
   whyText: { color: swipe.ink, fontSize: 15, lineHeight: 20, marginTop: 10 },
-  sectionBig: { fontSize: 20, fontWeight: "800", color: swipe.ink, marginTop: 24 },
-  about: { color: swipe.ink, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  sectionHead: { marginTop: 28, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#C9C5BB" },
+  sectionLabel: { fontSize: 16, color: discover.muted, fontWeight: "600" },
+  locTitle: { fontSize: 19, fontWeight: "700", color: swipe.ink, marginTop: 14 },
+  hostRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14 },
+  hostName: { flex: 1, fontSize: 18, fontWeight: "600", color: swipe.ink },
+  faces: { flexDirection: "row", marginTop: 14 },
+  face: { borderRadius: 22, borderWidth: 2, borderColor: swipe.cream },
+  goingNames: { color: discover.muted, fontSize: 15, lineHeight: 21, marginTop: 10 },
+  about: { color: swipe.ink, fontSize: 17, lineHeight: 26, marginTop: 14 },
+  seeMore: { color: swipe.blue, fontWeight: "700", fontSize: 16, marginTop: 8 },
 });
