@@ -49,9 +49,12 @@ export async function museJSON<T>(opts: MuseJsonOpts<T>): Promise<MuseResult<T>>
         const body = (await res.json()) as { choices: { message: { content: string } }[] };
         const parsed = opts.schema.safeParse(JSON.parse(body.choices[0].message.content));
         if (parsed.success) return { data: parsed.data, source: "muse" };
+        console.error("[museJSON] schema mismatch", parsed.error.message, body.choices[0].message.content.slice(0, 300));
+      } else {
+        console.error("[museJSON] non-ok response", res.status, await res.text().catch(() => ""));
       }
-    } catch {
-      // fall through to offline fallback below
+    } catch (e) {
+      console.error("[museJSON] fetch failed", e instanceof Error ? `${e.name}: ${e.message}` : e);
     }
   }
   return { data: await opts.fallback(), source: "offline" };
