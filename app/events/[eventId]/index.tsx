@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { EventBanner } from "@/components/events/EventBanner";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
@@ -11,14 +11,44 @@ import { Avatar } from "@/components/ui";
 import { discover, parseSlot, priceLabel, swipe } from "@/theme/swipeTheme";
 
 const KIND_LABEL = { people: "People", goal: "Goal", fit: "Fit", plan: "Plan" } as const;
+type RsvpResponse = { action: "going" | "goIf" | "cant"; friendId?: string };
 
 /** Guest event page: what it is, why Muse picked it for you, who's going, and how to answer. */
 export default function EventPage() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { viewerId } = useViewer();
+
+  // An in-flight response belongs to one event and viewer. Navigation or a persona switch
+  // remounts the content rather than carrying its saving/error state to another invitation.
+  return <GuestEventPage key={`${eventId}:${viewerId}`} eventId={eventId} viewerId={viewerId} />;
+}
+
+function GuestEventPage({ eventId, viewerId }: { eventId: string; viewerId: string }) {
   const insets = useSafeAreaInsets();
   const ev = useQuery(api.feed.detail, { eventId, personaId: viewerId });
   const respond = useMutation(api.feed.respond);
+  const inFlight = useRef(false);
+  const [saving, setSaving] = useState<RsvpResponse["action"] | null>(null);
+  const [failedResponse, setFailedResponse] = useState<RsvpResponse | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function saveResponse(response: RsvpResponse) {
+    // State updates render later; the ref also rejects rapid taps in the same frame.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSaving(response.action);
+    setFailedResponse(null);
+    setSaved(false);
+    try {
+      await respond({ eventId, personaId: viewerId, ...response });
+      setSaved(true);
+    } catch {
+      setFailedResponse(response);
+    } finally {
+      inFlight.current = false;
+      setSaving(null);
+    }
+  }
 
   if (ev === undefined) return <View style={styles.screen}><Text style={styles.loading}>Loading…</Text></View>;
   if (ev === null) return <View style={styles.screen}><Text style={styles.loading}>This event doesn't exist.</Text></View>;
@@ -87,28 +117,52 @@ export default function EventPage() {
           </View>
           <View style={styles.btnRow}>
             <Pressable
-              style={[styles.btnDark, { flex: 1 }]}
-              onPress={() => respond({ eventId, personaId: viewerId, action: "going" })}
+              style={[styles.btnDark, { flex: 1 }, saving !== null && styles.btnDisabled]}
+              onPress={() => void saveResponse({ action: "going" })}
+              disabled={saving !== null}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving !== null, busy: saving === "going" }}
             >
-              {going && <Ionicons name="checkmark" size={16} color="#fff" style={{ marginRight: 6 }} />}
-              <Text style={styles.btnDarkText}>{going ? "You're going" : "Going"}</Text>
+              {saving === "going" ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} /> : going && <Ionicons name="checkmark" size={16} color="#fff" style={{ marginRight: 6 }} />}
+              <Text style={styles.btnDarkText}>{saving === "going" ? "Saving…" : going ? "You're going" : "Going"}</Text>
             </Pressable>
             {ev.goIfOffer ? (
               <Pressable
-                style={[styles.btnLight, { flex: 1.4 }, ev.goIfFriend ? styles.btnLightOn : null]}
-                onPress={() => respond({ eventId, personaId: viewerId, action: "goIf", friendId: ev.goIfOffer!.id })}
+                style={[styles.btnLight, { flex: 1.4 }, ev.goIfFriend ? styles.btnLightOn : null, saving !== null && styles.btnDisabled]}
+                onPress={() => void saveResponse({ action: "goIf", friendId: ev.goIfOffer!.id })}
+                disabled={saving !== null}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: saving !== null, busy: saving === "goIf" }}
               >
-                {ev.goIfFriend && <Ionicons name="checkmark" size={14} color={swipe.ink} style={{ marginRight: 6 }} />}
+                {saving === "goIf" ? <ActivityIndicator size="small" color={swipe.ink} style={{ marginRight: 6 }} /> : ev.goIfFriend && <Ionicons name="checkmark" size={14} color={swipe.ink} style={{ marginRight: 6 }} />}
                 <Text style={styles.btnLightText} numberOfLines={1}>
-                  {ev.goIfFriend ? `Going if ${ev.goIfOffer.name.split(" ")[0]} goes` : `Go if ${ev.goIfOffer.name.split(" ")[0]} goes`}
+                  {saving === "goIf" ? "Saving…" : ev.goIfFriend ? `Going if ${ev.goIfOffer.name.split(" ")[0]} goes` : `Go if ${ev.goIfOffer.name.split(" ")[0]} goes`}
                 </Text>
               </Pressable>
             ) : null}
           </View>
           {!going && ev.myStatus !== "cant" && (
-            <Pressable onPress={() => respond({ eventId, personaId: viewerId, action: "cant" })} style={{ alignSelf: "center", marginTop: 12 }}>
-              <Text style={styles.skip}>Not for me</Text>
+            <Pressable
+              onPress={() => void saveResponse({ action: "cant" })}
+              style={[{ alignSelf: "center", marginTop: 12 }, saving !== null && styles.btnDisabled]}
+              disabled={saving !== null}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving !== null, busy: saving === "cant" }}
+            >
+              <Text style={styles.skip}>{saving === "cant" ? "Saving…" : "Not for me"}</Text>
             </Pressable>
+          )}
+          {failedResponse ? (
+            <View style={styles.saveError}>
+              <Text style={styles.saveErrorText} accessibilityRole="alert">We couldn't save your answer. Please try again.</Text>
+              <Pressable onPress={() => void saveResponse(failedResponse)} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.retry}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.saveStatus} accessibilityLiveRegion="polite">
+              {saving !== null ? "Saving your answer…" : saved ? "Answer saved." : ""}
+            </Text>
           )}
         </View>
       )}
@@ -206,6 +260,11 @@ const styles = StyleSheet.create({
   btnLight: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#D9D5CC" },
   btnLightOn: { borderColor: swipe.ink },
   btnLightText: { color: swipe.ink, fontWeight: "700", fontSize: 15 },
+  btnDisabled: { opacity: 0.55 },
+  saveStatus: { minHeight: 18, marginTop: 10, textAlign: "center", color: discover.muted, fontSize: 12 },
+  saveError: { marginTop: 12, gap: 8, alignItems: "center" },
+  saveErrorText: { color: "#B3261E", fontSize: 13, textAlign: "center" },
+  retry: { color: swipe.ink, fontWeight: "700", textDecorationLine: "underline", paddingVertical: 4 },
   skip: { color: discover.muted, fontSize: 14, textDecorationLine: "underline" },
   why: { backgroundColor: swipe.lavender, borderRadius: 20, padding: 16, marginTop: 16, borderWidth: 1, borderColor: swipe.lavenderLine },
   whyHead: { flexDirection: "row", alignItems: "center", gap: 6 },
