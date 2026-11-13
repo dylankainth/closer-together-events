@@ -628,7 +628,21 @@ is what changed and, more usefully, what is still not true.
 **A yes widens the circle** (`convex/spread.ts`). An RSVP used to be a terminal state: tapping
 Going patched one field and reached nobody. When a guest accepts, close friends of theirs who
 aren't invited get the event surfaced, each judged by their OWN Muse through the same guarded
-huddle — so a spread invite arrives with a real, personal reason, not a bare notification. Four
+huddle — so a spread invite arrives with a real, personal reason, not a bare notification.
+
+> **This section claimed more than was true when it was written (corrected 2026-11-13, 04:30).**
+> Spread shipped bounded by `invitationLimit()` — the *plus-one* budget, derived from
+> `settings.quota`, which both the seed and the planner set to the number of guests they then go
+> on to invite. Remaining room was therefore `quota - quota = 0` on essentially every real event,
+> and spread silently reached nobody, ever. All twelve tests passed because every fixture in
+> `tests/spread.test.mjs` happens to hand out generous quota headroom. It is now bounded by the
+> venue's capacity, which is what the host is actually told, and it is **verified live** rather
+> than asserted: on the seeded climbing social, Blake's yes produced three rows carrying
+> `spreadFrom`, all "invited", each with its own Muse's reasoning — one of which cited "no
+> dislikes clash" and "knows 2 of 3 invited", so the `dislikes` and `people_you_know` fields are
+> doing real work too. The lesson worth keeping: a green suite said this worked for a day.
+
+Four
 rules, all asserted in `tests/spread.test.mjs` rather than left to review:
 
 1. **One hop.** Rows carry `spreadFrom`; someone who arrived that way cannot spread onward, so one
