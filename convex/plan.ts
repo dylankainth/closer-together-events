@@ -118,6 +118,30 @@ const PALETTES: Record<string, [string, string]> = {
   Fancy: ["#D4AF37", "#1C1E21"],
 };
 
+// Keyword match against a host's free-text revision request (e.g. "make it more blue"), checked
+// before falling back to the vibe's default palette. Order matters for overlapping words like
+// "gold" vs gold being part of no other key.
+const NAMED_PALETTES: [string, [string, string]][] = [
+  ["blue", ["#60A5FA", "#1877F2"]],
+  ["pink", ["#F472B6", "#DB2777"]],
+  ["purple", ["#A78BFA", "#7C3AED"]],
+  ["violet", ["#A78BFA", "#7C3AED"]],
+  ["green", ["#34D399", "#059669"]],
+  ["gold", ["#D4AF37", "#92702A"]],
+  ["red", ["#F87171", "#DC2626"]],
+  ["orange", ["#FB923C", "#EA580C"]],
+  ["warm", ["#FB923C", "#EA580C"]],
+  ["dark", ["#4B5563", "#111827"]],
+  ["moody", ["#4B5563", "#111827"]],
+  ["black", ["#4B5563", "#111827"]],
+];
+
+function paletteFor(vibe: string, instruction?: string): [string, string] {
+  const s = instruction?.toLowerCase();
+  const hit = s ? NAMED_PALETTES.find(([word]) => s.includes(word)) : undefined;
+  return hit?.[1] ?? PALETTES[vibe] ?? PALETTES.Lively;
+}
+
 function wrapTitle(title: string): string[] {
   const words = title.split(" ");
   const lines: string[] = [];
@@ -134,8 +158,8 @@ function wrapTitle(title: string): string[] {
   return lines.slice(0, 4);
 }
 
-export function posterSvg(title: string, slot: Slot, venue: Venue, vibe: string): string {
-  const [c1, c2] = PALETTES[vibe] ?? PALETTES.Lively;
+export function posterSvg(title: string, slot: Slot, venue: Venue, vibe: string, instruction?: string): string {
+  const [c1, c2] = paletteFor(vibe, instruction);
   const lines = wrapTitle(title);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -157,4 +181,13 @@ export async function makePoster(title: string, slot: Slot, venue: Venue, vibe: 
   const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. No real people.`, budget);
   if (img.url) return { url: img.url, source: img.source };
   return { url: posterSvg(title, slot, venue, vibe), source: "offline" as const };
+}
+
+/** Re-draws the poster from a host's revision request in chat (e.g. "make it more blue") —
+ * same generation path as makePoster, with the instruction folded into the live prompt and
+ * matched against a handful of named palettes for the offline fallback. */
+export async function editPoster(title: string, slot: Slot, venue: Venue, vibe: string, instruction: string, budget: CallBudget) {
+  const img = await museImage(`An invite poster for "${title}" at ${venue.name}, ${vibe} vibe. Revision requested: ${instruction}. No real people.`, budget);
+  if (img.url) return { url: img.url, source: img.source };
+  return { url: posterSvg(title, slot, venue, vibe, instruction), source: "offline" as const };
 }

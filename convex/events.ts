@@ -61,6 +61,17 @@ export const create = internalMutation({
   handler: async (ctx, args) => ctx.db.insert("events", args.event),
 });
 
+/** Called by hostChat.reply after regenerating the poster from a host's revision request
+ * ("make it more blue"). Internal: the chat action already checked requireHost before calling it. */
+export const setPoster = internalMutation({
+  args: { eventId: v.string(), poster: v.any() },
+  handler: async (ctx, args) => {
+    const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
+    if (!e) throw new Error("Event not found");
+    await ctx.db.patch(e._id, { poster: args.poster });
+  },
+});
+
 export const approve = mutation({
   args: { eventId: v.string() },
   handler: async (ctx, args) => {
