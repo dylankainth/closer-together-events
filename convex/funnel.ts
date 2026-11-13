@@ -31,8 +31,12 @@ export async function parseAudience(raw: string, budget: CallBudget): Promise<{ 
     fallback: () => {
       const lower = raw.toLowerCase();
       const tie: Tie = /(closest|close friends|best friends|inner circle|bffs?)/.test(lower) ? "close" : "any";
+      // Allow the plural. "the foodies" used to parse to NO topics at all, because the vocabulary
+      // holds "foodie" and the word boundary refused the trailing s — so the whole audience
+      // description was discarded and the shortlist fell back to raw tie-strength. Hosts write
+      // plurals far more often than singulars when naming a group of people.
       const topics = Object.entries(TOPIC_VOCAB)
-        .filter(([, words]) => words.some((w) => new RegExp(`\\b${w}\\b`, "i").test(lower)))
+        .filter(([, words]) => words.some((w) => new RegExp(`\\b${w}(?:e?s)?\\b`, "i").test(lower)))
         .map(([topic]) => topic);
       return { tie, topics };
     },
