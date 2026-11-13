@@ -53,7 +53,10 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
       <View style={styles.sayRow}>
         <Mascot size={60} />
         <View style={styles.bubble}>
-          <Text style={styles.headline}>{headline}</Text>
+          {/* A few short sentences of why: one small paragraph each, so a long rationale stays readable. */}
+          {headline.split(/(?<=[.!?])\s+/).filter(Boolean).map((line, i) => (
+            <Text key={i} style={[styles.headline, i > 0 && { marginTop: 5 }]}>{line}</Text>
+          ))}
         </View>
       </View>
 
@@ -83,7 +86,7 @@ const styles = StyleSheet.create({
   title: { color: discover.textDim, fontSize: 14, fontWeight: "700", marginTop: 2 },
   sayRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 12 },
   bubble: { flex: 1, backgroundColor: swipe.lavender, borderRadius: 22, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 14 },
-  headline: { color: swipe.ink, fontSize: 20, lineHeight: 26, fontWeight: "800" },
+  headline: { color: swipe.ink, fontSize: 13.5, lineHeight: 19, fontWeight: "500" },
   rows: { marginTop: 14, borderTopWidth: 1, borderTopColor: "#ECECF0" },
   row: { flexDirection: "row", gap: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#ECECF0" },
   tag: { width: 58, fontSize: 10, fontWeight: "800", letterSpacing: 1, paddingTop: 3 },

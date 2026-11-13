@@ -83,11 +83,38 @@ export const profileFor = internalQuery({
     const approved = muse?.profileApproved ? muse : null;
     if (!approved && personaId.startsWith("fb_")) return null;
     const past = await ctx.db.query("pastEvents").withIndex("by_persona", (q) => q.eq("personaId", personaId)).collect();
+    // Colour for richer reasons, only for personas that carry rich context (the named demo personas).
+    const rich = persona.shareable ? { about: persona.shareable, curious: persona.curious, recentChats: persona.recentChats ?? [] } : {};
+    const friendNames: string[] = [];
+    if (persona.shareable) {
+      for (const fid of persona.friends.filter((f) => !f.startsWith("p-fof-")).slice(0, 8)) {
+        const f = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", fid)).unique();
+        if (f) friendNames.push(f.name.split(" ")[0]);
+      }
+    }
     return {
       interests: approved ? approved.interests : persona.interests,
       vibe: approved ? approved.vibe : persona.vibe,
       pastEvents: past.map((p) => ({ title: p.title, category: p.category, feedback: p.feedback })),
+      ...rich,
+      ...(persona.shareable ? { friends: friendNames } : {}),
     };
+  },
+});
+
+/** Which of this person's friends have said they are going to each event: event key -> first names. */
+export const friendsGoingFor = internalQuery({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<Record<string, string[]>> => {
+    const me = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    const out: Record<string, string[]> = {};
+    for (const fid of me?.friends ?? []) {
+      const f = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", fid)).unique();
+      if (!f) continue;
+      const rows = await ctx.db.query("picks").withIndex("by_persona", (q) => q.eq("personaId", fid)).collect();
+      for (const r of rows) if (r.status === "going") (out[r.eventKey] ??= []).push(f.name.split(" ")[0]);
+    }
+    return out;
   },
 });
 

@@ -105,6 +105,7 @@ function named(): Persona[] {
       curious: c.curious,
       shareable: c.shareable,
       ties: c.ties,
+      recentChats: c.recentChats,
       secrets: Array.from(new Set([...p.secrets, ...(c.secrets ?? [])])),
       neverShare: Array.from(new Set([...p.neverShare, ...(c.neverShare ?? [])])),
     };

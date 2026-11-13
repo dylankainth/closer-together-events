@@ -37,6 +37,7 @@ export interface Persona {
   // approved for events; `ties` = their private read on specific friends (friend id -> note).
   shareable?: string[];
   ties?: Record<string, string>;
+  recentChats?: string[];
   hasMuse: boolean;
   settings: MuseSettings;
 }

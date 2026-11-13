@@ -78,9 +78,10 @@ test("never more than MAX_PICKS", () => {
   assert.equal(fallbackRank(null, many, NOW).length, 8);
 });
 
-test("clampReason keeps one sentence within 90 characters", () => {
-  const r = clampReason("You love jazz and this is ten minutes away. Also bring friends, there is a long story here that goes on.");
-  assert.equal(r, "You love jazz and this is ten minutes away.");
-  const long = clampReason("x".repeat(200));
-  assert.ok(long.length <= 90);
+test("clampReason keeps whole sentences within the limit", () => {
+  const short = "You love jazz and this is ten minutes away. Priya is going too.";
+  assert.equal(clampReason(short), short);
+  const long = clampReason("You love jazz and this is close. ".repeat(20));
+  assert.ok(long.length <= 340 && long.endsWith("."));
+  assert.ok(clampReason("x".repeat(500)).length <= 340);
 });

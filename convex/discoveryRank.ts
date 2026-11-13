@@ -43,7 +43,8 @@ export const rankPersona = internalAction({
     const guard: string[] = await ctx.runQuery(internal.discoveryData.leakGuardFor, { personaId });
     const owner = { secrets: guard } as unknown as Persona;
     const isLeak = (s: string) => leaksIn(s, owner);
-    const { system, user } = buildRankPrompt(profile, candidates, now);
+    const friendsGoing: Record<string, string[]> = await ctx.runQuery(internal.discoveryData.friendsGoingFor, { personaId });
+    const { system, user } = buildRankPrompt(profile, candidates, now, friendsGoing);
     const result = await museJSON({
       model: "ember",
       effort: "low",

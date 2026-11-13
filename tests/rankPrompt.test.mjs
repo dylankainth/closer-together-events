@@ -20,7 +20,7 @@ test("the prompt carries only the safe profile, past events and at most 40 trimm
   assert.ok(user.candidates.every((c) => c.about.length <= 200 && c.key && c.when));
   assert.deepEqual(user.person.interests, ["jazz", "climbing"]);
   assert.equal(user.person.pastEvents[0].title, "Jazz at the Guild");
-  assert.match(system, /90 characters/);
+  assert.match(system, /340 characters/);
 });
 
 test("preselect keeps the 40 best fallback-scored candidates, interest matches included", () => {
@@ -40,7 +40,7 @@ test("cleaning drops unknown and duplicate keys, caps at 8, clamps reasons", () 
   ] };
   const out = cleanRankResponse(resp, keys, fallback, () => false);
   assert.equal(out.length, MAX_PICKS);
-  assert.ok(out.every((p) => keys.has(p.key) && p.reason.length <= 90 && p.kind === "personal"));
+  assert.ok(out.every((p) => keys.has(p.key) && p.reason.length <= 340 && p.kind === "personal"));
   assert.equal(new Set(out.map((p) => p.key)).size, out.length);
 });
 

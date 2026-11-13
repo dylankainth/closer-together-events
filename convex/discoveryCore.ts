@@ -34,6 +34,12 @@ export interface RankProfile {
   interests: string[];
   vibe: string;
   pastEvents: { title: string; category: string | null; feedback: string | null }[];
+  // Display-safe colour for richer reasons (only on personas that have it): approved talking points, what they are
+  // curious about, what they recently told their own Muse, and first names of their friends. Never the private notes.
+  about?: string[];
+  curious?: string[];
+  recentChats?: string[];
+  friends?: string[];
 }
 
 export interface PickDraft {
@@ -48,7 +54,7 @@ export const MENLO = { lat: 37.4529, lng: -122.1817 };
 export const RADIUS_KM = 55;
 export const WINDOW_DAYS = 21;
 export const MAX_PICKS = 8;
-export const MAX_REASON = 90;
+export const MAX_REASON = 340; // a few short sentences; the card shows them in a small speech bubble
 export const POPULAR_REASON = "Popular near you, coming up soon."; // the window is 21 days
 const DAY_MS = 86_400_000;
 
@@ -163,12 +169,15 @@ export function qualifies(e: DiscoveredInput, now: number): boolean {
 
 // ---- reasons and the fallback ranker ----
 
+/** Keeps whole sentences up to MAX_REASON characters; one over-long sentence is cut at a word. */
 export function clampReason(text: string): string {
-  const first = text.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
-  if (first.length <= MAX_REASON) return first;
-  const cut = first.slice(0, MAX_REASON - 1);
+  const t = text.trim().replace(/\s+/g, " ");
+  if (t.length <= MAX_REASON) return t;
+  const cut = t.slice(0, MAX_REASON);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  if (end >= 60) return cut.slice(0, end + 1);
   const atSpace = cut.lastIndexOf(" ");
-  return `${(atSpace > 40 ? cut.slice(0, atSpace) : cut).replace(/[,;:\s]+$/, "")}.`;
+  return `${(atSpace > 40 ? cut.slice(0, atSpace) : cut.slice(0, MAX_REASON - 1)).replace(/[,;:\s]+$/, "")}.`;
 }
 
 function terms(profile: RankProfile): string[] {
@@ -329,13 +338,15 @@ export function preselect(profile: RankProfile | null, candidates: Keyed[], now:
 const RANK_SYSTEM = [
   "You are this person's Muse, choosing real public events near them that they would genuinely enjoy.",
   `Pick up to ${MAX_PICKS} events from the candidates, best first. Use only the person and candidate data given.`,
-  `For each pick give verdict "go" (clearly their thing) or "maybe", and one sentence reason of at most ${MAX_REASON} characters`,
-  "that names a concrete link to them: an interest, their vibe, a past event they went to, or the day or distance.",
-  "Never generic (not 'this may interest you'). Never mention other people, prices you were not given, or anything private.",
+  `For each pick give verdict "go" (clearly their thing) or "maybe", and a reason of 3 to 5 short sentences, at most ${MAX_REASON} characters in total,`,
+  "written to the person as 'you'. Make it specific and warm, drawing on whatever of these the data gives you: which of their friends are going",
+  "(only the names in friendsGoing, never invent anyone), an interest or their vibe, something they recently told you (recentlyToldYou), a past event they went to,",
+  "how it fits what they are curious about, and the day or distance. Never generic (not 'this may interest you'). Do not invent facts.",
+  "Never mention prices you were not given or anything private.",
   'Reply as JSON: {"picks":[{"key":"<candidate key>","verdict":"go"|"maybe","reason":"..."}]}.',
 ].join(" ");
 
-export function buildRankPrompt(profile: RankProfile, candidates: Keyed[], now: number) {
+export function buildRankPrompt(profile: RankProfile, candidates: Keyed[], now: number, friendsGoing: Record<string, string[]> = {}) {
   const chosen = preselect(profile, candidates, now, MAX_CANDIDATES);
   return {
     system: RANK_SYSTEM,
@@ -344,6 +355,10 @@ export function buildRankPrompt(profile: RankProfile, candidates: Keyed[], now: 
         interests: profile.interests,
         vibe: profile.vibe,
         pastEvents: profile.pastEvents.map((p) => ({ title: p.title, category: p.category, howWasIt: p.feedback })),
+        ...(profile.about?.length ? { aboutYou: profile.about } : {}),
+        ...(profile.curious?.length ? { curiousAbout: profile.curious } : {}),
+        ...(profile.recentChats?.length ? { recentlyToldYou: profile.recentChats } : {}),
+        ...(profile.friends?.length ? { yourFriends: profile.friends } : {}),
       },
       candidates: chosen.map((c) => ({
         key: c.key,
@@ -353,6 +368,7 @@ export function buildRankPrompt(profile: RankProfile, candidates: Keyed[], now: 
         city: (c.city ?? "").split(",")[0].trim(),
         price: c.price,
         about: c.description.replace(URL_RE, "").replace(/\s+/g, " ").trim().slice(0, ABOUT_CHARS),
+        ...(friendsGoing[c.key]?.length ? { friendsGoing: friendsGoing[c.key] } : {}),
       })),
     },
   };

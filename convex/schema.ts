@@ -108,6 +108,7 @@ export default defineSchema({
     neverShare: v.array(v.string()),
     shareable: v.optional(v.array(v.string())),
     ties: v.optional(v.record(v.string(), v.string())),
+    recentChats: v.optional(v.array(v.string())),
     hasMuse: v.boolean(),
     settings: museSettings,
   }).index("by_personaId", ["personaId"]),

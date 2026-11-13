@@ -36,6 +36,7 @@ export const apply = internalMutation({
           curious: c.curious,
           shareable: c.shareable,
           ties: c.ties,
+          recentChats: c.recentChats,
           secrets: Array.from(new Set([...row.secrets, ...(c.secrets ?? [])])),
           neverShare: Array.from(new Set([...row.neverShare, ...(c.neverShare ?? [])])),
         });

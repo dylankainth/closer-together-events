@@ -15,6 +15,8 @@ export type PersonaContext = {
   curious: string[];
   shareable: string[];
   ties: Record<string, string>;
+  // What they have recently said to their own Muse (their personal assistant). Feeds the reasons on their picks.
+  recentChats: string[];
   secrets?: string[];
   neverShare?: string[];
 };
@@ -36,6 +38,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Loves hosting small, loud dinners where everyone ends up in the kitchen.",
       "Cares more about who is in the room than the venue.",
       "Freelance product designer, always up for talking design.",
+    ],
+    recentChats: [
+      "Asked Muse for a boxing gym that does beginner-friendly sparring.",
+      "Said she wants low-key plans while she adjusts to freelancing.",
+      "Asked for ideas to mark turning 30 without it feeling like a big deal.",
+      "Mentioned she would like to see Sam again and does not know how to bring it up.",
     ],
     ties: {
       sam: "Hurt by the August no-show. Wants to reconnect but will not chase him.",
@@ -65,6 +73,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Likes places with good food and a low-key vibe.",
       "Better company at an easy evening than a loud club.",
     ],
+    recentChats: [
+      "Asked Muse to find bowling leagues that are not centred on a bar.",
+      "Said he wants more people to talk startups with.",
+      "Asked how to apologise to a friend after missing something important.",
+      "Mentioned he prefers weekend plans over weeknights because of the commute.",
+    ],
     ties: {
       maya: "Owes her an apology and is nervous she is still annoyed.",
       priya: "Friendly. Both work in tech, easy conversation.",
@@ -89,6 +103,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Prefers small groups and plans with a clear end time.",
       "Loves a good board game night.",
       "Happy to try something new if a friend is going.",
+    ],
+    recentChats: [
+      "Told Muse she is exhausted after a big launch and wants easy plans.",
+      "Asked for board game nights that are not packed with strangers.",
+      "Said she would like to meet people outside of tech.",
+      "Asked for something fun to do with Maya that is not a loud crowd.",
     ],
     ties: {
       maya: "Fiercely loyal. Feels a bit guilty about being a flaky friend lately.",
@@ -116,6 +136,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Always the one bringing snacks.",
       "Down for anything lively with good food.",
     ],
+    recentChats: [
+      "Asked Muse how to learn DJing without buying expensive gear.",
+      "Said he is saving money, so free or cheap events win.",
+      "Asked for live music nights he can get to after closing the cafe.",
+      "Mentioned he wants to be at Maya's birthday.",
+    ],
     ties: {
       dana: "Cares about her. Knows Dave is a sore spot and is trying not to put them in the same room.",
       tessa: "Wants her to teach him to DJ. She has only said maybe.",
@@ -142,6 +168,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Happy to try boxing for cross-training.",
       "Prefers plans with a clear end time.",
     ],
+    recentChats: [
+      "Asked Muse for early-evening plans so she can sleep before night shifts.",
+      "Told it she is training for the half marathon and wants low-drinking events.",
+      "Asked for good recovery-day activities that are not a gym.",
+      "Said she would like to try boxing for cross-training.",
+    ],
     ties: {
       amara: "Running partner and confidant. Fully trusted.",
       leo: "Fond of him, but wary of the cousin who tags along.",
@@ -166,6 +198,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Free on Sundays and the occasional weekend night.",
       "Will happily rate any menu out loud.",
       "Always up for a food-first plan.",
+    ],
+    recentChats: [
+      "Asked Muse to find food events and pop-ups he can learn from.",
+      "Said he has a rare free weekend night and wants to use it well.",
+      "Asked about restaurant investors and demo days.",
+      "Wondered which wine tastings are worth the money.",
     ],
     ties: {
       ruby: "Culinary school friend. Honest critics of each other.",
@@ -192,6 +230,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Outdoorsy and always up for a hike or a trip.",
       "Easy-going, but hates flakiness.",
     ],
+    recentChats: [
+      "Asked Muse for beginner-friendly climbing and hiking events to recommend to students.",
+      "Said she is planning a Yosemite trip in the spring.",
+      "Asked for gentle outdoor plans while her shoulder heals.",
+      "Mentioned she dislikes events where people flake.",
+    ],
     ties: {
       kai: "Partner in crime. Always on her events.",
       tessa: "Neighbourhood friend. Loves her sets.",
@@ -216,6 +260,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Hosts cosy listening nights with food.",
       "Night owl. Evenings are her thing.",
       "Has strong opinions about playlists.",
+    ],
+    recentChats: [
+      "Asked Muse to find record fairs and listening nights.",
+      "Said she only goes to things that start after 6pm.",
+      "Asked for cosy food-and-music events to host or visit.",
+      "Mentioned she wants to meet more people in the neighbourhood.",
     ],
     ties: {
       leo: "Likes his enthusiasm. Has not decided whether to teach him.",
@@ -242,6 +292,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Prefers events with an activity to do.",
       "Budget-conscious and loves a free event.",
     ],
+    recentChats: [
+      "Asked Muse for cheap or free board game and gaming events.",
+      "Said he can only spare one evening this week because of his thesis.",
+      "Asked for events with an activity so he is not stuck making small talk.",
+      "Wondered where to meet people outside his department.",
+    ],
     ties: {
       priya: "Weekly gaming partner. Lowest-effort friend to hang out with.",
       marco: "The $20 bet. Cheerful trash talk.",
@@ -266,6 +322,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Up for low-key events with good company.",
       "Prefers evenings that wrap up by 10pm.",
     ],
+    recentChats: [
+      "Asked Muse for morning or early-evening running groups.",
+      "Said she is sleeping badly and wants calm, low-key plans.",
+      "Asked for events with no pressure to give advice.",
+      "Mentioned she would like new friends who are not health workers.",
+    ],
     ties: {
       dana: "Running partner and confidant. Worried about her.",
       maya: "Likes her. Wishes they saw each other more.",
@@ -287,6 +349,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Climbs with Jess.",
       "Loves a place with great light.",
       "Happy to take photos of a good night.",
+    ],
+    recentChats: [
+      "Asked Muse for events with great light and a visual story he could shoot.",
+      "Said he wants to start a short documentary on boxing.",
+      "Asked for gallery nights after a recent rejection.",
+      "Mentioned he would love to photograph Jess's next climbing social.",
     ],
     ties: {
       jess: "Climbing partner. Always at her events with a camera.",
@@ -312,6 +380,12 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Loves introducing friends who would get along.",
       "A weekend person. Thursdays are a write-off.",
       "Always down for food.",
+    ],
+    recentChats: [
+      "Asked Muse for food events she can do on a weekend.",
+      "Said Thursdays are a write-off and she needs plans that fit around her class.",
+      "Asked for ideas to introduce two friends who would get on.",
+      "Mentioned she is moving flats next month and needs low-effort fun.",
     ],
     ties: {
       maya: "Boxing buddy. Proud of how fast she is improving.",
