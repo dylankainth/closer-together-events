@@ -209,3 +209,18 @@ export const claimRefresh = internalMutation({
     return true;
   },
 });
+
+/** Atomically claim a source fetch slot, so taps on refresh cannot run a paid source (Apify) over and over. */
+export const claimSourceRun = internalMutation({
+  args: { source: v.string(), minGapMs: v.number() },
+  handler: async (ctx, { source, minGapMs }): Promise<boolean> => {
+    const now = Date.now();
+    const key = `source:${source}`;
+    const row = await ctx.db.query("appMeta").withIndex("by_key", (q) => q.eq("key", key)).unique();
+    const last = row && typeof row.value === "number" ? row.value : null;
+    if (last !== null && last <= now && now - last < minGapMs) return false;
+    if (row) await ctx.db.patch(row._id, { value: now });
+    else await ctx.db.insert("appMeta", { key, value: now });
+    return true;
+  },
+});
