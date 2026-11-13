@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Avatar, Skeleton } from "@/components/ui";
+import { Mascot } from "@/components/Mascot";
 import { GuestInviteControl } from "@/components/events/GuestInviteControl";
 import { useViewer } from "@/hooks/useViewer";
 import { discover, swipe } from "@/theme/swipeTheme";
@@ -38,6 +39,7 @@ export default function Manage() {
   const slots = useQuery(api.slots.listPublic, {});
   const venues = useQuery(api.venues.listPublic, {});
   const sendEvent = useMutation(api.events.sendEvent);
+  const checklist = useQuery(api.checklist.forEvent, { eventId });
   const [tab, setTab] = useState<Tab>("overview");
   const [sending, setSending] = useState(false);
 
@@ -51,6 +53,18 @@ export default function Manage() {
   const byId = new Map(personas.map((p) => [p.id, p]));
   const capacity = event.capacity ?? venue?.capacity ?? null;
   const going = guests.filter((g) => g.status === "going").length;
+
+  // The Muse bar: "needs attention" while Muse is waiting on the host (a vendor draft to approve, a task that needs
+  // an answer) or the invite hasn't gone out yet; "all set" once nothing is waiting.
+  const waiting = (checklist?.pendingDrafts?.length ?? 0) + (checklist?.pendingTasks?.length ?? 0) + (checklist?.needsYou ? 1 : 0);
+  const status =
+    checklist === undefined || checklist === null
+      ? { ok: false, title: "Muse", sub: "See what your agent is doing" }
+      : waiting > 0
+        ? { ok: false, title: "Something needs your attention", sub: waiting === 1 ? "Muse is waiting on 1 thing from you" : `Muse is waiting on ${waiting} things from you` }
+        : event.status !== "sent"
+          ? { ok: false, title: "Something needs your attention", sub: "Review the plan and send your invites" }
+          : { ok: true, title: "You're all set!", sub: "Muse has everything under control" };
 
   const onSend = async () => {
     setSending(true);
@@ -77,10 +91,13 @@ export default function Manage() {
               <Ionicons name="arrow-up-outline" size={18} color={discover.text} style={{ transform: [{ rotate: "45deg" }] }} />
             </Pressable>
           </View>
-          <Pressable style={styles.museBtn} onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)}>
-            <Ionicons name="sparkles" size={16} color="#fff" />
-            <Text style={styles.museBtnText}>Muse</Text>
-            <Text style={styles.museBtnSub}>See what your agent is doing</Text>
+          <Pressable style={[styles.museBtn, status.ok && styles.museBtnOk]} onPress={() => router.push(`/new-event/planning?eventId=${eventId}&from=manage`)} accessibilityLabel="Open Muse checklist">
+            <View style={styles.museFace}><Mascot size={34} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.museBtnText, status.ok && { color: "#14532D" }]}>{status.title}</Text>
+              <Text style={[styles.museBtnSub, status.ok && { color: "#2F6B45" }]}>{status.sub}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={status.ok ? "#2F6B45" : "rgba(255,255,255,0.8)"} />
           </Pressable>
           <View style={styles.tabs}>
             {TABS.map((t) => (
@@ -374,9 +391,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
   title: { flex: 1, color: discover.text, fontSize: 28, lineHeight: 33, fontWeight: "800" },
   iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: discover.pill, alignItems: "center", justifyContent: "center" },
-  museBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: swipe.blue, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginTop: 14 },
+  museBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: swipe.blue, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginTop: 14 },
+  museBtnOk: { backgroundColor: "#DCFCE7" },
+  museFace: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#14141C", alignItems: "center", justifyContent: "center", overflow: "hidden" },
   museBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  museBtnSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, flex: 1 },
+  museBtnSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 1 },
   tabs: { flexDirection: "row", gap: 6, marginTop: 14 },
   tab: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabOn: { borderBottomColor: discover.text },
