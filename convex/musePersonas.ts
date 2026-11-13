@@ -52,5 +52,11 @@ export const setApproved = mutation({
     const existing = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
     if (!existing) throw new Error("Sync this persona's Muse context first.");
     await ctx.db.patch(existing._id, { profileApproved: args.approved });
+    // Approving is the last step of Muse setup, so the persona now counts as a Muse guest in the
+    // funnel and huddle. Un-approving leaves hasMuse as it is.
+    if (args.approved) {
+      const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", args.personaId)).unique();
+      if (persona && !persona.hasMuse) await ctx.db.patch(persona._id, { hasMuse: true });
+    }
   },
 });
