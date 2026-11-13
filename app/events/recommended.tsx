@@ -16,15 +16,15 @@ const PICK_PREFIX = "pick:"; // eventId prefix of Muse picks (convex/discoveryCo
 
 /**
  * "Your week, by your agent": a stack of recommended events, best match first.
- *   swipe right         -> next recommendation; on the last one it opens the general feed (never answers it)
- *   swipe left          -> previous recommendation; on the first one it does nothing
+ *   swipe left          -> next recommendation; on the last one it opens the general feed (never answers it)
+ *   swipe right         -> previous recommendation; on the first one it does nothing
  *   swipe up            -> leave the stack and open the general feed
  *   tap the card        -> open the event page with the full reasoning
- *   x / I'm going / clock buttons -> the only things that answer (ballot B10: the guest always taps it)
+ *   x / I'll go / clock buttons -> the only things that answer (ballot B10: the guest always taps it)
  */
 export default function Recommended() {
   const { viewerId } = useViewer();
-  // Keep the buttons and the hint clear of the phone's own navigation buttons / gesture bar.
+  // Keep the buttons clear of the phone's own navigation buttons / gesture bar.
   const insets = useSafeAreaInsets();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
   const respond = useMutation(api.feed.respond);
@@ -93,13 +93,13 @@ export default function Recommended() {
             Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
           } else if (vertical && g.dy < -COMMIT) {
             flyAway(0, -SCREEN_H, () => router.navigate("/events/feed"), true);
-          } else if (!vertical && g.dx > COMMIT) {
-            // Right = next. Past the last card there is nothing left, so carry on to the general feed.
-            if (at < count - 1) flyAway(SCREEN_W, 0, () => setCursor(at + 1));
-            else flyAway(SCREEN_W, 0, () => router.navigate("/events/feed"), true);
-          } else if (!vertical && g.dx < -COMMIT && at > 0) {
-            // Left = previous. On the first card this falls through and just springs back.
-            flyAway(-SCREEN_W, 0, () => setCursor(at - 1));
+          } else if (!vertical && g.dx < -COMMIT) {
+            // Left = next. Past the last card there is nothing left, so carry on to the general feed.
+            if (at < count - 1) flyAway(-SCREEN_W, 0, () => setCursor(at + 1));
+            else flyAway(-SCREEN_W, 0, () => router.navigate("/events/feed"), true);
+          } else if (!vertical && g.dx > COMMIT && at > 0) {
+            // Right = previous. On the first card this falls through and just springs back.
+            flyAway(SCREEN_W, 0, () => setCursor(at - 1));
           } else {
             Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 7 }).start();
           }
@@ -123,7 +123,7 @@ export default function Recommended() {
   const open = () => {
     if (!current) return;
     if (current.relation === "pick") {
-      router.push(`/picks/${encodeURIComponent(current.eventId.slice(PICK_PREFIX.length))}`);
+      router.push({ pathname: "/picks/[key]", params: { key: encodeURIComponent(current.eventId.slice(PICK_PREFIX.length)) } });
       return;
     }
     router.push(`/events/${current.eventId}`);
@@ -145,7 +145,7 @@ export default function Recommended() {
         <View style={styles.badge}>
           <Ionicons name="star" size={13} color="#fff" />
         </View>
-        <Text style={styles.heading}>Your agent's picks</Text>
+        <Text style={styles.heading}>Muse's picks</Text>
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
         <Pressable onPress={runRefresh} disabled={refreshing} hitSlop={10} accessibilityLabel="Ask Muse for fresh picks" style={styles.refresh}>
           {refreshing ? <ActivityIndicator size="small" color={swipe.ink} /> : <Ionicons name="refresh" size={20} color={swipe.ink} />}
@@ -188,17 +188,12 @@ export default function Recommended() {
           <Ionicons name="close" size={26} color={swipe.ink} />
         </Pressable>
         <Pressable style={styles.going} onPress={() => answer("going")} disabled={!current}>
-          <Text style={styles.goingText}>I'm going</Text>
+          <Text style={styles.goingText}>I'll go</Text>
         </Pressable>
         <Pressable style={styles.round} onPress={() => answer("snooze")} disabled={!current} accessibilityLabel="Remind me later">
           <Ionicons name="time-outline" size={26} color={swipe.ink} />
         </Pressable>
       </View>
-
-      <Pressable style={styles.hint} onPress={() => router.navigate("/events/feed")}>
-        <Ionicons name="chevron-up" size={16} color="#8A8A94" />
-        <Text style={styles.hintText}>Swipe up for all events</Text>
-      </Pressable>
       </Animated.View>
     </View>
   );
@@ -223,8 +218,6 @@ const styles = StyleSheet.create({
   round: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, borderColor: "#D5D5DC", alignItems: "center", justifyContent: "center" },
   going: { backgroundColor: swipe.ink, borderRadius: 999, paddingHorizontal: 40, height: 60, alignItems: "center", justifyContent: "center" },
   goingText: { color: "#fff", fontWeight: "800", fontSize: 19 },
-  hint: { flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 4, paddingTop: 10, paddingBottom: 10 },
-  hintText: { color: "#8A8A94", fontSize: 12, fontWeight: "600" },
   empty: { flex: 1, backgroundColor: "#F6F6F8", borderRadius: 28, alignItems: "center", justifyContent: "center", padding: 28, gap: 10 },
   emptyTitle: { fontSize: 22, fontWeight: "800", color: swipe.ink },
   emptyBody: { textAlign: "center", color: "#55555F", fontSize: 15 },

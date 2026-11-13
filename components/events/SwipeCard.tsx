@@ -15,7 +15,7 @@ const TAG_LABEL = { people: "PEOPLE", goal: "GOAL", fit: "FIT", plan: "PLAN" } a
 const first = (name: string) => name.split(" ")[0];
 
 /**
- * One recommendation in the "Your agent's picks" stack. Presentational: the swipe gestures and the
+ * One recommendation in the "Muse's picks" stack. Presentational: the swipe gestures and the
  * progress header live in the screen. Every line below the banner is written by the viewer's Muse
  * (the screen header says so), so there's no per-line label.
  */
