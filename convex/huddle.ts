@@ -110,6 +110,11 @@ async function makeReply(peer: Persona, eventId: string, eventTitle: string, slo
   return { raw: { ...r.data, available, event_id: eventId, from_muse: `muse_${peer.id}`, approved_fields_only: true }, source: r.source };
 }
 
+// Returns the decision WITH its provenance. It used to return a bare Nudge, so the caller had
+// nothing to record and hardcoded source:"offline" on the message it wrote — reporting a real
+// Spark decision as a deterministic fallback. That made scripts/check-muse-live.mjs understate
+// how much of a huddle is genuinely model-written, which is the one number we use to decide
+// whether the demo is real.
 async function decide(
   candidate: Persona,
   slotId: string,
@@ -118,7 +123,7 @@ async function decide(
   eventCtx: EventContext,
   peopleYouKnow: PeopleYouKnow,
   budget: CallBudget,
-): Promise<Nudge> {
+): Promise<{ nudge: Nudge; source: "muse" | "offline" }> {
   const safeReplies = replies.filter((x) => !looksLikeInjection(x.r.why));
   const off = () => decideOffline(candidate, slotId, topics, safeReplies);
   const r = await museJSON({
@@ -150,9 +155,9 @@ async function decide(
     schema: z.object({ verdict: z.enum(["worth", "maybe"]), reasons: z.array(z.string().max(160)).max(3) }),
     fallback: () => { const n = off(); return { verdict: n.verdict, reasons: n.reasons }; },
   });
-  if (r.source === "offline") return off();
+  if (r.source === "offline") return { nudge: off(), source: "offline" };
   const text = `${r.data.verdict === "worth" ? "Worth going" : "Might be fun"}:\n${r.data.reasons.map((x, i) => `${i + 1}. ${x}`).join("\n")}`;
-  return { verdict: r.data.verdict, reasons: r.data.reasons, text };
+  return { nudge: { verdict: r.data.verdict, reasons: r.data.reasons, text }, source: "muse" };
 }
 
 /**
@@ -169,7 +174,7 @@ async function decideFromTranscript(
   eventCtx: EventContext,
   peopleYouKnow: PeopleYouKnow,
   budget: CallBudget,
-): Promise<Nudge> {
+): Promise<{ nudge: Nudge; source: "muse" | "offline" }> {
   const pseudoReplies: { p: Persona; r: MuseReply }[] = exchanges.map(({ p, turns }) => {
     const theirWords = turns.filter((t) => t.from === "peer").map((t) => t.text).join(" ");
     const available = p.availability.includes(slotId);
@@ -210,9 +215,9 @@ async function decideFromTranscript(
     schema: z.object({ verdict: z.enum(["worth", "maybe"]), reasons: z.array(z.string().max(160)).max(3) }),
     fallback: () => { const n = off(); return { verdict: n.verdict, reasons: n.reasons }; },
   });
-  if (r.source === "offline") return off();
+  if (r.source === "offline") return { nudge: off(), source: "offline" };
   const text = `${r.data.verdict === "worth" ? "Worth going" : "Might be fun"}:\n${r.data.reasons.map((x, i) => `${i + 1}. ${x}`).join("\n")}`;
-  return { verdict: r.data.verdict, reasons: r.data.reasons, text };
+  return { nudge: { verdict: r.data.verdict, reasons: r.data.reasons, text }, source: "muse" };
 }
 
 type HuddleArgs = {
@@ -340,8 +345,9 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
           return guard.reply ? { p, r: guard.reply } : null;
         }));
         const replies = collected.filter((x): x is { p: Persona; r: MuseReply } => !!x);
-        const guarded = await guardNudge(await decide(c, event.slotId, topics, replies, eventCtx, peopleYouKnow(c), budget), c, args.codeCheck, budget);
-        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
+        const decided = await decide(c, event.slotId, topics, replies, eventCtx, peopleYouKnow(c), budget);
+        const guarded = await guardNudge(decided.nudge, c, args.codeCheck, budget);
+        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: decided.source });
         await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge, runId: args.runId, attempt: args.attempt });
       } else {
         // Free mode (convex/huddleChat.ts): per-peer multi-turn exchanges, with maxPeersFree (not
@@ -358,8 +364,9 @@ async function executeHuddle(ctx: ActionCtx, args: HuddleArgs): Promise<void> {
         // The recommendation is model output too, and in free mode it is synthesized from several
         // turns of free text — so it gets the same guard main added for structured mode (#18),
         // not less.
-        const guarded = await guardNudge(await decideFromTranscript(c, event.slotId, topics, exchanges, eventCtx, peopleYouKnow(c), budget), c, args.codeCheck, budget);
-        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: "offline" });
+        const decided = await decideFromTranscript(c, event.slotId, topics, exchanges, eventCtx, peopleYouKnow(c), budget);
+        const guarded = await guardNudge(decided.nudge, c, args.codeCheck, budget);
+        await insert({ kind: "reply", fromPersona: c.id, toPersona: host.id, forPersona: host.id, text: guarded.nudge.text, status: guarded.status, checks: guarded.checks, source: decided.source });
         await ctx.runMutation(internal.guests.setNudge, { eventId: args.eventId, personaId: c.id, nudge: guarded.nudge, runId: args.runId, attempt: args.attempt });
       }
     });
