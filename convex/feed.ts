@@ -1,7 +1,8 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { mayViewEvent, requireActor } from "./authz";
 import { canGoIf } from "./authPolicy";
+import { toPickView, type CardPerson } from "./discoveryCore";
 
 // Read layer for the recommended-events swipe stack, the guest event page and the general feed.
 //
@@ -151,7 +152,42 @@ function buildView(w: World, e: any, viewerId: string) {
     // Filled in by forViewer for the recommended stack only (it needs a huddle lookup per event).
     chips: [] as Chip[],
     createdAt: e.createdAt as number,
+    // Set only on discovered-event picks (real date/time and place); see discoveryCore.toPickView.
+    whenLabel: null as string | null,
+    placeLabel: null as string | null,
   };
+}
+
+/** This viewer's live Muse picks of real nearby events, as cards, best first. Friends' "I'm going"
+ * only fills the card's friends pill; it is never given to Muse. */
+async function loadPicks(ctx: QueryCtx, w: World, viewerId: string) {
+  const now = Date.now();
+  const viewer = w.personas.get(viewerId);
+  const friends = new Set<string>(viewer?.friends ?? []);
+  const mine = await ctx.db.query("picks").withIndex("by_persona", (q) => q.eq("personaId", viewerId)).collect();
+  const live = mine
+    .filter((p) => p.status === "new" || (p.status === "snoozed" && (p.snoozedUntil ?? 0) <= now))
+    .sort((a, b) => b.score - a.score);
+  const cards = [];
+  for (const p of live) {
+    const ev = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", p.eventKey)).unique();
+    if (!ev || ev.startsAt <= now) continue;
+    const others = await ctx.db.query("picks").withIndex("by_eventKey", (q) => q.eq("eventKey", p.eventKey)).collect();
+    const going = others
+      .filter((o) => o.status === "going" && friends.has(o.personaId))
+      .map((o) => person(w, o.personaId))
+      .filter(Boolean) as CardPerson[];
+    const { _id, _creationTime, fetchedAt, ...event } = ev;
+    cards.push(toPickView(event, { ...p, status: "new" }, now, going));
+  }
+  return cards;
+}
+
+/** A real (fb_) viewer whose Muse is not connected and approved yet: the picks page invites them to connect it. */
+async function needsMuse(ctx: QueryCtx, viewerId: string): Promise<boolean> {
+  if (!viewerId.startsWith("fb_")) return false;
+  const muse = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", viewerId)).unique();
+  return !muse?.profileApproved;
 }
 
 /**
@@ -176,7 +212,9 @@ export const forViewer = query({
     );
     const recIds = new Set(recommended.map((x) => x.eventId));
     const feed = views.filter((x) => !recIds.has(x.eventId)).sort((a, b) => b.createdAt - a.createdAt);
-    return { recommended, feed };
+    // Invited events first (a friend asked), then Muse's picks of real nearby events.
+    const picks = await loadPicks(ctx, w, args.personaId);
+    return { recommended: [...recommended, ...picks], feed, needsMuse: await needsMuse(ctx, args.personaId) };
   },
 });
 

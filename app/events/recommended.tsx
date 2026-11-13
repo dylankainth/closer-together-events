@@ -11,6 +11,7 @@ import { swipe } from "@/theme/swipeTheme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const COMMIT = 90; // px a drag must travel before it counts as a swipe
+const PICK_PREFIX = "pick:"; // eventId prefix of Muse picks (convex/discoveryCore.ts toPickView)
 
 /**
  * "Your week, by your agent": a stack of recommended events, best match first.
@@ -24,6 +25,7 @@ export default function Recommended() {
   const { viewerId } = useViewer();
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
   const respond = useMutation(api.feed.respond);
+  const respondToPick = useMutation(api.picks.respond);
 
   const list = data?.recommended ?? [];
   const n = list.length;
@@ -81,11 +83,19 @@ export default function Recommended() {
 
   const answer = (action: "going" | "cant" | "snooze") => {
     if (!current) return;
+    // Muse picks of real nearby events live in their own table (convex/picks.ts).
+    if (current.relation === "pick") {
+      respondToPick({ personaId: viewerId, key: current.eventId.slice(PICK_PREFIX.length), action });
+      return;
+    }
     respond({ eventId: current.eventId, personaId: viewerId, action });
   };
 
   const rotate = pan.x.interpolate({ inputRange: [-SCREEN_W, 0, SCREEN_W], outputRange: ["-8deg", "0deg", "8deg"] });
-  const open = () => current && router.push(`/events/${current.eventId}`);
+  const open = () => {
+    if (!current || current.relation === "pick") return; // pick event page arrives with app/picks/[key].tsx
+    router.push(`/events/${current.eventId}`);
+  };
 
   return (
     <View style={styles.screen}>

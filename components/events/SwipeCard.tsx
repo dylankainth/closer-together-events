@@ -24,7 +24,10 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
   const verdict = ev.verdict ?? "worth";
   const tone = VERDICT_COLOR[verdict];
   const slot = parseSlot(ev.slotLabel);
-  const meta = [slot ? `${slot.weekday} ${slot.day} · ${slot.time}` : ev.slotLabel, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
+  // Muse picks of real events carry their own date and place; invited events use the demo slot.
+  const meta = ev.whenLabel
+    ? [ev.whenLabel, ev.placeLabel].filter(Boolean).join(" · ")
+    : [slot ? `${slot.weekday} ${slot.day} · ${slot.time}` : ev.slotLabel, priceLabel(ev.priceTier)].filter(Boolean).join(" · ");
   // `chips` only exists once the updated convex/feed.ts is deployed; until then the card shows no rows.
   const chips = ev.chips ?? [];
   const headline = ev.reasons[0] ?? chips[0]?.text ?? `${ev.host?.name ?? "Someone"} is hosting.`;

@@ -2,8 +2,8 @@
 // the ranker), so nothing here is reachable from the app.
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { discoveredInputV } from "./discoveryValidators";
-import { mergeDuplicates, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed } from "./discoveryCore";
+import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
+import { mergeDuplicates, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
 
 const MAX_DESCRIPTION = 2000;
@@ -50,5 +50,61 @@ export const candidates = internalQuery({
       .withIndex("by_startsAt", (q) => q.gt("startsAt", now).lte("startsAt", now + WINDOW_DAYS * DAY_MS))
       .collect();
     return rows.filter((r) => qualifies(r, now)).map((r) => ({ ...toInput(r), key: r.key }));
+  },
+});
+
+/** Who gets picks: seeded personas with a Muse, plus every real (fb_) user. */
+export const rankTargets = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<string[]> => {
+    const personas = await ctx.db.query("personas").collect();
+    return personas.filter((p) => p.hasMuse || p.personaId.startsWith("fb_")).map((p) => p.personaId);
+  },
+});
+
+/** What Muse may know when picking for this person: the approved Muse profile if there is one, a
+ * seeded persona's event-safe interests and vibe otherwise, plus their own past events. Never
+ * memory, secrets or never-share. A real user without an approved profile gets null ("popular"). */
+export const profileFor = internalQuery({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<RankProfile | null> => {
+    const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    if (!persona) return null;
+    const muse = await ctx.db.query("musePersonas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    const approved = muse?.profileApproved ? muse : null;
+    if (!approved && personaId.startsWith("fb_")) return null;
+    const past = await ctx.db.query("pastEvents").withIndex("by_persona", (q) => q.eq("personaId", personaId)).collect();
+    return {
+      interests: approved ? approved.interests : persona.interests,
+      vibe: approved ? approved.vibe : persona.vibe,
+      pastEvents: past.map((p) => ({ title: p.title, category: p.category, feedback: p.feedback })),
+    };
+  },
+});
+
+/** Replace this person's unanswered picks; picks they already answered are kept as they are. */
+export const savePicks = internalMutation({
+  args: {
+    personaId: v.string(),
+    reasonSource: reasonSourceV,
+    picks: v.array(v.object({ key: v.string(), verdict: pickVerdictV, reason: v.string(), score: v.number(), kind: pickKindV })),
+  },
+  handler: async (ctx, { personaId, reasonSource, picks }) => {
+    // An empty run (sources or Muse down) must never clear what the person already sees.
+    if (picks.length === 0) return { saved: 0 };
+    const now = Date.now();
+    const existing = await ctx.db.query("picks").withIndex("by_persona", (q) => q.eq("personaId", personaId)).collect();
+    const answered = new Set(existing.filter((p) => p.status !== "new").map((p) => p.eventKey));
+    for (const p of existing) if (p.status === "new") await ctx.db.delete(p._id);
+    let saved = 0;
+    for (const p of picks) {
+      if (answered.has(p.key)) continue;
+      await ctx.db.insert("picks", {
+        personaId, eventKey: p.key, verdict: p.verdict, reason: p.reason, score: p.score, kind: p.kind,
+        status: "new", rankedAt: now, reasonSource,
+      });
+      saved += 1;
+    }
+    return { saved };
   },
 });

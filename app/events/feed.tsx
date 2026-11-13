@@ -72,7 +72,10 @@ export default function Feed() {
   }, [popular]);
 
   const pageW = Math.min(width - 56, 460);
-  const open = (ev: EventView) => router.push(`/events/${ev.eventId}`);
+  const open = (ev: EventView) => {
+    if (ev.relation === "pick") return; // pick event page arrives with app/picks/[key].tsx
+    router.push(`/events/${ev.eventId}`);
+  };
 
   // Pull the feed down while it's scrolled to the top to go back to the recommended-events stack (the
   // reverse of the swipe up that opened it). At the top, a downward drag can't scroll anything, so it

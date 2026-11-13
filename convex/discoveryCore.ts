@@ -182,6 +182,82 @@ function kmFromMenlo(e: DiscoveredInput): number {
   return at ? distanceKm(MENLO, at) : RADIUS_KM;
 }
 
+// ---- card view (same shape feed.forViewer returns for invited events) ----
+
+const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const ORG_COLORS = ["#1877F2", "#E4405F", "#2E7D32", "#F57C00", "#6A1B9A", "#00838F"];
+
+/** "Sat 14 Nov · 7:30 PM" in Los Angeles time. */
+export function formatWhen(ms: number): string {
+  const d = toLA(ms);
+  const h = d.getUTCHours();
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${SHORT_DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${SHORT_MONTHS[d.getUTCMonth()]} · ${h12}:${m} ${h < 12 ? "AM" : "PM"}`;
+}
+
+export interface PickState {
+  verdict: "go" | "maybe";
+  reason: string;
+  kind: "personal" | "popular";
+  status: string;
+  snoozedUntil?: number;
+}
+
+export interface CardPerson {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+}
+
+function organizerCard(name: string | null): CardPerson {
+  const label = name ?? "Organizer";
+  const initials = label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "O";
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return { id: "org", name: label, initials, color: ORG_COLORS[h % ORG_COLORS.length] };
+}
+
+function placeOf(e: DiscoveredInput): string | null {
+  const city = (e.city ?? "").split(",")[0].trim() || null;
+  if (e.venueName && city) return `${e.venueName}, ${city}`;
+  return e.venueName ?? city;
+}
+
+export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: CardPerson[] = []) {
+  const snoozed = p.status === "snoozed" && typeof p.snoozedUntil === "number" && p.snoozedUntil > now;
+  return {
+    eventId: `pick:${e.key}`,
+    title: e.title,
+    status: "sent",
+    poster: e.imageUrl ? { url: e.imageUrl } : null,
+    host: organizerCard(e.organizer),
+    slotLabel: null as string | null,
+    venue: null as { name: string; area: string } | null,
+    priceTier: null as 1 | 2 | 3 | null,
+    vibe: null as string | null,
+    purpose: null as string | null,
+    tags: e.category ? [e.category] : [],
+    goingCount: friendsGoing.length,
+    capacity: null as number | null,
+    spotsLeft: null as number | null,
+    relation: "pick" as const,
+    myStatus: p.status === "new" ? null : p.status,
+    snoozed,
+    goIfFriend: null as string | null,
+    verdict: (p.verdict === "go" ? "worth" : "maybe") as "worth" | "maybe" | "skip" | null,
+    reasons: [p.reason],
+    matchPct: p.verdict === "go" ? 78 : 55,
+    friendsGoing: friendsGoing.slice(0, 3),
+    chips: [] as { kind: "people" | "goal" | "fit" | "plan"; text: string }[],
+    createdAt: e.startsAt,
+    whenLabel: formatWhen(e.startsAt) as string | null,
+    placeLabel: placeOf(e),
+  };
+}
+
 /** Deterministic picks when Muse is unavailable. No profile means "popular": soonest first. */
 export function fallbackRank(profile: RankProfile | null, candidates: Keyed[], now: number): PickDraft[] {
   if (!profile) {
