@@ -184,6 +184,13 @@ export default defineSchema({
     // own Muse. Separate from allowGuestInvites (one explicit plus-one chosen by the guest) —
     // this one is automatic, so it needs its own opt-in. Absent = off.
     allowSpread: v.optional(v.boolean()),
+    // "My 10 best friends" — a fixed set of persona ids the host pinned, which a re-rank must
+    // never clobber. Deliberately NOT a flag on shortlist items: rank_guests (agentTools.ts)
+    // rewrites `shortlist` wholesale on every run (convex/funnel.ts's rerank computes `selected`
+    // purely from rank order), so anything stored per-item is lost the next time ranking runs.
+    // A separate top-level array survives that rewrite; convex/shortlistPolicy.ts's applyPins is
+    // what reconciles it against the freshly-ranked shortlist. Absent means no pins, same as today.
+    pinnedGuestIds: v.optional(v.array(v.string())),
     // Things the host told everyone ("moved to 8pm", "bring a towel"). Embedded rather than a
     // table because they're few, short, written once and only ever read with the event — the same
     // reasoning that keeps venueOptions/drafts here. The host writes these through their Muse in

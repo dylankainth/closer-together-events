@@ -23,6 +23,10 @@ vm.runInNewContext(compiled, {
     // focused on the RSVP mutation itself.
     if (name === "./spread") return { spreadFromAcceptance: async () => {} };
     if (name === "./huddleRuntime") return {};
+    // setPinnedGuests is exercised by its own call site elsewhere; these tests only need the
+    // module graph to resolve, not real pin behaviour.
+    if (name === "./shortlistPolicy") return { applyPins: (shortlist) => shortlist };
+    if (name === "./museConfig") return { CONFIG: { displaySize: 12 } };
     throw new Error(`Unexpected import: ${name}`);
   },
 });
