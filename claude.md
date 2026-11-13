@@ -514,4 +514,22 @@ separate screen:**
   action (`profileApproved`), per claude.md §5.3's event-safe-profile privacy layer.
 
 Where this should resurface: likely inside `components/AccountSheet.tsx`, below the login/logout
-section, scoped to whichever persona is actually signed in — not a standalone tab/route.
+section, scoped to whichever persona is actually signed in, not a standalone tab/route.
+
+## 17. Shipping: CI deploys Convex (2026-11-13)
+
+`.github/workflows/ci.yml` runs `npm test` on every PR and, on every push to `main`, deploys
+`convex/` to the shared self-hosted deployment (https://convex-api.keanuc.net), then smoke-checks it.
+
+- **Do not run `npx convex deploy` or `npx convex dev` against the shared deployment** from a
+  laptop or an agent: `convex dev` pushes uncommitted code on every save, and the next CI deploy
+  replaces whatever is live with `main` anyway. Change backend code by merging to `main`.
+- Loop: branch, `npm test`, open a PR to `main`, wait for `test` to pass (`gh pr checks --watch`),
+  merge, then watch the `deploy convex` job in the Actions tab. `gh pr merge --auto --squash` does
+  this for you only once the repo owner has enabled auto-merge and made `test` a required check.
+- Redeploy the latest `main` by hand: Actions tab > CI > Run workflow (branch `main`).
+- Deployment env vars (Facebook, Muse, auth keys) live on the deployment. CI never sets them; ask
+  Dylan or Keanu to change one.
+- Break glass (CI down): one person deploys by hand after posting a `claim` on the bus.
+- New public Convex functions need an authz guard (see `tests/guardCoverage.test.mjs` once the
+  auth PR lands), or the `test` job fails and nothing deploys.
