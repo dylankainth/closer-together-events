@@ -18,7 +18,12 @@ const QuestionSchema = z.object({
   kind: z.union([z.literal("question"), z.literal("complete")]),
   field: z.enum(["purpose", "vibe", "audience", "budget", "other"]).optional(),
   question: z.string().max(200),
+  // Short reasoning shown under the question, e.g. "Most of your likely guests said under £35 is comfortable."
+  note: z.string().max(140).optional(),
   options: z.array(z.string().max(40)).max(6).optional(),
+  // Muse's own best guess, pre-selected on the card — the host can tap a different chip, type
+  // their own answer, or just leave it and let this stand (matches the "or let me decide" copy).
+  defaultOption: z.string().max(40).optional(),
   // "voice" dropped per ballot B12 (drop voice input for the demo) — chips/text only.
   inputType: z.union([z.literal("chips"), z.literal("text")]).optional(),
 });
@@ -27,8 +32,9 @@ type QuestionResult = z.infer<typeof QuestionSchema>;
 const FALLBACK_OPENING: QuestionResult = {
   kind: "question",
   field: "purpose",
-  question: "What kind of event are you hosting?",
-  options: ["Birthday", "Housewarming", "Game night", "Other"],
+  question: "What's the main purpose for this?",
+  options: ["Cheer everyone on", "Bond with mates", "Just for fun", "Celebrate something"],
+  defaultOption: "Just for fun",
   inputType: "chips",
 };
 
@@ -37,9 +43,9 @@ const FALLBACK_OPENING: QuestionResult = {
 // deciding "one answer is enough" would otherwise defeat the whole point of asking.
 const FIELD_FALLBACKS: Record<(typeof CORE_FIELDS)[number], QuestionResult> = {
   purpose: FALLBACK_OPENING,
-  vibe: { kind: "question", field: "vibe", question: "What's the vibe?", options: ["Chill", "Lively", "Fancy"], inputType: "chips" },
-  audience: { kind: "question", field: "audience", question: "Who's this for?", inputType: "text" },
-  budget: { kind: "question", field: "budget", question: "What's your rough budget?", options: ["$", "$$", "$$$"], inputType: "chips" },
+  vibe: { kind: "question", field: "vibe", question: "What's the vibe?", options: ["Chill", "Lively", "Fancy"], defaultOption: "Lively", inputType: "chips" },
+  audience: { kind: "question", field: "audience", question: "Who gets in?", options: ["Only who I pick", "My picks + they can bring 1", "Anyone can apply"], defaultOption: "My picks + they can bring 1", inputType: "chips" },
+  budget: { kind: "question", field: "budget", question: "Budget per head?", options: ["Under £25", "£25-35", "£35+", "I'm paying"], defaultOption: "£25-35", inputType: "chips" },
 };
 
 function missingCoreFields(answers: Record<string, unknown>): (typeof CORE_FIELDS)[number][] {
@@ -47,9 +53,12 @@ function missingCoreFields(answers: Record<string, unknown>): (typeof CORE_FIELD
 }
 
 export const startQuestionSession = action({
-  args: { hostId: v.string() },
-  handler: async (ctx, args): Promise<{ sessionId: string; field?: string; question: string; options?: string[]; inputType: "chips" | "text" }> => {
-    const sessionId: Id<"questionSessions"> = await ctx.runMutation(internal.questionSessionData.createSession, { hostId: args.hostId });
+  args: { hostId: v.string(), initialDescription: v.string() },
+  handler: async (ctx, args): Promise<{ sessionId: string; field?: string; question: string; note?: string; options?: string[]; defaultOption?: string; inputType: "chips" | "text" }> => {
+    const sessionId: Id<"questionSessions"> = await ctx.runMutation(internal.questionSessionData.createSession, {
+      hostId: args.hostId,
+      description: args.initialDescription,
+    });
 
     const budget: CallBudget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const r = await museJSON({
@@ -57,8 +66,8 @@ export const startQuestionSession = action({
       budget,
       effort: "low",
       system:
-        'You are Muse helping a host plan an event. Ask ONE friendly opening question to learn about the event. Keep it under 200 characters. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"other", "question": string, "options"?: string[], "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget this question is collecting — use "other" only if it fits none of those.',
-      user: {},
+        'You are Muse helping a host plan an event. They just described it in one line. Ask ONE friendly follow-up question to learn more — skip anything the description already answers. Always propose your own best-guess default so the host can just accept it. Keep the question under 200 characters, and any "note" under 140. Offer 2-6 chip options if the answer is categorical, otherwise free text (no voice input). Never ask for home address, phone number, email, or secrets. Return {"kind":"question", "field": "purpose"|"vibe"|"audience"|"budget"|"other", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. "field" names which of purpose/vibe/audience/budget this question is collecting — use "other" only if it fits none of those.',
+      user: { description: args.initialDescription },
       schema: QuestionSchema,
       fallback: (): QuestionResult => FALLBACK_OPENING,
     });
@@ -67,13 +76,13 @@ export const startQuestionSession = action({
       await ctx.runMutation(internal.questionSessionData.markComplete, { sessionId });
       return { sessionId, question: "", options: [], inputType: "text" };
     }
-    return { sessionId, field: r.data.field, question: r.data.question, options: r.data.options, inputType: r.data.inputType ?? "text" };
+    return { sessionId, field: r.data.field, question: r.data.question, note: r.data.note, options: r.data.options, defaultOption: r.data.defaultOption, inputType: r.data.inputType ?? "text" };
   },
 });
 
 export const submitAnswer = action({
   args: { sessionId: v.string(), field: v.string(), answer: v.any() },
-  handler: async (ctx, args): Promise<{ field?: string; question?: string; options?: string[]; inputType?: "chips" | "text"; complete: boolean }> => {
+  handler: async (ctx, args): Promise<{ field?: string; question?: string; note?: string; options?: string[]; defaultOption?: string; inputType?: "chips" | "text"; complete: boolean }> => {
     const sessionId = args.sessionId as Id<"questionSessions">;
     await ctx.runMutation(internal.questionSessionData.appendAnswer, { sessionId, field: args.field, answer: args.answer });
 
@@ -98,7 +107,7 @@ export const submitAnswer = action({
       system:
         "The host is planning an event. Answered so far: " +
         JSON.stringify(session.answers) +
-        `. You still need: ${stillMissing.join(", ")}. Ask ONE follow-up question about one of those — do not stop until all of them are answered. Return {"kind":"question", "field": "${stillMissing.join('"|"')}", "question": string, "options"?: string[], "inputType"?: "chips"|"text"}. Keep questions under 200 chars, chips/text only (no voice). Never ask for home address, phone number, email, or secrets.`,
+        `. You still need: ${stillMissing.join(", ")}. Ask ONE follow-up question about one of those — do not stop until all of them are answered. Always propose your own best-guess default so the host can just accept it. Return {"kind":"question", "field": "${stillMissing.join('"|"')}", "question": string, "note"?: string, "options"?: string[], "defaultOption"?: string (must be one of options), "inputType"?: "chips"|"text"}. Keep questions under 200 chars, chips/text only (no voice). Never ask for home address, phone number, email, or secrets.`,
       user: {},
       schema: QuestionSchema,
       fallback: (): QuestionResult => nextFallback,
@@ -109,6 +118,21 @@ export const submitAnswer = action({
     // rather than letting the interview end (or stall) prematurely.
     const usable = r.data.kind === "question" && r.data.field && stillMissing.includes(r.data.field as (typeof CORE_FIELDS)[number]);
     const chosen = usable ? r.data : nextFallback;
-    return { field: chosen.field, question: chosen.question, options: chosen.options, inputType: chosen.inputType ?? "text", complete: false };
+    return { field: chosen.field, question: chosen.question, note: chosen.note, options: chosen.options, defaultOption: chosen.defaultOption, inputType: chosen.inputType ?? "text", complete: false };
+  },
+});
+
+/** "Skip the rest, use my judgement" — accepts the current card's own default (if any) and ends
+ * the interview immediately; finishQuestionSession's per-field defaults cover anything else
+ * still missing. */
+export const skipRest = action({
+  args: { sessionId: v.string(), field: v.optional(v.string()), defaultAnswer: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<{ complete: true }> => {
+    const sessionId = args.sessionId as Id<"questionSessions">;
+    if (args.field && args.defaultAnswer) {
+      await ctx.runMutation(internal.questionSessionData.appendAnswer, { sessionId, field: args.field, answer: args.defaultAnswer });
+    }
+    await ctx.runMutation(internal.questionSessionData.markComplete, { sessionId });
+    return { complete: true };
   },
 });

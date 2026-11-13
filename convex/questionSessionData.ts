@@ -3,10 +3,13 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 
 export const createSession = internalMutation({
-  args: { hostId: v.string() },
+  args: { hostId: v.string(), description: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const now = Date.now();
-    return ctx.db.insert("questionSessions", { hostId: args.hostId, answers: {}, status: "open", createdAt: now, updatedAt: now });
+    // "description" is context for Muse's prompts, not a core field planEvent maps from, so it
+    // doesn't count toward missingCoreFields()/the round cap.
+    const answers = args.description ? { description: args.description } : {};
+    return ctx.db.insert("questionSessions", { hostId: args.hostId, answers, status: "open", createdAt: now, updatedAt: now });
   },
 });
 
@@ -58,11 +61,14 @@ export const finishQuestionSession = mutation({
     if (!session || session.status !== "complete") return null;
 
     const answers = session.answers as Record<string, unknown>;
+    const description = typeof answers.description === "string" ? answers.description : "";
     return {
       purpose: typeof answers.purpose === "string" ? answers.purpose : "Other",
       vibe: typeof answers.vibe === "string" ? answers.vibe : "Lively",
       budget: parseBudget(answers.budget),
-      audienceRaw: typeof answers.audience === "string" ? answers.audience : "my friends",
+      // Fall back to the host's own opening description before the generic "my friends" — it's
+      // a better guess if the round cap or an early "complete" skipped the audience question.
+      audienceRaw: typeof answers.audience === "string" ? answers.audience : description || "my friends",
     };
   },
 });
