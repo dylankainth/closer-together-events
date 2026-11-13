@@ -12,7 +12,7 @@ export const TOPIC_VOCAB: Record<string, string[]> = {
   climbing: ["climbing", "climb", "boulder", "bouldering"],
   "live music": ["music", "concert", "gig", "band", "vinyl"],
   food: ["food", "foodie", "cooking", "dinner", "brunch"],
-  gaming: ["gaming", "games", "esports"],
+  gaming: ["gaming", "games", "gamer", "esports"],
   running: ["running", "run", "marathon", "5k"],
   fitness: ["fitness", "gym", "workout", "training"],
   outdoors: ["outdoors", "hiking", "camping", "park"],
@@ -31,12 +31,16 @@ export async function parseAudience(raw: string, budget: CallBudget): Promise<{ 
     fallback: () => {
       const lower = raw.toLowerCase();
       const tie: Tie = /(closest|close friends|best friends|inner circle|bffs?)/.test(lower) ? "close" : "any";
-      // Allow the plural. "the foodies" used to parse to NO topics at all, because the vocabulary
-      // holds "foodie" and the word boundary refused the trailing s — so the whole audience
-      // description was discarded and the shortlist fell back to raw tie-strength. Hosts write
-      // plurals far more often than singulars when naming a group of people.
+      // Match a vocabulary word as a PREFIX of a word the host wrote, rather than exactly. Hosts
+      // name groups by what the people are ("the foodies", "my climbers"), not by the activity,
+      // and exact matching parsed those to NO topics at all — the whole audience description was
+      // then discarded and the shortlist fell back to raw tie-strength. Prefixing covers the
+      // plural and the -er/-ers forms together, instead of stacking suffix rules that keep
+      // missing one. Four characters minimum so short entries can't match on a stray fragment.
+      const tokens = lower.split(/[^a-z0-9]+/u).filter(Boolean);
+      const mentions = (w: string) => tokens.some((t) => t === w || (w.length >= 4 && t.startsWith(w)));
       const topics = Object.entries(TOPIC_VOCAB)
-        .filter(([, words]) => words.some((w) => new RegExp(`\\b${w}(?:e?s)?\\b`, "i").test(lower)))
+        .filter(([, words]) => words.some(mentions))
         .map(([topic]) => topic);
       return { tie, topics };
     },
