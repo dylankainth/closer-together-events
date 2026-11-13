@@ -109,7 +109,11 @@ export default function Recommended() {
 
   const rotate = pan.x.interpolate({ inputRange: [-SCREEN_W, 0, SCREEN_W], outputRange: ["-8deg", "0deg", "8deg"] });
   const open = () => {
-    if (!current || current.relation === "pick") return; // pick event page arrives with app/picks/[key].tsx
+    if (!current) return;
+    if (current.relation === "pick") {
+      router.push(`/picks/${encodeURIComponent(current.eventId.slice(PICK_PREFIX.length))}`);
+      return;
+    }
     router.push(`/events/${current.eventId}`);
   };
 

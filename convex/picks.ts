@@ -1,7 +1,25 @@
-// Event discovery: the person's own answers to their Muse picks (X / I'm going / snooze).
-import { mutation } from "./_generated/server";
+// Event discovery: one Muse pick as an in-app event page, and the person's own answers to their
+// picks (X / I'm going / snooze).
+import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requireActor } from "./authz";
+import { toPickView } from "./discoveryCore";
+
+/** The pick's event page for this viewer, or null if it no longer exists. */
+export const detail = query({
+  args: { personaId: v.string(), key: v.string() },
+  handler: async (ctx, { personaId, key }) => {
+    await requireActor(ctx, personaId, "read", "picks.detail");
+    const pick = await ctx.db
+      .query("picks")
+      .withIndex("by_persona_key", (q) => q.eq("personaId", personaId).eq("eventKey", key))
+      .unique();
+    const ev = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", key)).unique();
+    if (!pick || !ev) return null;
+    const { _id, _creationTime, fetchedAt, ...event } = ev;
+    return toPickView(event, pick, Date.now());
+  },
+});
 
 const SNOOZE_MS = 60 * 60 * 1000;
 

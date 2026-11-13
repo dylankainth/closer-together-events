@@ -56,3 +56,11 @@ test("no outside links leak into anything the card renders", () => {
   const shown = JSON.stringify({ ...v, poster: null });
   assert.doesNotMatch(shown, /lu\.ma|eventbrite|facebook\.com/);
 });
+
+test("description for the event page: trimmed to 1,200 characters, links removed", () => {
+  const long = `Join us! Tickets at https://lu.ma/xyz and www.eventbrite.com/e/123 ${"a".repeat(2000)}`;
+  const v = toPickView(event({ description: long }), pick(), START - 1);
+  assert.ok(v.description.length <= 1200);
+  assert.doesNotMatch(v.description, /https?:|lu\.ma|eventbrite/);
+  assert.match(v.description, /^Join us! Tickets at/);
+});

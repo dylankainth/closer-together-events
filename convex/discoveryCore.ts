@@ -255,7 +255,15 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
     createdAt: e.startsAt,
     whenLabel: formatWhen(e.startsAt) as string | null,
     placeLabel: placeOf(e),
+    // For the in-app event page; links to the source site are removed (picks read as Facebook events).
+    description: cleanText(e.description).slice(0, DESCRIPTION_CHARS),
   };
+}
+
+const DESCRIPTION_CHARS = 1200;
+
+function cleanText(s: string): string {
+  return s.replace(URL_RE, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function soonest(candidates: Keyed[]): Keyed[] {
@@ -297,7 +305,7 @@ export function fallbackRank(profile: RankProfile | null, candidates: Keyed[], n
 
 export const MAX_CANDIDATES = 40;
 const ABOUT_CHARS = 200;
-const URL_RE = /https?:\/\/\S+|\b[\w-]+\.(com|ma|io|ai|org|net)\/\S*/gi;
+const URL_RE = /https?:\/\/\S+|\b(?:www\.)?[\w-]+\.(?:com|ma|io|ai|org|net|co)\/\S*/gi;
 
 /** The n candidates worth showing Muse: best keyword score first (soonest if there is no profile). */
 export function preselect(profile: RankProfile | null, candidates: Keyed[], now: number, n: number = MAX_CANDIDATES): Keyed[] {
