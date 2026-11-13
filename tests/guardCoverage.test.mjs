@@ -5,8 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DIR = new URL("../convex/", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL("../convex/", import.meta.url));
 const GUARDS = /\b(requireActor|requireOwner|requireHost|requireSignedIn|allowedAs|mayViewEvent)\s*\(/;
 
 // Open on purpose, with the reason.
