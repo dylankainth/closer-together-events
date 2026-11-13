@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { allowedAs, requireOwner } from "./authz";
+import { internal } from "./_generated/api";
 
 // Owner-only: holds the never-share list and interests. Returns null (not an error) to anyone
 // else, so screens that render for a demo persona just hide the box.
@@ -66,5 +67,7 @@ export const setApproved = mutation({
       const hasMuse = args.approved ? true : args.personaId.startsWith("fb_") ? false : persona.hasMuse;
       if (persona.hasMuse !== hasMuse) await ctx.db.patch(persona._id, { hasMuse });
     }
+    // Picks follow the approval straight away: personal once approved, popular if withdrawn.
+    await ctx.scheduler.runAfter(0, internal.discoveryRank.rankPersona, { personaId: args.personaId });
   },
 });

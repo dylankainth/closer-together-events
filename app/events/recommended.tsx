@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
 import { SwipeCard } from "@/components/events/SwipeCard";
+import { AccountSheet } from "@/components/AccountSheet";
 import { swipe } from "@/theme/swipeTheme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -28,6 +29,7 @@ export default function Recommended() {
   const data = useQuery(api.feed.forViewer, { personaId: viewerId });
   const respond = useMutation(api.feed.respond);
   const respondToPick = useMutation(api.picks.respond);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const list = data?.recommended ?? [];
   const n = list.length;
@@ -137,6 +139,15 @@ export default function Recommended() {
         {n > 0 && <Text style={styles.count}>{idx + 1}/{n}</Text>}
       </View>
 
+      {data?.needsMuse && (
+        <Pressable style={styles.museBanner} onPress={() => setAccountOpen(true)}>
+          <Ionicons name="sparkles-outline" size={16} color={swipe.ink} />
+          <Text style={styles.museBannerText}>Connect your Muse for picks that fit you</Text>
+          <Ionicons name="chevron-forward" size={16} color={swipe.ink} />
+        </Pressable>
+      )}
+      <AccountSheet visible={accountOpen} onClose={() => setAccountOpen(false)} />
+
       <View style={styles.stage}>
         {data === undefined ? (
           <View style={[styles.empty, { opacity: 0.6 }]}><Text style={styles.emptyTitle}>Loading…</Text></View>
@@ -188,6 +199,8 @@ const styles = StyleSheet.create({
   badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: swipe.blue, alignItems: "center", justifyContent: "center" },
   heading: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 15 },
   count: { color: "#6B6B76", fontWeight: "600", fontSize: 13 },
+  museBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "#EEF0FF" },
+  museBannerText: { flex: 1, color: swipe.ink, fontWeight: "700", fontSize: 14 },
   stage: { flex: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10 },
   front: { flex: 1 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18, paddingVertical: 6 },

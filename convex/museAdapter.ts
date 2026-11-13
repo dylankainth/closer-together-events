@@ -4,6 +4,7 @@
 // everything else (museContext.ts parsing, musePersonas.ts, huddle.ts) stays the same either way.
 import type { Persona } from "./types";
 import type { MuseRawContext } from "./museContext";
+import { museContextFromPrepared, parsePreparedProfiles } from "./preparedProfiles";
 
 const SLOT_LABELS: Record<string, string> = {
   fri20: "Fri 20 Nov", sat21: "Sat 21 Nov", sun22: "Sun 22 Nov", fri27: "Fri 27 Nov", sat28: "Sat 28 Nov",
@@ -25,6 +26,10 @@ function demoMuseContext(p: Persona): MuseRawContext {
 }
 
 export async function readMuseContext(persona: Persona): Promise<{ raw: MuseRawContext; source: "muse" | "demo" }> {
+  // Simulated connection for real users: a prepared profile (env PREPARED_MUSE_PROFILES) stands in
+  // for their Muse; still source "demo", since no real Muse was read.
+  const prepared = parsePreparedProfiles(process.env.PREPARED_MUSE_PROFILES)[persona.id];
+  if (prepared) return { raw: museContextFromPrepared(persona.name, prepared), source: "demo" };
   if (!process.env.INTERNAL_MUSE_API_KEY) {
     return { raw: demoMuseContext(persona), source: "demo" };
   }

@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { readMuseContext } from "./museAdapter";
 import { extractShareableProfile } from "./museContext";
+import { parsePreparedProfiles, preparedPastEvents } from "./preparedProfiles";
 import { requireOwner } from "./authz";
 import type { Persona } from "./types";
 
@@ -19,6 +20,11 @@ export const syncMuseContext = action({
     const { raw, source } = await readMuseContext(persona);
     const profile = extractShareableProfile(raw);
     await ctx.runMutation(internal.musePersonas.upsertFromContext, { personaId: args.personaId, profile, source });
+    // A prepared profile also carries the events this person went to; Muse cites them in picks.
+    const prepared = parsePreparedProfiles(process.env.PREPARED_MUSE_PROFILES)[args.personaId];
+    if (prepared) {
+      await ctx.runMutation(internal.discoveryData.setPastEvents, { personaId: args.personaId, rows: preparedPastEvents(args.personaId, prepared) });
+    }
     return { profile, source };
   },
 });

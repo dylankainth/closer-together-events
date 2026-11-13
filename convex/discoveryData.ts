@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
 import { mergeDuplicates, pastEventsFor, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
+import { DEMO_SNAPSHOT } from "./demoSnapshot";
 
 const MAX_DESCRIPTION = 2000;
 const DAY_MS = 86_400_000;
@@ -134,5 +135,62 @@ export const leakGuardFor = internalQuery({
   handler: async (ctx, { personaId }): Promise<string[]> => {
     const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
     return persona ? [...persona.secrets, ...persona.neverShare].map((s) => s.toLowerCase()) : [];
+  },
+});
+
+/** Replace one person's past events (used by the simulated Muse connection). */
+export const setPastEvents = internalMutation({
+  args: {
+    personaId: v.string(),
+    rows: v.array(v.object({ personaId: v.string(), title: v.string(), category: v.union(v.string(), v.null()), feedback: v.union(v.string(), v.null()), when: v.number() })),
+  },
+  handler: async (ctx, { personaId, rows }) => {
+    const old = await ctx.db.query("pastEvents").withIndex("by_persona", (q) => q.eq("personaId", personaId)).collect();
+    for (const r of old) await ctx.db.delete(r._id);
+    for (const r of rows) await ctx.db.insert("pastEvents", { ...r, personaId });
+    return { saved: rows.length };
+  },
+});
+
+const SNAPSHOT_DESCRIPTION = 400;
+
+/** Today's good picks of the demo personas, for scripts/export-demo-snapshot.mjs. */
+export const snapshotData = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const picks = (await ctx.db.query("picks").collect()).filter((p) => !p.personaId.startsWith("fb_") && p.status === "new");
+    const keys = [...new Set(picks.map((p) => p.eventKey))];
+    const events = [];
+    for (const key of keys) {
+      const ev = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", key)).unique();
+      if (ev) events.push({ ...toInput(ev), description: ev.description.slice(0, SNAPSHOT_DESCRIPTION), key });
+    }
+    return {
+      events,
+      picks: picks.map((p) => ({ personaId: p.personaId, key: p.eventKey, verdict: p.verdict, reason: p.reason, score: p.score, kind: p.kind })),
+    };
+  },
+});
+
+/** Never empty: any demo persona with no picks gets its saved snapshot back (events + picks). */
+export const loadSnapshot = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    let restored = 0;
+    const byPersona = new Map<string, typeof DEMO_SNAPSHOT.picks>();
+    for (const p of DEMO_SNAPSHOT.picks) byPersona.set(p.personaId, [...(byPersona.get(p.personaId) ?? []), p]);
+    for (const [personaId, picks] of byPersona) {
+      const has = await ctx.db.query("picks").withIndex("by_persona", (q) => q.eq("personaId", personaId)).first();
+      if (has) continue;
+      for (const p of picks) {
+        const exists = await ctx.db.query("discoveredEvents").withIndex("by_key", (q) => q.eq("key", p.key)).unique();
+        const ev = DEMO_SNAPSHOT.events.find((e) => e.key === p.key);
+        if (!exists && ev) await ctx.db.insert("discoveredEvents", { ...ev, fetchedAt: now });
+        await ctx.db.insert("picks", { personaId, eventKey: p.key, verdict: p.verdict, reason: p.reason, score: p.score, kind: p.kind, status: "new", rankedAt: now, reasonSource: "snapshot" });
+      }
+      restored += 1;
+    }
+    return { restored };
   },
 });
