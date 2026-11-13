@@ -206,6 +206,47 @@ export function scrubText(text: string): string {
   return out;
 }
 
+// A fast check so scrubDeep only rebuilds strings that are actually broken — the overwhelming
+// majority of a payload is clean and copying it would be pure waste.
+function hasLoneSurrogate(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const next = text.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      i += 1;
+    } else if (c >= 0xdc00 && c <= 0xdfff) return true;
+  }
+  return false;
+}
+
+/**
+ * scrubText over every string in a query's return value, however deeply nested.
+ *
+ * Applied at the query boundary on purpose. A lone surrogate anywhere in a payload makes the WHOLE
+ * response unserialisable — Convex fails the function with "unexpected end of hex escape" and a
+ * character offset, naming neither the field nor the row — so the blast radius of one bad string is
+ * an entire screen for that viewer. Scrubbing field-by-field means every new model-written field is
+ * a fresh chance to reintroduce the crash, which is exactly what happened: `toPickView` was fixed
+ * and `feed.forViewer`'s own `reasons`/`vibe`/`chips` were not, so the same screen died again.
+ *
+ * Only model-written text can contain one (a clamp landing mid-emoji), but the cost of walking a
+ * payload is trivial next to the queries that built it, and correctness here shouldn't depend on
+ * remembering which fields a model touched.
+ */
+export function scrubDeep<T>(value: T): T {
+  if (typeof value === "string") return (hasLoneSurrogate(value) ? scrubText(value) : value) as T;
+  if (Array.isArray(value)) return value.map(scrubDeep) as T;
+  // Dates, Int64 and ArrayBuffer are valid Convex values and must survive untouched; only plain
+  // objects are walked.
+  if (value && typeof value === "object" && (value.constructor === Object || value.constructor === undefined)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = scrubDeep(v);
+    return out as T;
+  }
+  return value;
+}
+
 /** Keeps whole sentences up to MAX_REASON characters; one over-long sentence is cut at a word. */
 export function clampReason(text: string): string {
   const t = text.trim().replace(/\s+/g, " ");

@@ -2,6 +2,7 @@ import { query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { allowedAs, getCaller } from "./authz";
 import { assertHuddleAttempt, currentHuddleMessages } from "./huddleRuntime";
+import { scrubDeep } from "./discoveryCore";
 
 /** The client subscription that replaces the old NDJSON stream: each insertMessage commit below
  * automatically re-pushes the updated array to every subscribed client, live. */
@@ -27,16 +28,22 @@ export const messagesForEvent = query({
         .query("huddleMessages")
         .withIndex("by_event_forPersona", (q) => q.eq("eventId", args.eventId).eq("forPersona", args.forPersona!))
         .collect();
-      return (await currentHuddleMessages(ctx, args.eventId, rows)).sort((a, b) => a.seq - b.seq).map(({ _id, _creationTime, ...rest }) => rest);
+      // scrubDeep at the boundary: one lone surrogate in a model-written line makes the WHOLE
+      // response unserialisable, so a bad character costs a screen rather than a string.
+      return scrubDeep(
+        (await currentHuddleMessages(ctx, args.eventId, rows)).sort((a, b) => a.seq - b.seq).map(({ _id, _creationTime, ...rest }) => rest),
+      );
     }
     const rows = await ctx.db
       .query("huddleMessages")
       .withIndex("by_eventId_seq", (q) => q.eq("eventId", args.eventId))
       .order("asc")
       .collect();
-    return (await currentHuddleMessages(ctx, args.eventId, rows))
-      .filter((m) => !hideOtherRealUsers || ![m.forPersona, m.fromPersona, m.toPersona].some(isOtherRealUser))
-      .map(({ _id, _creationTime, ...rest }) => rest);
+    return scrubDeep(
+      (await currentHuddleMessages(ctx, args.eventId, rows))
+        .filter((m) => !hideOtherRealUsers || ![m.forPersona, m.fromPersona, m.toPersona].some(isOtherRealUser))
+        .map(({ _id, _creationTime, ...rest }) => rest),
+    );
   },
 });
 

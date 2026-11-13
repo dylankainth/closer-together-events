@@ -5,7 +5,7 @@ import { spreadFromAcceptance } from "./spread";
 import { canGoIf } from "./authPolicy";
 import { currentHuddleMessages } from "./huddleRuntime";
 import { conditionalRsvp } from "./conditionalRsvp";
-import { toPickView, type CardPerson } from "./discoveryCore";
+import { scrubDeep, toPickView, type CardPerson } from "./discoveryCore";
 
 // Read layer for the recommended-events swipe stack, the guest event page and the general feed.
 //
@@ -228,7 +228,9 @@ export const forViewer = query({
     const feed = views.filter((x) => !recIds.has(x.eventId)).sort((a, b) => b.createdAt - a.createdAt);
     // Invited events first (a friend asked), then Muse's picks of real nearby events.
     const picks = await loadPicks(ctx, w, args.personaId);
-    return { recommended: [...recommended, ...picks], feed, needsMuse: await needsMuse(ctx, args.personaId) };
+    // scrubDeep, not per-field: one lone surrogate in any model-written string here (a nudge
+    // reason, a vibe, a chip from a huddle reply) kills the entire response for this viewer.
+    return scrubDeep({ recommended: [...recommended, ...picks], feed, needsMuse: await needsMuse(ctx, args.personaId) });
   },
 });
 

@@ -7,6 +7,7 @@
 import { queryGeneric as query } from "convex/server";
 import { v } from "convex/values";
 import { requireActor } from "./authz";
+import { scrubDeep } from "./discoveryCore";
 import { canOfferInvite, eligibleFriend, type InviteEvent, type InviteGuest, type InvitePerson } from "./plusOnePolicy";
 
 // In-app notifications centre. There is no notifications table (claude.md's "no new tables and
@@ -175,6 +176,8 @@ export const forViewer = query({
       });
     }
 
-    return buildNotifications(rows);
+    // scrubDeep at the boundary: one lone surrogate in model-written text makes the WHOLE
+    // response unserialisable, so a bad character costs a screen rather than a string.
+    return scrubDeep(buildNotifications(rows));
   },
 });

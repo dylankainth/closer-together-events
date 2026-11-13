@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireHost } from "./authz";
+import { scrubDeep } from "./discoveryCore";
 
 // The host's "Your agent is on it" checklist, DERIVED from the event doc rather than stored: each step
 // is true when the planner has already produced its output. Keeping it derived means it stays correct
@@ -200,7 +201,9 @@ export const forEvent = query({
       .filter(Boolean)
       .join(" · ");
 
-    return {
+    // scrubDeep at the boundary: one lone surrogate in model-written text makes the WHOLE
+    // response unserialisable, so a bad character costs a screen rather than a string.
+    return scrubDeep({
       eventId: e.eventId as string,
       title: e.title as string,
       status: e.status as string,
@@ -212,6 +215,6 @@ export const forEvent = query({
       needsYou,
       pendingDrafts: pendingDrafts.map((d: any) => ({ id: d.id as string, vendor: d.vendor as string, item: d.item as string, draft: d.draft as string })),
       pendingTasks,
-    };
+    });
   },
 });

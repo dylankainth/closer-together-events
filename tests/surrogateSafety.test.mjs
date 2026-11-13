@@ -66,6 +66,47 @@ test("scrubText removes unpaired surrogates anywhere, not just trailing", async 
   }
 });
 
+// Fixing it per-field fixed one of two paths. `toPickView` was scrubbed; `feed.forViewer`'s own
+// `reasons` / `vibe` / `chips` were not, and the SAME screen died again on device with the same
+// unhelpful "unexpected end of hex escape at column 86872". The lesson is that the guarantee has
+// to live at the query boundary, not on whichever fields someone remembered a model had touched.
+test("scrubDeep cleans strings at any depth, in objects and arrays alike", async () => {
+  const { scrubDeep } = await import("../convex/discoveryCore.ts");
+  const bad = "\ud83c";
+  const payload = {
+    recommended: [{ title: `Bowling${bad}`, chips: [{ text: `why${bad}` }], reasons: [`a${bad}`, "clean"] }],
+    feed: [{ vibe: bad, nested: { deep: { deeper: `x${bad}y` } } }],
+    needsMuse: false,
+  };
+  const out = scrubDeep(payload);
+  assert.equal(hasLoneSurrogate(JSON.stringify(out)), false);
+  assert.deepEqual(out, {
+    recommended: [{ title: "Bowling", chips: [{ text: "why" }], reasons: ["a", "clean"] }],
+    feed: [{ vibe: "", nested: { deep: { deeper: "xy" } } }],
+    needsMuse: false,
+  });
+});
+
+test("scrubDeep leaves everything that isn't a broken string exactly as it was", async () => {
+  const { scrubDeep } = await import("../convex/discoveryCore.ts");
+  // Numbers, booleans, null and absent fields are most of a payload; emoji must survive too.
+  const payload = { n: 42, big: 1e21, t: true, nil: null, s: "Bowling 🎳", arr: [1, "two", null] };
+  assert.deepEqual(scrubDeep(payload), payload);
+  // Dates are valid Convex values and must not be flattened into plain objects by the walk.
+  const d = new Date(0);
+  assert.equal(scrubDeep({ when: d }).when, d);
+});
+
+// The crash came back because a NEW query returned model text without the guard. This is the
+// cheap check that catches the next one.
+test("every query returning model-written text scrubs at its boundary", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["feed.ts", "huddleData.ts", "notifications.ts", "checklist.ts"]) {
+    const src = readFileSync(new URL(`../convex/${f}`, import.meta.url), "utf8");
+    assert.ok(src.includes("scrubDeep("), `${f} returns model text without scrubDeep at the boundary`);
+  }
+});
+
 test("scrubText keeps real emoji and ordinary text intact", async () => {
   const { scrubText } = await import("../convex/discoveryCore.ts");
   assert.equal(scrubText("Bowling 🎳 with Sam 🎉"), "Bowling 🎳 with Sam 🎉");
