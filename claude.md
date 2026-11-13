@@ -617,3 +617,96 @@ to the transcript, so nothing was removed.
 `events.doSendInvites` is now idempotent (early-return when `status === "sent"`). It previously
 scheduled another concurrent `runHuddle` on every call, which the old single Send button hid and
 a re-tappable checklist row would not have.
+
+## 19. Closing the gap between the pitch and the code (2026-11-13, overnight)
+
+An audit against the product vision found the described loop was not the built one. What follows
+is what changed and, more usefully, what is still not true.
+
+### The loop now closes
+
+**A yes widens the circle** (`convex/spread.ts`). An RSVP used to be a terminal state: tapping
+Going patched one field and reached nobody. When a guest accepts, close friends of theirs who
+aren't invited get the event surfaced, each judged by their OWN Muse through the same guarded
+huddle — so a spread invite arrives with a real, personal reason, not a bare notification. Four
+rules, all asserted in `tests/spread.test.mjs` rather than left to review:
+
+1. **One hop.** Rows carry `spreadFrom`; someone who arrived that way cannot spread onward, so one
+   yes cannot cascade through the graph.
+2. **Host-gated** on `allowSpread`, set from the planner's public/private answer. Private means it.
+3. **Capped twice**: three per acceptance, and never past the event's remaining room or capacity.
+4. **Never auto-RSVPs.** Rows land "invited". The person still decides.
+
+**Invites can now reach people** — the Notifications tab was a dead placeholder, and there was no
+notification layer at all. It is now a real centre derived from existing data (no new tables):
+invites, your Muse's recommendation, plus-one offers, host announcements, and huddle progress.
+
+**The host's Muse can tell the guests something.** "Let everyone know we moved to 8" appends an
+announcement that every guest sees. Only on a sent event; the confirmation to the host comes from
+the mutation, which reports how many people it actually reached, so the Muse cannot claim to have
+passed on a message it did not.
+
+### Matching reasons about more than availability
+
+The Muses were nearly blind: a peer's Muse received an event *title* and a few topic words — not
+the date in human form, the venue, or the description — which is why live transcripts showed them
+asking "when is it, where?" and quoting raw slot ids. They now get all of it, plus the event's
+vibe, which the decider never previously saw at all.
+
+Two dimensions the pitch claimed and the data model lacked:
+- **`dislikes`** is a real field. A negative preference is not the absence of an interest: "I don't
+  do football" and "football isn't in my list" are different answers, and only the first can
+  honestly produce "this one isn't for you". Populated for the 12 named personas.
+- **`people_you_know`** — how many of this event's invitees a candidate actually knows. Nothing
+  computed this, and it is what an introvert-versus-a-room-of-strangers judgement needs.
+
+### Measuring whether matching is good, not just safe
+
+Every previous eval answered "does it leak". `scripts/eval-matching.mjs` and
+`tests/matchQuality.test.mjs` answer "does it pick the right people and tell them the truth" —
+the funnel-quality eval §12 promised and nobody built. It found a bug on its first run: *"the
+foodies"* parsed to **no topics at all**, because the vocabulary holds "foodie" and an exact word
+match refuses the plural, so the entire audience description was silently discarded and the
+shortlist fell back to raw tie-strength. Mean precision@5 went 84% → 100%.
+
+### What device testing caught that tests could not
+
+Everything here was found by driving the real app on a real phone, and none of it was visible from
+the code or the test suite:
+
+- **One emoji killed a whole screen.** `clampReason` cut a model-written reason at 340 UTF-16 code
+  units; a cut landing inside an emoji left a lone surrogate, which made the entire query response
+  unserialisable. `feed.forViewer` died with "unexpected end of hex escape", naming neither the
+  field nor the event. Now scrubbed both on write and, more importantly, **on read**, so a row
+  already stored malformed costs its own text and not somebody's screen.
+- **The poster lied about the date.** Generated art read "FRIDAY, OCT 25 · 7PM" directly above the
+  app's correct "Sat 21 · 7pm". Image models render plausible text they were never given, so the
+  prompts now forbid any date, time, address or price in the image.
+- **A huddle stalled at 7 of 12.** Free conversation became the default and runs sequential model
+  calls per peer per candidate; an unbounded fan-out put ~24 exchanges in flight, calls queued,
+  individual ones timed out into offline fallbacks, and the run outlived the 120s lease. Capped at
+  four candidates at a time.
+- **Notifications read as broken** — seven identical "13 of your friends' Muses have answered"
+  rows. Titles now lead with the outcome.
+
+### Still not true, and worth saying out loud
+
+- **The Facebook graph is seeded.** Login is real; it returns a name and a photo. Every real user
+  is wired to the same seeded host's friends. This is a deliberate constraint (§2), not an
+  oversight, but the moat claim should be made carefully.
+- **The consent UI cannot be shown in Expo Go.** It is rebuilt and wired (§16 is done), but
+  `getUserSettings` is owner-level and stays strict even in warn mode — correctly, since you should
+  not read someone's privacy settings by picking them from a demo switcher. Filming it needs a real
+  sign-in on the dev build.
+- **Vendors remain simulated**, by design (§3.1). The one real email goes to a demo inbox, not a
+  bakery.
+- **If the Muse API were down, most of the app would still appear to work** — every call site falls
+  back deterministically. Excellent for demo safety; it also means "the AI is essential" is worth
+  verifying rather than assuming. Check `source: "muse"` is coming back before presenting.
+
+### A note for whoever debugs next
+
+On this Windows setup Metro's file watcher is unreliable for **edits**, not just new files. A
+change can fail to appear on device through several app restarts, and only a Metro restart picks
+it up. If something you just wrote seems not to work, restart `expo start` before you debug the
+code.
