@@ -101,7 +101,7 @@ export function vendorDrafts(answers: HostAnswers, title: string, slot: Slot, ve
   const add = (id: string, vendor: string, item: string, draft: string, simulatedReply: string) =>
     drafts.push({ id, vendor, item, draft, simulatedReply, simulated: true, status: "pending" });
 
-  if (answers.purpose === "Birthday") {
+  if (/birthday/i.test(answers.purpose)) {
     add("cake", "Noe Valley Bakery", "cake", `Hi! Could we get a cake for "${title}" (${headcount} people) on ${slot.label}?`, "Sure thing, £30, ready for pickup that morning.");
     add("candles", "Party Parlour", "candles & balloons", `Hi, candles + balloons for ${headcount} guests please.`, "Got it, £12, bundled with pickup.");
   } else if (answers.purpose === "Housewarming") {
