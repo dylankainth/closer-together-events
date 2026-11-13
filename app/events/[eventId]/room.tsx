@@ -5,25 +5,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
+// One shared palette for every Muse-at-work surface (checklist, swarm, room) so they cannot drift.
+import { agent as palette } from "@/theme/swipeTheme";
 
 // The agent room: one person's Muse deliberating with their friends' Muses about a single event.
 // Reached by tapping a row in the swarm's "What the Muses are saying" feed. Same dark one-off
 // palette as swarm.tsx (deliberately not theme/tokens.ts, which is the light Facebook chrome).
-const palette = {
-  bg: "#0E0F14",
-  panelLine: "#23252D",
-  text: "#F2F1EC",
-  muted: "#8A8D96",
-  dim: "#6E717A",
-  card: "#23252D",
-  going: "#5BD69A",
-  maybe: "#F2C14E",
-  link: "#AFC0FF",
-  darkFg: "#0E0F14",
-  // Deeper than the swarm's #4F6BFF "talking" blue: this is a filled chat bubble carrying body
-  // text, so it needs enough weight to hold white text at 15px without vibrating against the ground.
-  bubbleMe: "#2F4BE8",
-};
 
 const VERDICT: Record<string, { label: string; tint: string }> = {
   worth: { label: "VERDICT: GO", tint: palette.bubbleMe },
@@ -205,7 +192,7 @@ const styles = StyleSheet.create({
   avatarText: { color: palette.darkFg, fontSize: 12.5, fontWeight: "700" },
   bubble: { flex: 1, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12 },
   bubbleMine: { backgroundColor: palette.bubbleMe, borderBottomRightRadius: 6 },
-  bubbleTheirs: { backgroundColor: palette.card, borderBottomLeftRadius: 6 },
+  bubbleTheirs: { backgroundColor: palette.bubbleThem, borderBottomLeftRadius: 6 },
   bubbleText: { color: palette.text, fontSize: 15, lineHeight: 21 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginLeft: 44 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
@@ -218,12 +205,12 @@ const styles = StyleSheet.create({
   verdictHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   verdictPill: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
   verdictPillText: { color: "#FFFFFF", fontSize: 11.5, fontWeight: "800", letterSpacing: 0.3 },
-  verdictMeta: { color: "#6E717A", fontSize: 13 },
+  verdictMeta: { color: palette.dim, fontSize: 13 },
   verdictBody: { color: palette.darkFg, fontSize: 16, lineHeight: 22, fontWeight: "600" },
   verdictActions: { flexDirection: "row", gap: 10, marginTop: 4 },
-  btnPrimary: { flex: 1, backgroundColor: "#15161C", borderRadius: 13, paddingVertical: 14, alignItems: "center" },
+  btnPrimary: { flex: 1, backgroundColor: palette.panel, borderRadius: 13, paddingVertical: 14, alignItems: "center" },
   btnPrimaryText: { color: palette.text, fontSize: 15, fontWeight: "700" },
   btnGhost: { flex: 1, borderWidth: 1, borderColor: "#C9C7C0", borderRadius: 13, paddingVertical: 14, alignItems: "center" },
   btnGhostText: { color: palette.darkFg, fontSize: 15, fontWeight: "700" },
-  verdictNote: { color: "#6E717A", fontSize: 13.5, lineHeight: 19 },
+  verdictNote: { color: palette.dim, fontSize: 13.5, lineHeight: 19 },
 });

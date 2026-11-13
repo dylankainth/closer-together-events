@@ -159,10 +159,15 @@ export default function Planning() {
     scroller.current?.scrollToEnd({ animated: true });
   }, [messages.length, thinking, pendingQuestion]);
 
-  // Snapshot the plan once, the first time the checklist has data — freezes what the playback
-  // animates through independent of later live updates to checklist.items.
+  // What the playback animates through. planAction now returns a near-empty draft and lets
+  // agentLoop fill it in over several real seconds, so snapshotting once on first load would
+  // freeze the placeholder trace the event had a moment after creation ("check_availability(...)")
+  // and never show the real results. So: keep re-taking it while the agent is still working, and
+  // freeze only once every step has settled, so a later edit can't restart a finished animation.
   useEffect(() => {
-    if (!checklist || planSnapshot) return;
+    if (!checklist) return;
+    const settled = checklist.items.every((i) => i.key === "send" || i.state === "done" || i.state === "blocked");
+    if (planSnapshot && settled) return;
     setPlanSnapshot(checklist.items);
   }, [checklist, planSnapshot]);
 

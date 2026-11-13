@@ -28,20 +28,40 @@ export const discover = {
 };
 
 // "Your agent is on it" checklist + Muse chat (app/new-event/planning.tsx): the dark look from the designs.
+/**
+ * The one dark palette for every "Muse at work" surface: the checklist ("your agent is on it"),
+ * the swarm, and the agent room. Values come from the committed design export
+ * (design/sketches/04-swarm-wow-moment.html), which is the team's reference for these screens.
+ *
+ * This used to be three near-identical palettes — #141418 vs #0E0F14 for the ground, pure #FFFFFF
+ * vs the warmer #F2F1EC for text — close enough to look like a mistake rather than a choice when
+ * you moved between the screens. One object now, so they can't drift again. Deliberately separate
+ * from theme/tokens.ts, which is the light Facebook chrome the rest of the app wears.
+ */
 export const agent = {
-  bg: "#141418",
-  card: "#23242B",
-  line: "#2C2D36",
-  text: "#FFFFFF",
-  muted: "#A3A3AF",
-  dim: "#7A7A86",
-  todo: "#4A4B55",
-  blue: "#3447E4",
-  ring: "#A5B0FF",
-  link: "#9DB0FF",
-  warn: "#F0A94B",
-  bubbleMe: "#2B2F52",
-  think: "#D3D5DC", // the agent-working trace's italic reasoning line, a touch lighter than `text`
+  bg: "#0E0F14",
+  panel: "#15161C",
+  card: "#1C1E25",
+  bubbleThem: "#23252D",
+  line: "#23252D",
+  panelLine: "#23252D",
+  text: "#F2F1EC",
+  muted: "#8A8D96",
+  sub: "#B8BAC2",
+  dim: "#6E717A",
+  todo: "#33363F",
+  blue: "#4F6BFF",
+  ring: "#AFC0FF",
+  link: "#AFC0FF",
+  warn: "#F2C14E",
+  going: "#5BD69A",
+  goingLine: "rgba(91,214,154,0.55)",
+  maybe: "#F2C14E",
+  darkFg: "#0E0F14",
+  // Deeper than `blue`: this fills a chat bubble carrying body text, so it needs enough weight to
+  // hold white text at 15px without vibrating against the ground.
+  bubbleMe: "#2F4BE8",
+  think: "#B8BAC2", // the agent-working trace's italic reasoning line, a touch lighter than `muted`
 };
 
 /** "Sat 21 Nov, 7pm" -> { month: "NOV", day: "21", weekday: "Sat", time: "7pm" } (null if it doesn't parse). */

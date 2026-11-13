@@ -35,9 +35,30 @@ export const forEvent = query({
     const K = (text: string): TraceLine => ({ kind: "think", text });
     const guestCountEarly = e.settings?.quota ?? picked.length;
 
+    // The REAL trace: agentLoop.run records every tool call it actually made, in order. Where an
+    // entry exists for a step, show what the agent genuinely did rather than the reconstructed
+    // line below it — those reconstructions are a fallback for events planned before the loop
+    // existed (and for steps the loop has not reached yet), not the source of truth.
+    const logByTool = new Map<string, any>();
+    for (const entry of (e.agentLog ?? []) as any[]) logByTool.set(entry.tool, entry);
+    const STEP_TOOL: Record<string, string> = {
+      date: "check_availability",
+      venues: "search_venues",
+      venue: "choose_venue",
+      invite: "generate_cover",
+      vendors: "draft_vendor_orders",
+      guests: "rank_guests",
+    };
+    const realTrace = (key: string): TraceLine[] | null => {
+      const entry = logByTool.get(STEP_TOOL[key]);
+      if (!entry) return null;
+      const args = entry.args && Object.keys(entry.args).length ? JSON.stringify(entry.args).slice(1, -1) : "";
+      return [T(`${entry.tool}(${args})`), R(entry.source === "muse" ? "via Muse" : "offline fallback"), K(entry.summary)];
+    };
+
     const steps: { key: string; label: string; activeLabel: string; detail: string; explain: string; trace: TraceLine[]; done: boolean; blocked: boolean }[] = [];
     const add = (key: string, label: string, activeLabel: string, detail: string, explain: string, trace: TraceLine[], done: boolean, blocked = false) =>
-      steps.push({ key, label, activeLabel, detail, explain, trace, done, blocked });
+      steps.push({ key, label, activeLabel, detail, explain, trace: realTrace(key) ?? trace, done, blocked });
 
     add(
       "date",

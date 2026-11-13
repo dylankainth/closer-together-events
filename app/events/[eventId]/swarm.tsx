@@ -7,25 +7,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useViewer } from "@/hooks/useViewer";
+// One shared palette for every Muse-at-work surface (checklist, swarm, room) so they cannot drift.
+import { agent as palette } from "@/theme/swipeTheme";
 
 // Dark "wow moment" palette, copied verbatim from design/sketches/04-swarm-wow-moment.html and its
 // phone adaptation (the-swarm-mobile.html) — deliberately not theme/tokens.ts, which is the light
 // Facebook-chrome palette the rest of the app uses. This screen is a one-off full-bleed moment.
-const palette = {
-  bg: "#0E0F14",
-  panel: "#15161C",
-  panelLine: "#23252D",
-  text: "#F2F1EC",
-  muted: "#8A8D96",
-  dim: "#6E717A",
-  sub: "#B8BAC2",
-  card: "#1C1E25",
-  going: "#5BD69A",
-  goingLine: "rgba(91,214,154,0.55)",
-  maybe: "#F2C14E",
-  link: "#AFC0FF",
-  darkFg: "#0E0F14",
-};
 
 type NodeState = "idle" | "talking" | "going" | "maybe" | "cant";
 
