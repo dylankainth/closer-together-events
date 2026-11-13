@@ -8,6 +8,7 @@ import { pickDate, venueOptions, titleFor, vendorDrafts, makePoster } from "./pl
 import { CONFIG } from "./museConfig";
 import type { CallBudget, EventSettings, HostAnswers, Persona, Venue } from "./types";
 import { HOST_ID } from "./seedData";
+import { requireActor } from "./authz";
 
 /**
  * Orchestrates the whole host-wizard "planEvent" pipeline: parseAudience -> retrieve -> pickDate
@@ -22,6 +23,7 @@ export const planEvent = action({
     audienceRaw: v.string(),
   },
   handler: async (ctx, args): Promise<{ eventId: string }> => {
+    await requireActor(ctx, args.hostId, "write", "planAction.planEvent");
     const budget: CallBudget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const personas: Persona[] = await ctx.runQuery(internal.personas.listAllInternal, {});
     const venues: Venue[] = await ctx.runQuery(internal.venues.list, {});

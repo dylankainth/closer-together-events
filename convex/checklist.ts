@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireHost } from "./authz";
 
 // The host's "Your agent is on it" checklist, DERIVED from the event doc rather than stored: each step
 // is true when the planner has already produced its output. Keeping it derived means it stays correct
@@ -16,6 +17,8 @@ export const forEvent = query({
   handler: async (ctx, args) => {
     const e: any = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", args.eventId)).unique();
     if (!e) return null;
+    // Host-only: the checklist shows vendor drafts and planning state before anything is sent.
+    await requireHost(ctx, e, "read", "checklist.forEvent");
 
     const slot = e.slotId ? await ctx.db.query("slots").withIndex("by_slotId", (q) => q.eq("slotId", e.slotId)).unique() : null;
     const venue = e.venueId ? await ctx.db.query("venues").withIndex("by_venueId", (q) => q.eq("venueId", e.venueId)).unique() : null;

@@ -13,13 +13,17 @@ import { colors, radius, spacing } from "@/theme/tokens";
 // personas. See claude.md's "Backlog" section for what the old per-event Muse settings screen
 // covered — that's deferred, not wired into this sheet.
 export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { viewerId, setViewerId, isLoggedIn, onFacebookLogin, logout } = useViewer();
+  const { viewerId, setViewerId, isLoggedIn, sessionPersonaId, canActAsViewer, onFacebookLogin, logout, signingIn, loginError } = useViewer();
   const personas = useQuery(api.personas.listAll, {});
-  const profile = useQuery(api.users.profileForPersona, isLoggedIn ? { personaId: viewerId } : "skip");
+  // "Signed in" describes the persona on screen only when it's your own; an operator viewing Maya
+  // is still signed in, but the sheet shows Maya.
+  const viewingSelf = isLoggedIn && viewerId === sessionPersonaId;
+  const profile = useQuery(api.users.profileForPersona, viewingSelf ? { personaId: viewerId } : "skip");
   const login = useAction(api.fbAuth.loginWithFacebook);
   const me = personas?.find((p) => p.id === viewerId);
 
-  const museProfile = useQuery(api.musePersonas.getByPersonaId, { personaId: viewerId });
+  // Owner-only on the server (never-share list); only ask when this session can act as the viewer.
+  const museProfile = useQuery(api.musePersonas.getByPersonaId, canActAsViewer ? { personaId: viewerId } : "skip");
   const syncMuse = useAction(api.museSync.syncMuseContext);
   const setApproved = useMutation(api.musePersonas.setApproved);
   const [syncing, setSyncing] = useState(false);
@@ -36,7 +40,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
     try {
       const t = await signInWithFacebook();
       const res = t.kind === "limited" ? await login({ idToken: t.idToken, nonce: t.nonce }) : await login({ accessToken: t.accessToken });
-      onFacebookLogin(res.personaId);
+      onFacebookLogin(res.personaId, { token: res.token, expiresAt: res.expiresAt, isOperator: res.isOperator });
     } catch (e: unknown) {
       if (!(e instanceof LoginCancelled)) {
         const data = e instanceof ConvexError ? (e.data as { message?: string }) : null;
@@ -66,14 +70,16 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.meRow}>
-          {isLoggedIn && profile?.pictureUrl ? (
+          {viewingSelf && profile?.pictureUrl ? (
             <Image source={{ uri: profile.pictureUrl }} style={styles.mePhoto} />
           ) : me ? (
             <Avatar initials={me.initials} color={me.color} size={48} />
           ) : null}
           <View style={{ marginLeft: spacing.md, flex: 1 }}>
-            <Text style={styles.meName}>{(isLoggedIn ? profile?.name : me?.name) ?? "Guest"}</Text>
-            <Text style={styles.meSub}>{isLoggedIn ? "Signed in with Facebook" : "Demo persona"}</Text>
+            <Text style={styles.meName}>{(viewingSelf ? profile?.name : me?.name) ?? "Guest"}</Text>
+            <Text style={styles.meSub}>
+              {viewingSelf ? "Signed in with Facebook" : isLoggedIn ? "Demo persona (you're signed in)" : "Demo persona"}
+            </Text>
           </View>
         </View>
 
@@ -82,8 +88,8 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
             <Text style={styles.secondaryBtnText}>Log out</Text>
           </Pressable>
         ) : (
-          <Pressable style={[styles.primaryBtn, busy && { opacity: 0.7 }]} onPress={onFacebook} disabled={busy || !liveLoginAvailable}>
-            {busy ? (
+          <Pressable style={[styles.primaryBtn, (busy || signingIn) && { opacity: 0.7 }]} onPress={onFacebook} disabled={busy || signingIn || !liveLoginAvailable}>
+            {busy || signingIn ? (
               <ActivityIndicator color="white" />
             ) : (
               <Text style={styles.primaryBtnText}>
@@ -92,8 +98,9 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
             )}
           </Pressable>
         )}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error || loginError ? <Text style={styles.error}>{error ?? loginError}</Text> : null}
 
+        {canActAsViewer ? (
         <View style={styles.museBox}>
           <View style={styles.museHeaderRow}>
             <Text style={styles.sectionTitle}>Muse memory</Text>
@@ -126,6 +133,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
             </Pressable>
           )}
         </View>
+        ) : null}
 
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Switch demo user</Text>

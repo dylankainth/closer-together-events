@@ -2,6 +2,7 @@ import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { HOST_ID } from "./seedData";
 import { hashString, initialsOf } from "./fbVerify";
+import { allowedAs } from "./authz";
 
 const COLORS = ["#F87171", "#FB923C", "#FBBF24", "#34D399", "#22D3EE", "#60A5FA", "#A78BFA", "#F472B6"];
 
@@ -109,6 +110,7 @@ export const upsertFromFacebook = internalMutation({
 export const profileForPersona = query({
   args: { personaId: v.string() },
   handler: async (ctx, args) => {
+    if (!(await allowedAs(ctx, args.personaId, "read", "users.profileForPersona"))) return null;
     const u = await ctx.db
       .query("users")
       .withIndex("by_personaId", (q) => q.eq("personaId", args.personaId))

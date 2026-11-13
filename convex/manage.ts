@@ -1,5 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireHost } from "./authz";
 
 /**
  * Manage > Details: the host edits an event's basics by hand. Every field is optional so the form can
@@ -21,6 +22,7 @@ export const updateDetails = mutation({
   handler: async (ctx, { eventId, patch }) => {
     const e = await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", eventId)).unique();
     if (!e) throw new Error("Event not found");
+    await requireHost(ctx, e, "write", "manage.updateDetails");
 
     const next: Record<string, unknown> = {};
 

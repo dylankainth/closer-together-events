@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { museJSON } from "./muse";
 import { CONFIG } from "./museConfig";
+import { requireHost } from "./authz";
 
 /** Manage screen's "Chat with muse" box: answers questions about the event from its own fields only. */
 export const askAboutEvent = action({
@@ -13,6 +14,8 @@ export const askAboutEvent = action({
   handler: async (ctx, args) => {
     const event: any = await ctx.runQuery(internal.huddleData.getEventForHuddle, { eventId: args.eventId });
     if (!event) return { answer: "I couldn't find that event." };
+    // The host's own "Chat with Muse" box; it also spends Muse budget.
+    await requireHost(ctx, event, "write", "askAction.askAboutEvent");
     const budget = { used: 0, max: CONFIG.maxCallsPerEvent };
     const r = await museJSON({
       model: "spark",
