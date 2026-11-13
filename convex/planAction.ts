@@ -41,6 +41,10 @@ export const planEvent = action({
         audienceRaw: args.audienceRaw,
         // Public events let guests bring a friend (convex/plusOnes.ts); private ones never do.
         allowGuestInvites: visibility === "public",
+        // Same answer gates acceptance-driven spread (convex/spread.ts): a public event is one the
+        // host is happy to see widen when guests say yes; "private, no plus-ones" means exactly
+        // that, and must not quietly reach their friends' friends.
+        allowSpread: visibility === "public",
         museCalls: 0,
         huddleSeq: 0,
         createdAt: Date.now(),
