@@ -19,6 +19,10 @@ export type PersonaContext = {
   recentChats: string[];
   secrets?: string[];
   neverShare?: string[];
+  // Active negative preferences, approved for a Muse to say out loud (unlike memory, these are
+  // meant to be spoken: "not keen on karaoke" is a reason, not a secret). Lets a peer's Muse
+  // decline honestly instead of faking enthusiasm when an event clashes with one of these.
+  dislikes?: string[];
 };
 
 export const RICH_CONTEXT: Record<string, PersonaContext> = {
@@ -33,6 +37,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Leo makes her coffee every morning and keeps hinting that he should DJ her party.",
     ],
     curious: ["tech sales", "how to host without stressing"],
+    dislikes: ["big loud clubs", "being put on the spot to make a speech"],
     shareable: [
       "Took up boxing this year and is hooked.",
       "Loves hosting small, loud dinners where everyone ends up in the kitchen.",
@@ -67,6 +72,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Lives in Oakland, so weeknight events that run late are a pain. Weekends are fine.",
     ],
     curious: ["startups", "product design"],
+    dislikes: ["karaoke", "bar-centred nights now that he's quit drinking"],
     shareable: [
       "Does tech sales and enjoys talking shop.",
       "Bowls, and takes it more seriously than he admits.",
@@ -98,6 +104,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Gets seriously competitive at board games and has a standing Catan grudge against Leo.",
     ],
     curious: ["boxing", "rock climbing"],
+    dislikes: ["big loud clubs", "plans with no fixed end time"],
     shareable: [
       "Software engineer who likes games of every kind.",
       "Prefers small groups and plans with a clear end time.",
@@ -130,6 +137,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Closes the cafe at 9pm, so he is rarely free before 9:30 on a weekday.",
     ],
     curious: ["DJing", "boxing"],
+    dislikes: ["early mornings", "quiet, small-talk-only rooms"],
     shareable: [
       "Barista who knows half the neighbourhood by their order.",
       "Plays open mics and loves live music.",
@@ -162,6 +170,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Likes Maya, but they only ever see each other at group events.",
     ],
     curious: ["boxing", "strength training"],
+    dislikes: ["late nights before a long run", "heavy-drinking plans"],
     shareable: [
       "Nurse and runner, training for a half marathon.",
       "Morning-person energy. Early plans suit her.",
@@ -193,6 +202,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Went to culinary school with Ruby. They review each other's menus without mercy.",
     ],
     curious: ["investing in a restaurant", "wine"],
+    dislikes: ["being put on the spot to cook off the clock", "pretentious wine talk"],
     shareable: [
       "Chef who loves feeding a crowd.",
       "Free on Sundays and the occasional weekend night.",
@@ -224,6 +234,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Wants to organise a Yosemite trip in the spring.",
     ],
     curious: ["boxing", "trail running"],
+    dislikes: ["flaky plans", "high-impact sports while her shoulder heals"],
     shareable: [
       "Climbing instructor who loves beginners.",
       "Hosts a monthly social at the gym.",
@@ -255,6 +266,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Cannot stand events with a bad playlist.",
     ],
     curious: ["bowling", "cooking"],
+    dislikes: ["early starts", "a bad playlist"],
     shareable: [
       "DJ and vinyl collector.",
       "Hosts cosy listening nights with food.",
@@ -286,6 +298,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Quietly hoping to meet people outside his department.",
     ],
     curious: ["boxing", "bowling"],
+    dislikes: ["splitting an expensive bill", "loud, packed parties"],
     shareable: [
       "Grad student who loves board and video games.",
       "Runs a weekly game night.",
@@ -316,6 +329,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Wants a new running group and friends who are not health workers.",
     ],
     curious: ["boxing", "pottery"],
+    dislikes: ["big noisy rooms", "being asked for advice off the clock"],
     shareable: [
       "Runner who loves a morning route.",
       "A great listener, but not a fan of big noisy rooms.",
@@ -344,6 +358,7 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Wants to shoot a short documentary about boxing.",
     ],
     curious: ["boxing", "documentary"],
+    dislikes: ["shooting friends' parties for free", "harsh gallery crowds"],
     shareable: [
       "Photographer who shoots events and portraits.",
       "Climbs with Jess.",
@@ -375,6 +390,8 @@ export const RICH_CONTEXT: Record<string, PersonaContext> = {
       "Loves matching friends up and keeps mental notes on who would get along.",
     ],
     curious: ["restaurants", "trail running"],
+    // Canonical "my Muse knows what I'm not into" example (claude.md huddle demo): football.
+    dislikes: ["football", "late weeknight plans"],
     shareable: [
       "Teacher who boxes twice a week.",
       "Loves introducing friends who would get along.",
