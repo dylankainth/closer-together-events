@@ -238,9 +238,8 @@ export default function Planning() {
           ) : (
             <ScrollView contentContainerStyle={styles.checkContent}>
               <View>
-                {checklist.summary ? <Text style={styles.kicker}>{checklist.summary}</Text> : null}
-                <Text style={styles.title}>Your agent is on it</Text>
-                <Text style={styles.sub}>{checklist.doneCount} of {checklist.total} done · you can close the app</Text>
+                <Text style={styles.eventName}>{checklist.title}</Text>
+                <Text style={styles.title}>I'm on it</Text>
                 <View style={{ marginTop: 26, gap: 18 }}>
                   {checklist.items.map((s) => <StepRow key={s.key} s={s} />)}
                 </View>
@@ -384,9 +383,9 @@ const styles = StyleSheet.create({
   waitingTitle: { color: agent.text, fontSize: 22, fontWeight: "800" },
   waitingBody: { color: agent.muted, fontSize: 15, lineHeight: 21 },
   checkContent: { flexGrow: 1, justifyContent: "space-between", padding: 24, paddingTop: 12, paddingBottom: 12 },
-  kicker: { color: agent.muted, fontSize: 14 },
-  title: { color: agent.text, fontSize: 38, lineHeight: 42, fontWeight: "800", letterSpacing: -0.5, marginTop: 6 },
-  sub: { color: agent.muted, fontSize: 15, marginTop: 8 },
+  // The event's name, centred and big; "I'm on it" sits under it.
+  eventName: { color: agent.text, fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -0.5, textAlign: "center" },
+  title: { color: agent.text, fontSize: 20, lineHeight: 26, fontWeight: "700", textAlign: "center", marginTop: 6 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   circle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 1 },
   circleDone: { backgroundColor: agent.blue },
