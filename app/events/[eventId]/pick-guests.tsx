@@ -90,9 +90,13 @@ export default function PickGuests() {
         <View style={styles.countRow}>
           <Text style={styles.countText}>{count} of {limit} picked</Text>
           <Text style={styles.countSub}>
-            {count < limit
-              ? `Muse will fill the last ${limit - count} from the shortlist.`
-              : "All your picks will be invited, even past the target."}
+            {/* "the last N" only reads right once some are picked — at zero Muse is choosing the
+                whole guest list, and saying "the last 12" there is just wrong. */}
+            {count === 0
+              ? `Muse is choosing all ${limit}. Pick anyone you definitely want and it fills the rest.`
+              : count < limit
+                ? `Muse will fill the last ${limit - count} from the shortlist.`
+                : "All your picks will be invited, even past the target."}
           </Text>
         </View>
       </View>

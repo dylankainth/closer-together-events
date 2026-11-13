@@ -10,6 +10,7 @@ export default function EventsLayout() {
       <Stack.Screen name="[eventId]/index" options={{ headerShown: false }} />
       <Stack.Screen name="[eventId]/flyer" options={{ title: "" }} />
       <Stack.Screen name="[eventId]/manage" options={{ headerShown: false }} />
+      <Stack.Screen name="[eventId]/pick-guests" options={{ headerShown: false }} />
       <Stack.Screen name="[eventId]/transcript" options={{ title: "Transcript" }} />
       <Stack.Screen name="[eventId]/swarm" options={{ headerShown: false }} />
       <Stack.Screen name="[eventId]/room" options={{ headerShown: false }} />
