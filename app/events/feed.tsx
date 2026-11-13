@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { EventBanner } from "@/components/events/EventBanner";
 import { Animated, FlatList, Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +37,26 @@ function categoriesOf(ev: EventView): string[] {
   return [...out];
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/**
+ * When an event starts, in ms, or null if we can't tell. Discovered events carry their real start time (the
+ * card stores it in createdAt); demo events only have a label like "Sat 21 Nov, 7pm", which is read here.
+ */
+function startMs(ev: EventView): number | null {
+  if (ev.relation === "pick") return typeof ev.createdAt === "number" ? ev.createdAt : null;
+  const m = /(\d{1,2})\s+([A-Za-z]{3}),?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(ev.slotLabel ?? "");
+  if (!m) return null;
+  const month = MONTHS.indexOf(m[2].toLowerCase());
+  if (month < 0) return null;
+  const hour = (Number(m[3]) % 12) + (m[5].toLowerCase() === "pm" ? 12 : 0);
+  const now = new Date();
+  let when = new Date(now.getFullYear(), month, Number(m[1]), hour, Number(m[4] ?? 0));
+  // A label with no year: if that date is long past, it means next year's.
+  if (when.getTime() < now.getTime() - 180 * 24 * 60 * 60 * 1000) when = new Date(now.getFullYear() + 1, month, Number(m[1]), hour, Number(m[4] ?? 0));
+  return when.getTime();
+}
+
 /**
  * Discover feed, shown when you swipe up from the recommended stack.
  * Sections follow the reference: Popular events (pages of rows) and Browse by category.
@@ -63,6 +84,18 @@ export default function Feed() {
     const counts = new Map<string, number>();
     all.forEach((e) => categoriesOf(e).forEach((c) => counts.set(c, (counts.get(c) ?? 0) + 1)));
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [all]);
+
+  // "This week": what starts in the next 7 days, soonest first, up to 10 rows. If nothing starts that soon it
+  // shows the next events coming up instead, and is titled "Coming up" so it never claims more than it is.
+  const week = useMemo(() => {
+    const now = Date.now();
+    const dated = all
+      .map((e) => ({ e, t: startMs(e) }))
+      .filter((x): x is { e: EventView; t: number } => x.t !== null && x.t >= now - 3 * 60 * 60 * 1000)
+      .sort((a, b) => a.t - b.t);
+    const within = dated.filter((x) => x.t <= now + 7 * 24 * 60 * 60 * 1000);
+    return { rows: (within.length > 0 ? within : dated).slice(0, 10).map((x) => x.e), title: within.length > 0 ? "This week" : "Coming up" };
   }, [all]);
 
   const pages = useMemo(() => {
@@ -202,6 +235,16 @@ export default function Feed() {
                 </ScrollView>
               </View>
             )}
+
+            {/* A plain vertical list: it scrolls down with the page, row by row, not sideways. */}
+            {week.rows.length > 0 && (
+              <View style={[styles.section, styles.divided]}>
+                <Text style={[styles.h2, { paddingHorizontal: 20 }]}>{week.title}</Text>
+                <View style={{ paddingHorizontal: 20 }}>
+                  {week.rows.map((e) => <Row key={e.eventId} ev={e} onPress={() => open(e)} />)}
+                </View>
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -222,11 +265,7 @@ function Row({ ev, onPress }: { ev: EventView; onPress: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
       <View style={styles.thumb}>
-        {ev.poster ? (
-          <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <Text style={styles.thumbText}>{ev.title.trim().slice(0, 1).toUpperCase()}</Text>
-        )}
+        <EventBanner eventId={ev.eventId} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.time} numberOfLines={1}>{ev.whenLabel ?? ev.slotLabel ?? "Date to be confirmed"}</Text>

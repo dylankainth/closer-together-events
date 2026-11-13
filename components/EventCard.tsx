@@ -1,4 +1,5 @@
 import React from "react";
+import { EventBanner } from "./events/EventBanner";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { AvatarStack, Pill } from "./ui";
@@ -19,11 +20,7 @@ export interface EventCardData {
 export function EventCard({ event }: { event: EventCardData }) {
   return (
     <Pressable style={styles.card} onPress={() => router.push(`/events/${event.eventId}/flyer`)}>
-      {event.poster?.url ? (
-        <Image source={{ uri: event.poster.url }} style={styles.poster} resizeMode="cover" />
-      ) : (
-        <View style={[styles.poster, { backgroundColor: colors.museTint }]} />
-      )}
+      <EventBanner eventId={event.eventId} posterUrl={event.poster?.url} style={styles.poster} />
       <View style={{ padding: spacing.md }}>
         <Text style={styles.title} numberOfLines={1}>{event.title}</Text>
         <Text style={styles.sub}>

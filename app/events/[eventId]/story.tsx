@@ -1,4 +1,5 @@
 import React from "react";
+import { EventBanner } from "@/components/events/EventBanner";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,11 +32,7 @@ export default function Story() {
         <Pressable style={styles.close} onPress={() => router.back()}>
           <Ionicons name="close" size={18} color="white" />
         </Pressable>
-        {event?.poster?.url ? (
-          <Image source={{ uri: event.poster.url }} style={styles.photo} resizeMode="cover" />
-        ) : (
-          <View style={[styles.photo, { backgroundColor: colors.museTint }]} />
-        )}
+        <EventBanner eventId={event?.eventId ?? ""} posterUrl={event?.poster?.url} style={styles.photo} />
         <View style={styles.body}>
           <Text style={styles.title}>{event?.title ?? "Event"}</Text>
           <Text style={styles.sub}>{event?.slotId} · {event?.venueId}</Text>

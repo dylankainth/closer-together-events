@@ -1,4 +1,5 @@
 import React from "react";
+import { EventBanner } from "./EventBanner";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
@@ -9,10 +10,8 @@ export type EventView = FunctionReturnType<typeof api.feed.forViewer>["recommend
 
 const VERDICT_WORD: Record<string, string> = { worth: "Go.", maybe: "Maybe.", skip: "Skip." };
 const VERDICT_COLOR: Record<string, string> = { worth: swipe.blue, maybe: "#A8700A", skip: discover.muted };
-const BANNERS = ["#374B7C", "#B0694B", "#4A7B5A", "#C4BDD6"]; // placeholder colours until an event has a poster
 const TAG_LABEL = { people: "PEOPLE", goal: "GOAL", fit: "FIT", plan: "PLAN" } as const;
 
-const bannerColor = (id: string) => BANNERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % BANNERS.length];
 const first = (name: string) => name.split(" ")[0];
 
 /**
@@ -39,8 +38,8 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
 
   return (
     <Pressable style={styles.card} onPress={onOpen}>
-      <View style={[styles.banner, { backgroundColor: bannerColor(ev.eventId) }]}>
-        {ev.poster ? <Image source={{ uri: ev.poster.url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+      <View style={styles.banner}>
+        <EventBanner eventId={ev.eventId} posterUrl={ev.poster?.url} style={StyleSheet.absoluteFill} />
       </View>
 
       <View style={styles.verdictRow}>
@@ -69,7 +68,7 @@ export function SwipeCard({ ev, onOpen }: { ev: EventView; onOpen: () => void })
 
 const styles = StyleSheet.create({
   card: { flex: 1 },
-  banner: { aspectRatio: 1.75, borderRadius: 22, overflow: "hidden" },
+  banner: { aspectRatio: 1, borderRadius: 22, overflow: "hidden" },
   verdictRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 },
   verdict: { fontSize: 44, lineHeight: 48, fontWeight: "800", letterSpacing: -1 },
   meta: { color: discover.muted, fontSize: 12, paddingBottom: 8 },
