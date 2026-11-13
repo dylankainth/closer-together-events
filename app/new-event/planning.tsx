@@ -32,17 +32,14 @@ const EXAMPLES = [
 ];
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-// Agent-working engine: a tick-driven typewriter that plays through each step's trace lines
-// (tool call -> result -> reasoning), one character at a time, before settling the step and
-// moving to the next — modeled directly on the "Host 3b" design reference.
+// Typewriter for the ACTIVE step's trace lines (tool call -> result -> reasoning), revealed a
+// character at a time in the "Host 3b" design reference's style. It is only a reveal: the backend
+// decides which step is active and when it finishes, so there is no "advance to the next step"
+// timing here — that used to exist, and it meant the screen could run ahead of the real agent.
 const TICK_MS = 30;
 const WAIT_AFTER_THINK = 14; // ticks to hold after an italic reasoning line finishes typing
 const WAIT_AFTER_OTHER = 9; // ticks to hold after a tool-call or result line finishes typing
-const WAIT_BETWEEN_STEPS = 16; // ticks to hold on a freshly-settled step before the next one starts
 const charsPerTick = (kind: TraceLine["kind"]) => (kind === "result" ? 99 : kind === "tool" ? 3 : 2);
-
-type Engine = { s: number; l: number; c: number; wait: number; t: number };
-const ENGINE_START: Engine = { s: 0, l: 0, c: 0, wait: 12, t: 0 };
 
 // One continuous chat thread, start to finish: "what are we making happen" is the opening message,
 // Muse's clarifying questions and your plain-text/chip answers follow as ordinary chat bubbles, and
@@ -110,14 +107,13 @@ export default function Planning() {
   // The mascot's eyes follow wherever the screen is touched.
   const lookAtTouch = (e: { nativeEvent: { pageX: number; pageY: number } }) => mascot.current?.lookAtPage(e.nativeEvent.pageX, e.nativeEvent.pageY);
 
-  // The first time the checklist page comes into view, it plays through each step one at a time —
-  // a live "agent at work" trace: a step goes active, its tool-call/result/reasoning lines type
-  // themselves out underneath, then it settles into its tick as the next step starts. A frozen
-  // snapshot of checklist.items is taken when the run starts, so later live query updates (e.g. a
-  // poster edit from chat) don't restart or glitch an already-running or finished playback.
-  const [engine, setEngine] = useState<Engine>(ENGINE_START);
-  const [planSnapshot, setPlanSnapshot] = useState<Step[] | null>(null);
-  const engineTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Live, not a replay. agentLoop.run patches the event as each real tool call lands and
+  // checklist.forEvent is a reactive query, so `checklist.items` IS the agent's actual progress:
+  // which step is active, and the real trace of the one it's on. The typewriter below no longer
+  // decides any of that — it only reveals the active step's own lines, and gives up its cursor
+  // the moment the backend moves on.
+  const [cursor, setCursor] = useState({ l: 0, c: 0, wait: 8 });
+  const [nowTick, setNowTick] = useState(0);
 
   useEffect(() => {
     if (draft || onboardingComplete) return;
@@ -159,44 +155,52 @@ export default function Planning() {
     scroller.current?.scrollToEnd({ animated: true });
   }, [messages.length, thinking, pendingQuestion]);
 
-  // What the playback animates through. planAction now returns a near-empty draft and lets
-  // agentLoop fill it in over several real seconds, so snapshotting once on first load would
-  // freeze the placeholder trace the event had a moment after creation ("check_availability(...)")
-  // and never show the real results. So: keep re-taking it while the agent is still working, and
-  // freeze only once every step has settled, so a later edit can't restart a finished animation.
-  useEffect(() => {
-    if (!checklist) return;
-    const settled = checklist.items.every((i) => i.key === "send" || i.state === "done" || i.state === "blocked");
-    if (planSnapshot && settled) return;
-    setPlanSnapshot(checklist.items);
-  }, [checklist, planSnapshot]);
+  const items: Step[] = checklist?.items ?? [];
+  // The backend decides which step is live. "blocked" counts as the live one too: a step waiting
+  // on the host is exactly where attention belongs.
+  const activeIdx = items.findIndex((i) => i.state === "active" || i.state === "blocked");
+  const activeStep = activeIdx >= 0 ? items[activeIdx] : null;
+  const activeTrace: TraceLine[] = activeStep?.trace ?? [];
+  const settled = items.length > 0 && items.every((i) => i.key === "send" || i.state === "done");
 
-  const replay = useCallback(() => setEngine(ENGINE_START), []);
+  // The typing interval reads through a ref so it never has to be town down and rebuilt when the
+  // trace updates — one interval for the screen's lifetime, same as the old engine.
+  const liveRef = useRef<TraceLine[]>([]);
+  liveRef.current = activeTrace;
+
+  // Start the new step's lines from the top whenever the backend moves on.
+  useEffect(() => {
+    setCursor({ l: 0, c: 0, wait: 8 });
+  }, [activeStep?.key]);
 
   useEffect(() => {
-    if (!planSnapshot) return;
-    engineTimer.current = setInterval(() => {
-      setEngine((st) => {
-        const total = planSnapshot.length;
-        // Stop one step short of the end: the last step ("send invites") never auto-completes —
-        // nothing is actually sent until the host does it for real — so it stays pending/waiting.
-        if (st.s >= total - 1) return st;
-        const t = st.t + 1;
-        if (st.wait > 0) return { ...st, wait: st.wait - 1, t };
-        const lines = planSnapshot[st.s].trace;
-        if (lines.length === 0) return { ...st, s: st.s + 1, l: 0, c: 0, wait: WAIT_BETWEEN_STEPS, t }; // "send" has no trace
+    const id = setInterval(() => {
+      setCursor((st) => {
+        const lines = liveRef.current;
+        if (!lines.length) return st;
+        if (st.wait > 0) return { ...st, wait: st.wait - 1 };
         const line = lines[st.l];
-        const speed = charsPerTick(line.kind);
-        if (st.c < line.text.length) return { ...st, c: Math.min(st.c + speed, line.text.length), t };
+        if (!line) return st;
+        if (st.c < line.text.length) return { ...st, c: Math.min(st.c + charsPerTick(line.kind), line.text.length) };
         const nextL = st.l + 1;
-        if (nextL < lines.length) return { ...st, l: nextL, c: 0, wait: line.kind === "think" ? WAIT_AFTER_THINK : WAIT_AFTER_OTHER, t };
-        return { ...st, s: st.s + 1, l: 0, c: 0, wait: WAIT_BETWEEN_STEPS, t };
+        // Finished the last line: hold here. There is no "advance to the next step" any more —
+        // the agent doing the next real tool call is what advances it.
+        if (nextL >= lines.length) return st;
+        return { l: nextL, c: 0, wait: line.kind === "think" ? WAIT_AFTER_THINK : WAIT_AFTER_OTHER };
       });
     }, TICK_MS);
-    return () => {
-      if (engineTimer.current) clearInterval(engineTimer.current);
-    };
-  }, [planSnapshot]); // one interval for the whole playback; replay() just resets `engine`, same interval keeps ticking it
+    return () => clearInterval(id);
+  }, []);
+
+  // Real seconds the agent has been working, ticking while it still is. Stops mattering (and stops
+  // re-rendering) once everything has settled.
+  useEffect(() => {
+    if (settled || !event?.createdAt) return;
+    const id = setInterval(() => setNowTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [settled, event?.createdAt]);
+
+  const replay = useCallback(() => setCursor({ l: 0, c: 0, wait: 8 }), []);
 
   const completeOnboarding = async (sid: string) => {
     const mapped = await finishQuestionSession({ sessionId: sid });
@@ -303,29 +307,27 @@ export default function Planning() {
   const chatX = page.interpolate({ inputRange: [0, 1], outputRange: [-TOWARD * width, 0] });
   const showOpeningPrompt = messages.length === 0 && !sessionId && !onboardingComplete;
 
-  // Derives what each step row looks like right now from the engine's raw tick state — mirrors
-  // the reference's renderVals(): which step is active, how far its current line has typed, and
-  // which steps are still dimmed and waiting their turn.
+  // Every row's state comes from the checklist itself now; `cursor` only decides how much of the
+  // ACTIVE step's trace has been typed out so far. Nothing here can claim a step is finished that
+  // the backend hasn't actually finished.
   const playback = useMemo(() => {
-    if (!planSnapshot) return null;
-    const total = planSnapshot.length;
-    const { s, l, c, t } = engine;
-    const allDone = s >= total - 1;
-    const steps = planSnapshot.map((step, i) => {
-      const isDone = i < s;
-      const isActive = i === s && !allDone;
-      const isPending = !isDone && !isActive;
-      const waiting = i === total - 1 && allDone; // "send" step, once everything else has settled
+    if (!checklist) return null;
+    const steps = items.map((step, i) => {
+      const isActive = i === activeIdx;
+      const isDone = step.state === "done";
       const lines = isActive
-        ? step.trace.slice(0, l + 1).map((ln, j) => {
-            const full = j < l;
-            return { ...ln, text: full ? ln.text : ln.text.slice(0, c), cursor: j === l };
-          })
+        ? activeTrace.slice(0, cursor.l + 1).map((ln, j) => ({
+            ...ln,
+            text: j < cursor.l ? ln.text : ln.text.slice(0, cursor.c),
+            cursor: j === cursor.l,
+          }))
         : [];
-      return { step, isDone, isActive, isPending, waiting, lines };
+      return { step, isDone, isActive, isPending: !isDone && !isActive, waiting: step.key === "send" && settled, lines };
     });
-    return { steps, allDone, doneCount: Math.min(s, total - 1), total, elapsed: (t * (TICK_MS / 1000)).toFixed(1) };
-  }, [planSnapshot, engine]);
+    const elapsed = event?.createdAt && !settled ? ((Date.now() - event.createdAt) / 1000).toFixed(0) : null;
+    return { steps, allDone: settled, doneCount: checklist.doneCount, total: checklist.total, elapsed };
+    // nowTick is only here to re-run the elapsed clock each second; it isn't read directly.
+  }, [checklist, items, activeIdx, activeTrace, cursor, settled, event?.createdAt, nowTick]);
 
   return (
     <KeyboardAvoidingView
