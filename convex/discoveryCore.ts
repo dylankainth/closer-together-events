@@ -258,31 +258,134 @@ export function toPickView(e: Keyed, p: PickState, now: number, friendsGoing: Ca
   };
 }
 
+function soonest(candidates: Keyed[]): Keyed[] {
+  return [...candidates].sort((a, b) => a.startsAt - b.startsAt || kmFromMenlo(a) - kmFromMenlo(b));
+}
+
+/** Keyword score and template reason for one candidate (the deterministic, no-Muse judgement). */
+function scoreCandidate(profile: RankProfile, c: Keyed, now: number): PickDraft {
+  const wanted = terms(profile);
+  const pastCats = profile.pastEvents.filter((p) => p.category).map((p) => ({ cat: p.category!.toLowerCase(), title: p.title }));
+  const hay = `${c.title} ${c.category ?? ""} ${c.description}`.toLowerCase();
+  const hit = wanted.find((t) => hay.includes(t));
+  const past = c.category ? pastCats.find((p) => p.cat === c.category!.toLowerCase()) : undefined;
+  const matches = wanted.filter((t) => hay.includes(t)).length;
+  const days = (c.startsAt - now) / DAY_MS;
+  const score = matches * 3 + (past ? 2 : 0) - days * 0.1 - kmFromMenlo(c) * 0.02;
+  const reason = hit
+    ? `You're into ${hit}, and it's ${weekday(c.startsAt)}.`
+    : past
+      ? `Like ${past.title.slice(0, 40)}, which you went to.`
+      : `It's ${weekday(c.startsAt)}, about ${Math.round(kmFromMenlo(c))} km away.`;
+  return { key: c.key, verdict: hit || past ? "go" : "maybe", reason: clampReason(reason), score, kind: "personal" };
+}
+
 /** Deterministic picks when Muse is unavailable. No profile means "popular": soonest first. */
 export function fallbackRank(profile: RankProfile | null, candidates: Keyed[], now: number): PickDraft[] {
   if (!profile) {
-    return [...candidates]
-      .sort((a, b) => a.startsAt - b.startsAt || kmFromMenlo(a) - kmFromMenlo(b))
+    return soonest(candidates)
       .slice(0, MAX_PICKS)
       .map((c, i) => ({ key: c.key, verdict: "maybe", reason: POPULAR_REASON, score: MAX_PICKS - i, kind: "popular" }));
   }
-  const wanted = terms(profile);
-  const pastCats = profile.pastEvents.filter((p) => p.category).map((p) => ({ cat: p.category!.toLowerCase(), title: p.title }));
-  const scored = candidates.map((c) => {
-    const hay = `${c.title} ${c.category ?? ""} ${c.description}`.toLowerCase();
-    const hit = wanted.find((t) => hay.includes(t));
-    const past = c.category ? pastCats.find((p) => p.cat === c.category!.toLowerCase()) : undefined;
-    const matches = wanted.filter((t) => hay.includes(t)).length;
-    const days = (c.startsAt - now) / DAY_MS;
-    const score = matches * 3 + (past ? 2 : 0) - days * 0.1 - kmFromMenlo(c) * 0.02;
-    const km = Math.round(kmFromMenlo(c));
-    const reason = hit
-      ? `You're into ${hit}, and it's ${weekday(c.startsAt)}.`
-      : past
-        ? `Like ${past.title.slice(0, 40)}, which you went to.`
-        : `It's ${weekday(c.startsAt)}, about ${km} km away.`;
-    const pick: PickDraft = { key: c.key, verdict: hit || past ? "go" : "maybe", reason: clampReason(reason), score, kind: "personal" };
-    return pick;
+  return candidates
+    .map((c) => scoreCandidate(profile, c, now))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_PICKS);
+}
+
+// ---- what Muse sees, and how its answer is cleaned ----
+
+export const MAX_CANDIDATES = 40;
+const ABOUT_CHARS = 200;
+const URL_RE = /https?:\/\/\S+|\b[\w-]+\.(com|ma|io|ai|org|net)\/\S*/gi;
+
+/** The n candidates worth showing Muse: best keyword score first (soonest if there is no profile). */
+export function preselect(profile: RankProfile | null, candidates: Keyed[], now: number, n: number = MAX_CANDIDATES): Keyed[] {
+  if (!profile) return soonest(candidates).slice(0, n);
+  const byKey = new Map(candidates.map((c) => [c.key, c]));
+  return candidates
+    .map((c) => scoreCandidate(profile, c, now))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n)
+    .map((p) => byKey.get(p.key)!);
+}
+
+const RANK_SYSTEM = [
+  "You are this person's Muse, choosing real public events near them that they would genuinely enjoy.",
+  `Pick up to ${MAX_PICKS} events from the candidates, best first. Use only the person and candidate data given.`,
+  `For each pick give verdict "go" (clearly their thing) or "maybe", and one sentence reason of at most ${MAX_REASON} characters`,
+  "that names a concrete link to them: an interest, their vibe, a past event they went to, or the day or distance.",
+  "Never generic (not 'this may interest you'). Never mention other people, prices you were not given, or anything private.",
+  'Reply as JSON: {"picks":[{"key":"<candidate key>","verdict":"go"|"maybe","reason":"..."}]}.',
+].join(" ");
+
+export function buildRankPrompt(profile: RankProfile, candidates: Keyed[], now: number) {
+  const chosen = preselect(profile, candidates, now, MAX_CANDIDATES);
+  return {
+    system: RANK_SYSTEM,
+    user: {
+      person: {
+        interests: profile.interests,
+        vibe: profile.vibe,
+        pastEvents: profile.pastEvents.map((p) => ({ title: p.title, category: p.category, howWasIt: p.feedback })),
+      },
+      candidates: chosen.map((c) => ({
+        key: c.key,
+        title: c.title,
+        category: c.category,
+        when: formatWhen(c.startsAt),
+        city: (c.city ?? "").split(",")[0].trim(),
+        price: c.price,
+        about: c.description.replace(URL_RE, "").replace(/\s+/g, " ").trim().slice(0, ABOUT_CHARS),
+      })),
+    },
+  };
+}
+
+export interface RankResponseShape {
+  picks: { key: string; verdict: "go" | "maybe"; reason: string }[];
+}
+
+/** Keep only real, unique candidates, at most MAX_PICKS, with safe reasons of at most 90 chars.
+ * A leaking or empty reason falls back to the deterministic one; fewer than 3 picks are topped up. */
+export function cleanRankResponse(resp: RankResponseShape, keys: Set<string>, fallback: PickDraft[], isLeak: (s: string) => boolean): PickDraft[] {
+  const out: PickDraft[] = [];
+  const seen = new Set<string>();
+  for (const p of resp.picks ?? []) {
+    if (out.length >= MAX_PICKS) break;
+    if (!keys.has(p.key) || seen.has(p.key)) continue;
+    let reason = clampReason(p.reason ?? "");
+    if (!reason || isLeak(reason)) reason = fallback.find((f) => f.key === p.key)?.reason ?? "";
+    if (!reason || isLeak(reason)) continue;
+    seen.add(p.key);
+    out.push({ key: p.key, verdict: p.verdict === "go" ? "go" : "maybe", reason, score: 100 - out.length, kind: "personal" });
+  }
+  if (out.length < 3) {
+    for (const f of fallback) {
+      if (out.length >= MAX_PICKS) break;
+      if (seen.has(f.key)) continue;
+      seen.add(f.key);
+      out.push({ ...f, score: 50 - out.length });
+    }
+  }
+  return out;
+}
+
+// ---- seeded history for demo personas ----
+
+const PAST_FEEDBACK = ["Loved it, would go again.", "Good crowd, ran a bit long.", "Fun, met some new people."];
+const PAST_FORMATS = ["meetup", "night", "workshop"];
+
+/** 2-3 past events a demo persona went to, derived from their interests, so Muse can cite them. */
+export function pastEventsFor(personaId: string, interests: string[]) {
+  return interests.slice(0, 3).map((interest, i) => {
+    const name = interest.charAt(0).toUpperCase() + interest.slice(1);
+    return {
+      personaId,
+      title: `${name} ${PAST_FORMATS[i % PAST_FORMATS.length]}`,
+      category: interest.toLowerCase(),
+      when: Date.UTC(2026, 8 + (i % 2), 10 + i * 7, 2),
+      feedback: PAST_FEEDBACK[i % PAST_FEEDBACK.length],
+    };
   });
-  return scored.sort((a, b) => b.score - a.score).slice(0, MAX_PICKS);
 }

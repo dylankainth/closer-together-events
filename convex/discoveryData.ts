@@ -3,7 +3,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { discoveredInputV, pickKindV, pickVerdictV, reasonSourceV } from "./discoveryValidators";
-import { mergeDuplicates, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
+import { mergeDuplicates, pastEventsFor, qualifies, WINDOW_DAYS, type DiscoveredInput, type Keyed, type RankProfile } from "./discoveryCore";
 import type { Doc } from "./_generated/dataModel";
 
 const MAX_DESCRIPTION = 2000;
@@ -106,5 +106,33 @@ export const savePicks = internalMutation({
       saved += 1;
     }
     return { saved };
+  },
+});
+
+/** Seed 2-3 past events per demo persona (only where none exist), so Muse can cite them. */
+export const seedPastEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const personas = await ctx.db.query("personas").collect();
+    let inserted = 0;
+    for (const p of personas) {
+      if (!p.hasMuse || p.personaId.startsWith("fb_")) continue;
+      const has = await ctx.db.query("pastEvents").withIndex("by_persona", (q) => q.eq("personaId", p.personaId)).first();
+      if (has) continue;
+      for (const row of pastEventsFor(p.personaId, p.interests)) {
+        await ctx.db.insert("pastEvents", row);
+        inserted += 1;
+      }
+    }
+    return { inserted };
+  },
+});
+
+/** Private facts used ONLY to check Muse's reasons for leaks; never sent to a model. */
+export const leakGuardFor = internalQuery({
+  args: { personaId: v.string() },
+  handler: async (ctx, { personaId }): Promise<string[]> => {
+    const persona = await ctx.db.query("personas").withIndex("by_personaId", (q) => q.eq("personaId", personaId)).unique();
+    return persona ? [...persona.secrets, ...persona.neverShare].map((s) => s.toLowerCase()) : [];
   },
 });
