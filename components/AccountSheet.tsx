@@ -140,7 +140,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
           {museProfile ? (
             <>
               <Text style={styles.museLine}>
-                Muse would share: interests: {museProfile.interests.join(", ") || "—"}; availability:{" "}
+                Muse would share: interests: {museProfile.interests.join(", ") || "not set yet"}; availability:{" "}
                 {museProfile.availability.length || 0} slot{museProfile.availability.length === 1 ? "" : "s"}.
               </Text>
               <Text style={styles.museLine}>
@@ -233,13 +233,13 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
               <Text style={styles.museLine}>No summary yet.</Text>
             ) : (
               <>
-                <Text style={styles.museLine}>Interests: {eventSafeProfile.interests.join(", ") || "—"}</Text>
-                <Text style={styles.museLine}>Social style: {eventSafeProfile.socialStyle || "—"}</Text>
+                <Text style={styles.museLine}>Interests: {eventSafeProfile.interests.join(", ") || "Not set yet"}</Text>
+                <Text style={styles.museLine}>Social style: {eventSafeProfile.socialStyle || "Not set yet"}</Text>
                 <Text style={styles.museLine}>
                   Availability: {eventSafeProfile.availability.length} slot{eventSafeProfile.availability.length === 1 ? "" : "s"}
                 </Text>
                 {userSettings.settings.profileApproved ? (
-                  <Text style={styles.museStatus}>Approved — Muse can use this summary for events</Text>
+                  <Text style={styles.museStatus}>Approved: Muse can use this summary for events</Text>
                 ) : (
                   <Pressable style={styles.secondaryBtn} onPress={() => approveProfile({ personaId: viewerId })}>
                     <Text style={styles.secondaryBtnTextNeutral}>Approve this summary</Text>
@@ -288,7 +288,9 @@ const styles = StyleSheet.create({
   museStatus: { color: colors.success, fontWeight: "700", fontSize: 12 },
   museStatusPending: { color: colors.warning, fontWeight: "700", fontSize: 12 },
   museLine: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
-  museApproveRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  // gap + a shrinking label: a long label ("Let your Muse talk to friends' Muses about events") wraps instead of
+  // pushing its switch off the edge of the sheet.
+  museApproveRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm, gap: spacing.md },
   resyncText: { color: colors.museAccent, fontWeight: "600", fontSize: 13, marginTop: spacing.sm },
   subLabel: { fontWeight: "700", color: colors.text, fontSize: 13, marginTop: spacing.md, marginBottom: spacing.xs },
   lockedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
@@ -303,6 +305,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
   search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md, color: colors.text },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm },
-  rowName: { fontWeight: "600", color: colors.text },
+  rowName: { fontWeight: "600", color: colors.text, flexShrink: 1 },
   rowSub: { color: colors.textMuted, fontSize: 12 },
 });
